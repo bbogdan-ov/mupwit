@@ -161,7 +161,8 @@ void *do_fetch_cur_artwork(void *client) {
 
 	if (comps > 0) {
 		unsigned char *data = img.data;
-		int r, g, b = 0;
+		int r, g, b;
+		r = g = b = 0;
 		int n = 0;
 		for (int i = 0; i < img.width * img.height * comps; i += comps) {
 			r += data[i + 0];
