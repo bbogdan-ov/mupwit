@@ -11,13 +11,13 @@ FONTS := $(shell find assets/fonts/ -name '*.ttf')
 
 # Build!!!
 $(BUILD_DIR)/mupwit: $(SOURCES) $(INCLUDES) $(BUILD_DIR)/fonts.h $(BUILD_DIR)/fonts.o
-	gcc $(FLAGS) $(LIBS) \
+	gcc $(CFLAGS) $(FLAGS) $(LIBS) \
 		$(SOURCES) $(BUILD_DIR)/fonts.o -o $(BUILD_DIR)/mupwit
 
 # Compile fonts.h down to an object file so we don't compile it every time we
 # change source files of the projects
 $(BUILD_DIR)/fonts.o: $(BUILD_DIR)/fonts.h
-	gcc $(FLAGS) -DFONTS_IMPLEMENTATION -c -x c \
+	gcc $(FLAGS) -DFONTS_IMPLEMENTATION -c -x c -O3 \
 		$(BUILD_DIR)/fonts.h -o $(BUILD_DIR)/fonts.o
 
 # Generate fonts.h that contains rasterized fonts data
