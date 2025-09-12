@@ -54,6 +54,20 @@ void draw_icon(State *state, Icon icon, Vec pos, Color color) {
 	DrawTexturePro(state->icons, source, dest, (Vec){0}, 0, color);
 }
 
+void draw_box(State *state, Box box, Rect rect, Color color) {
+	NPatchInfo npatch = (NPatchInfo){
+		.source = {box * 18, 0, 18, 18},
+		.left   = 6,
+		.top    = 6,
+		.right  = 6,
+		.bottom = 6,
+		.layout = NPATCH_NINE_PATCH,
+	};
+
+	rect = rect_shrink(rect, -3, -3);
+	DrawTextureNPatch(state->boxes, npatch, rect, (Vec){0}, 0, color);
+}
+
 Rect rect_shrink(Rect rect, float hor, float ver) {
 	return (Rect){
 		.x = rect.x + hor,

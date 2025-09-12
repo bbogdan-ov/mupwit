@@ -24,11 +24,17 @@ typedef struct Text {
 
 typedef enum Icon {
 	ICON_PROGRESS_THUMB = 0,
-	ICON_PLAY           = 1,
-	ICON_PAUSE          = 2,
-	ICON_PREV           = 3,
-	ICON_NEXT           = 4,
+	ICON_PLAY,
+	ICON_PAUSE,
+	ICON_PREV,
+	ICON_NEXT,
 } Icon;
+
+typedef enum Box {
+	BOX_NORMAL = 0,
+	BOX_ROUNDED,
+	BOX_FANCY,
+} Box;
 
 void draw_texture_quad(Texture tex, Rect rect, Color tint);
 
@@ -38,6 +44,8 @@ void draw_text(Text text);
 Vec draw_cropped_text(Text text, float max_width, Color background);
 
 void draw_icon(State *state, Icon icon, Vec pos, Color color);
+
+void draw_box(State *state, Box box, Rect rect, Color color);
 
 Rect rect_shrink(Rect rect, float hor, float ver);
 

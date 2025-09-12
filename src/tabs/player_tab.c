@@ -77,14 +77,6 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 	// ==============================
 
 	Vec text_offset = vec(container.x, offset_y);
-	NPatchInfo npatch = (NPatchInfo){
-		.source = rect(0, 0, 9, 9),
-		.left = 3,
-		.top = 3,
-		.right = 3,
-		.bottom = 3,
-		.layout = NPATCH_NINE_PATCH,
-	};
 	Text text = (Text){
 		.text = title,
 		.font = state->title_font,
@@ -113,13 +105,10 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 	// Draw control buttons
 	text_offset.y += gap;
 
-	npatch.source.x = 9;
-	DrawTextureNPatch(
-		state->boxes,
-		npatch,
-		rect(text_offset.x, text_offset.y, ICON_SIZE*3, ICON_SIZE),
-		(Vec){0},
-		0,
+	draw_box(
+		state,
+		BOX_ROUNDED,
+		rect(text_offset.x, text_offset.y, ICON_SIZE * 3, ICON_SIZE),
 		THEME_BLACK
 	);
 
@@ -152,14 +141,7 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 		container.width + padding - text_offset.x,
 		4
 	);
-	DrawTextureNPatch(
-		state->boxes,
-		npatch,
-		bar_rect,
-		(Vec){0},
-		0,
-		THEME_BLACK
-	);
+	draw_box(state, BOX_NORMAL, bar_rect, THEME_BLACK);
 	text_offset.y += bar_rect.height + 4;
 
 	static bool is_seeking = false;
