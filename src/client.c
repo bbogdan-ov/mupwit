@@ -7,7 +7,9 @@
 #include "client.h"
 #include "macros.h"
 
-// TODO: do something when queue is empty
+// TODO: do something when queue is empty, because it crashes for some reason
+// and i don't really understand why (i tried to debug, but i have to connect
+// to a MPD server which closes the connection after a timeout)
 
 Client client_new(void) {
 	pthread_mutex_t mutex;
@@ -259,7 +261,7 @@ void *do_connect(void *client) {
 
 	c->conn = conn;
 	c->conn_state = CLIENT_CONN_STATE_READY;
-	fetch_status(c);
+	// fetch_status(c);
 
 defer:
 	UNLOCK(&c->mutex);
@@ -290,6 +292,8 @@ void client_update(Client *c, Player *player, State *state) {
 	c->update_timer_ms -= (int)(GetFrameTime() * 1000);
 
 	if (c->update_timer_ms <= 0) {
+		fetch_status(c);
+
 		if (c->artwork_image_changed) {
 			if (c->has_artwork_image)
 				state_set_artwork(state, c->artwork_image, c->artwork_average_color);
@@ -303,8 +307,6 @@ void client_update(Client *c, Player *player, State *state) {
 		player->cur_status = c->cur_status;
 
 		c->update_timer_ms = CLIENT_UPDATE_EVERY_MS;
-
-		fetch_status(c);
 	}
 
 	UNLOCK(&c->mutex);
