@@ -6,6 +6,7 @@ INCLUDES := src/main.c src/draw.c src/client.c src/player.c src/state.c \
 			src/tabs/player_tab.c
 
 mupwit: $(INCLUDES)
+	mkdir -p ./build
 	gcc $(FLAGS) $(LIBS) \
-		-o mupwit \
+		-o ./build/mupwit \
 		$(INCLUDES)

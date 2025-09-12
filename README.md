@@ -23,7 +23,7 @@ and learning purposes.
 
 ```sh
 make -B
-./mupwit
+./build/mupwit
 ```
 
 ## License
