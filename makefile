@@ -1,4 +1,4 @@
-FLAGS := -Wall -Wextra -std=c99 -pedantic -ggdb
+FLAGS := -Wall -Wextra -std=c99 -pedantic
 
 LIBS := -lraylib -lmpdclient -lm
 
