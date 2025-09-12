@@ -4,7 +4,7 @@
 #include "./theme.h"
 #include "./state.h"
 
-#include "../build/fonts.h"
+#include "../build/assets.h"
 
 State state_new(void) {
 	// Create fonts

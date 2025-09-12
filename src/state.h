@@ -1,5 +1,5 @@
-#ifndef ASSETS_H
-#define ASSETS_H
+#ifndef STATE_H
+#define STATE_H
 
 #include <raylib.h>
 
