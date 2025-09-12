@@ -12,7 +12,7 @@
 
 static const char *UNKNOWN = "<unknown>";
 
-char *format_time(int secs) {
+const char *format_time(int secs) {
 	if (secs > 60 * 60) {
 		return TextFormat("%02d:%02d:%02d", (int)(secs / 60 / 60), (int)(secs / 60) % 60, secs % 60);
 	} else if (secs > 60) {
