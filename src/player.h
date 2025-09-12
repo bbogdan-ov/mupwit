@@ -10,10 +10,6 @@ typedef struct Player {
 	// Current playback status
 	// `NULL` means no info is available
 	struct mpd_status *cur_status;
-
-	// Number of seconds to which client should set current song position in the next frame
-	// -1 - nothing is scheduled
-	int scheduled_seek;
 } Player;
 
 Player player_new(void);
