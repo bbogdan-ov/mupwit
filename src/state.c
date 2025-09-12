@@ -6,40 +6,28 @@
 
 #include "../build/assets.h"
 
-#define IMAGE(NAME) (Image){NAME ## _DATA, NAME ## _WIDTH,  NAME ## _HEIGHT, 1, NAME ## _PIXEL_FORMAT}
-#define TEXTURE(NAME) LoadTextureFromImage(IMAGE(NAME))
+#define FONT(NAME) (Font){ \
+		.baseSize = NAME ## _BASE_SIZE, \
+		.glyphCount = NAME ## _GLYPH_COUNT, \
+		.glyphPadding = NAME ## _GLYPH_PADDING, \
+		.texture = LoadTextureFromImage( \
+			(Image){NAME ## _IMAGE_DATA, NAME ## _IMAGE_WIDTH, NAME ## _IMAGE_HEIGHT, 1, NAME ## _PIXEL_FORMAT} \
+		), \
+		.recs = NAME ## _RECTS, \
+		.glyphs = NAME ## _GLYPHS, \
+	}
+
+#define TEXTURE(NAME) LoadTextureFromImage( \
+	(Image){NAME ## _DATA, NAME ## _WIDTH,  NAME ## _HEIGHT, 1, NAME ## _PIXEL_FORMAT})
 
 State state_new(void) {
-	// Create fonts
-	Image image = (Image){code9x7_IMAGE_DATA, code9x7_IMAGE_WIDTH, code9x7_IMAGE_HEIGHT, 1, code9x7_PIXEL_FORMAT};
-	Texture texture = LoadTextureFromImage(image);
-	Font normal_font = (Font) {
-		.baseSize = code9x7_BASE_SIZE,
-		.glyphCount = code9x7_GLYPH_COUNT,
-		.glyphPadding = code9x7_GLYPH_PADDING,
-		.texture = texture,
-		.recs = code9x7_RECTS,
-		.glyphs = code9x7_GLYPHS,
-	};
-
-	image = (Image){comicoro_IMAGE_DATA, comicoro_IMAGE_WIDTH,  comicoro_IMAGE_HEIGHT, 1, comicoro_PIXEL_FORMAT};
-	texture = LoadTextureFromImage(image);
-	Font title_font = (Font) {
-		.baseSize = comicoro_BASE_SIZE,
-		.glyphCount = comicoro_GLYPH_COUNT,
-		.glyphPadding = comicoro_GLYPH_PADDING,
-		.texture = texture,
-		.recs = comicoro_RECTS,
-		.glyphs = comicoro_GLYPHS,
-	};
-
-	// Load empty artwork texture
+	// Load textures
 	Texture empty_artwork = TEXTURE(empty_artwork);
 	SetTextureFilter(empty_artwork, TEXTURE_FILTER_BILINEAR);
 
 	return (State){
-		.normal_font = normal_font,
-		.title_font = title_font,
+		.normal_font = FONT(code9x7),
+		.title_font = FONT(comicoro),
 
 		.icons = TEXTURE(icons),
 		.boxes = TEXTURE(boxes),
