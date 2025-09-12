@@ -1,0 +1,209 @@
+#include <stdio.h>
+#include <math.h>
+#include <string.h>
+#include <mpd/client.h>
+
+#include "../draw.h"
+#include "../theme.h"
+#include "player_tab.h"
+
+static const char *UNKNOWN = "<unknown>";
+
+const char *tag_or_unknown(struct mpd_song *song, enum mpd_tag_type tag) {
+	const char *s = mpd_song_get_tag(song, tag, 0);
+	return s != NULL ? s : UNKNOWN;
+}
+
+bool draw_icon_button(State *state, Icon icon, Vec pos) {
+	Rect rec = rect(pos.x, pos.y, ICON_SIZE, ICON_SIZE);
+	bool hover = CheckCollisionPointRec(GetMousePosition(), rec);
+
+	if (hover && IsMouseButtonDown(MOUSE_BUTTON_LEFT))
+		pos.y += 1;
+
+	draw_icon(state, icon, pos, THEME_BLACK);
+
+	return hover && IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
+}
+
+void player_tab_draw(Player *player, Client *client, State *state) {
+	const char *title = UNKNOWN;
+	const char *album = UNKNOWN;
+	const char *artist = UNKNOWN;
+	enum mpd_state playstate = MPD_STATE_UNKNOWN;
+	unsigned elapsed_sec = 0;
+	unsigned duration_sec = 0;
+
+	if (player->cur_status) {
+		title = tag_or_unknown(player->cur_song, MPD_TAG_TITLE);
+		album = tag_or_unknown(player->cur_song, MPD_TAG_ALBUM);
+		artist = tag_or_unknown(player->cur_song, MPD_TAG_ARTIST);
+
+		playstate = mpd_status_get_state(player->cur_status);
+		elapsed_sec = (unsigned)(mpd_status_get_elapsed_ms(player->cur_status) / 1000);
+		duration_sec = mpd_status_get_total_time(player->cur_status);
+	}
+
+	int sw = GetScreenWidth();
+	int sh = GetScreenHeight();
+	int padding = 32;
+	int gap = 16;
+
+	Rect container = rect_shrink(rect(0, 0, sw, sh), padding, padding);
+	float offset_y = container.y;
+
+	// Draw artwork
+	Rect artwork_rect = rect(container.x, container.y, container.width, container.width);
+
+	DrawRectangleRec(rect_shrink(artwork_rect, -1, -1), THEME_ARTWORK_BORDER); // artwork borders
+
+	// Previous artwork
+	draw_texture_quad(state_prev_artwork_texture(state), artwork_rect, WHITE);
+	// Current artwork
+	float alpha = state->transition_progress * 8.0;
+	if (alpha > 1.0) alpha = 1.0;
+	draw_texture_quad(
+		state_cur_artwork_texture(state),
+		artwork_rect,
+		ColorAlpha(WHITE, alpha)
+	);
+
+	offset_y += artwork_rect.height + gap;
+
+	BeginScissorMode(container.x, container.y, container.width, container.height);
+
+	// ==============================
+	// Draw info
+	// ==============================
+
+	Vec text_offset = vec(container.x, offset_y);
+	NPatchInfo npatch = (NPatchInfo){
+		.source = rect(0, 0, 9, 9),
+		.left = 3,
+		.top = 3,
+		.right = 3,
+		.bottom = 3,
+		.layout = NPATCH_NINE_PATCH,
+	};
+	Text text = (Text){
+		.text = title,
+		.font = state->title_font,
+		.size = THEME_TITLE_TEXT_SIZE,
+		.pos = text_offset,
+		.color = THEME_TEXT,
+	};
+
+	// Draw song title
+	Vec text_bounds = draw_cropped_text(text, container.width, state->background);
+	text_offset.y += text_bounds.y;
+
+	// Draw artist and album
+	text = (Text){
+		.text = TextFormat("%s - %s", artist, album),
+		.font = state->normal_font,
+		.size = THEME_NORMAL_TEXT_SIZE,
+		.pos = text_offset,
+		.color = THEME_SUBTLE_TEXT,
+	};
+	text_bounds = draw_cropped_text(text, container.width, state->background);
+	text_offset.y += text_bounds.y;
+
+	EndScissorMode();
+
+	// Draw control buttons
+	text_offset.y += gap;
+
+	npatch.source.x = 9;
+	DrawTextureNPatch(
+		state->npatches,
+		npatch,
+		rect(text_offset.x, text_offset.y, ICON_SIZE*3, ICON_SIZE),
+		(Vec){0},
+		0,
+		THEME_BLACK
+	);
+
+	// Previous button
+	if (draw_icon_button(state, ICON_PREV, text_offset)) {
+		client_run_prev(client);
+	}
+	text_offset.x += ICON_SIZE;
+
+	// Play button
+	Icon play_icon = ICON_PLAY;
+	if (playstate == MPD_STATE_PLAY) play_icon = ICON_PAUSE;
+	if (draw_icon_button(state, play_icon, text_offset)) {
+		client_run_toggle(client);
+	}
+	text_offset.x += ICON_SIZE;
+
+	// Next button
+	if (draw_icon_button(state, ICON_NEXT, text_offset)) {
+		client_run_next(client);
+	}
+	text_offset.x += ICON_SIZE;
+
+	// Draw progress bar
+	text_offset.x += gap;
+	text_offset.y += ICON_SIZE/2 - 2;
+	Rect bar_rect = rect(
+		text_offset.x,
+		text_offset.y,
+		container.width + padding - text_offset.x,
+		4
+	);
+	DrawTextureNPatch(
+		state->npatches,
+		npatch,
+		bar_rect,
+		(Vec){0},
+		0,
+		THEME_BLACK
+	);
+	text_offset.y += bar_rect.height + 4;
+
+	static bool is_seeking = false;
+
+	bool bar_hover = CheckCollisionPointRec(
+		GetMousePosition(),
+		rect_shrink(bar_rect, 0, -4)
+	);
+	float elapsed_progress = (float)elapsed_sec / (float)duration_sec;
+
+	if (!is_seeking && bar_hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+		is_seeking = true;
+	}
+	if (is_seeking) {
+		float offset_x = GetMouseX() - bar_rect.x;
+		elapsed_progress = offset_x / bar_rect.width;
+		if (elapsed_progress > 1.0) elapsed_progress = 1.0;
+		else if (elapsed_progress < 0.0) elapsed_progress = 0.0;
+
+		if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+			client_run_seek(client, (int)(elapsed_progress * duration_sec));
+			is_seeking = false;
+		}
+	}
+
+	Rect fill_rect = rect_shrink(bar_rect, 1, 1);
+	fill_rect.width = floor(fill_rect.width * elapsed_progress);
+	DrawRectangleRec(fill_rect, THEME_BLACK);
+
+	draw_icon(
+		state,
+		ICON_PROGRESS_THUMB + (bar_hover || is_seeking),
+		vec(
+			fill_rect.x + fill_rect.width - ICON_SIZE/2,
+			bar_rect.y + bar_rect.height/2 - ICON_SIZE/2
+		),
+		THEME_BLACK
+	);
+
+	text_offset.y += ICON_SIZE/2 - 6;
+	text_offset.y += padding;
+
+	if (sh > text_offset.y) {
+		// TODO: temporarily
+		SetWindowSize(sw, text_offset.y);
+	}
+}
