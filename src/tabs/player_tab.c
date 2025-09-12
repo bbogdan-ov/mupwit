@@ -55,8 +55,6 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 	// Draw artwork
 	Rect artwork_rect = rect(container.x, container.y, container.width, container.width);
 
-	DrawRectangleRec(rect_shrink(artwork_rect, -1, -1), THEME_ARTWORK_BORDER); // artwork borders
-
 	// Previous artwork
 	draw_texture_quad(state_prev_artwork_texture(state), artwork_rect, WHITE);
 	// Current artwork
@@ -67,6 +65,9 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 		artwork_rect,
 		ColorAlpha(WHITE, alpha)
 	);
+
+	// Artwork border
+	draw_box(state, BOX_3D, rect_shrink(artwork_rect, -1, -1), THEME_BLACK);
 
 	offset_y += artwork_rect.height + gap;
 

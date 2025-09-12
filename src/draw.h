@@ -33,7 +33,7 @@ typedef enum Icon {
 typedef enum Box {
 	BOX_NORMAL = 0,
 	BOX_ROUNDED,
-	BOX_FANCY,
+	BOX_3D,
 } Box;
 
 void draw_texture_quad(Texture tex, Rect rect, Color tint);
