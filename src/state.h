@@ -15,10 +15,10 @@ typedef struct State {
 	Font normal_font;
 	Font title_font;
 
-	// Spritesheet of 16x16 icons
+	// Spritesheet of icons
 	Texture icons;
-	// Spritesheet of 9x9 NPatch thingies
-	Texture npatches;
+	// Spritesheet of NPatch thingies to draw fancy boxes/blocks
+	Texture boxes;
 
 	// Used if there is no album artwork of the currently playing song
 	Texture empty_artwork;

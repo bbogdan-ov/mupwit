@@ -115,7 +115,7 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 
 	npatch.source.x = 9;
 	DrawTextureNPatch(
-		state->npatches,
+		state->boxes,
 		npatch,
 		rect(text_offset.x, text_offset.y, ICON_SIZE*3, ICON_SIZE),
 		(Vec){0},
@@ -153,7 +153,7 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 		4
 	);
 	DrawTextureNPatch(
-		state->npatches,
+		state->boxes,
 		npatch,
 		bar_rect,
 		(Vec){0},

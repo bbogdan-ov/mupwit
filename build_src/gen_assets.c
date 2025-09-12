@@ -6,6 +6,8 @@
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "./stb_truetype.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "./stb_image.h"
 
 #define CODEPOINT_START 0x20
 #define CODEPOINT_STOP 0x3000
@@ -70,6 +72,8 @@ void generate_font(FILE *file, const char *name, const char *path, int base_size
 	fprintf(file, "extern unsigned char %s_IMAGE_DATA[];\n", name);
 
 	fprintf(file, "#ifdef ASSETS_IMPLEMENTATION\n");
+
+	// Generate rectangles
 	fprintf(file, "Rectangle %s_RECTS[] = {\n", name);
 	for (int i = 0; i < CODEPOINT_COUNT; i++) {
 		unsigned short w = bboxes[i].x1 - bboxes[i].x0;
@@ -78,6 +82,7 @@ void generate_font(FILE *file, const char *name, const char *path, int base_size
 	}
 	fprintf(file, "};\n\n");
 
+	// Generate glyph info
 	fprintf(file, "GlyphInfo %s_GLYPHS[] = {\n", name);
 	for (int i = 0; i < CODEPOINT_COUNT; i++) {
 		fprintf(
@@ -91,17 +96,56 @@ void generate_font(FILE *file, const char *name, const char *path, int base_size
 	}
 	fprintf(file, "};\n\n");
 
+	// Generate image data
 	fprintf(file, "unsigned char %s_IMAGE_DATA[] = {\n", name);
-
 	for (int i = 0; i < BITMAP_LEN; i++) {
 		fprintf(file, "%d,%d,", 255, bitmap[i]);
 		if (i % 64 == 0) fputc('\n', file);
 	}
-
 	fprintf(file, "\n};\n\n");
 
 	fprintf(file, "#endif\n");
 #endif
+}
+
+void generate_image(FILE *file, const char *name, const char *path) {
+	int width, height, comps;
+	unsigned char *data = stbi_load(path, &width, &height, &comps, 0);
+	if (data == NULL) {
+		fprintf(stderr, "ERROR: Something went wrong when reading image file %s\n", path);
+		exit(1);
+	}
+
+	fprintf(file, "#define %s_WIDTH %d\n", name, width);
+	fprintf(file, "#define %s_HEIGHT %d\n", name, height);
+
+	fprintf(file, "#define %s_PIXEL_FORMAT ", name);
+	if (comps == 3) {
+		fprintf(file, "PIXELFORMAT_UNCOMPRESSED_R8G8B8\n");
+	} else if (comps == 4) {
+		fprintf(file, "PIXELFORMAT_UNCOMPRESSED_R8G8B8A8\n");
+	} else {
+		fprintf(stderr, "ERROR: Unhandled number of components (%d)\n", comps);
+		exit(1);
+	}
+
+	fprintf(file, "extern unsigned char %s_DATA[];\n", name);
+
+	fprintf(file, "#ifdef ASSETS_IMPLEMENTATION\n");
+
+	// Generate image data
+	fprintf(file, "unsigned char %s_DATA[] = {\n", name);
+	for (int i = 0; i < width * height * comps; i += comps) {
+		for (int j = 0; j < comps; j++) {
+			fprintf(file, "%d,", data[i + j]);
+		}
+		if (i % 64 == 0) fputc('\n', file);
+	}
+	fprintf(file, "\n};\n\n");
+
+	fprintf(file, "#endif\n");
+
+	stbi_image_free(data);
 }
 
 int main() {
@@ -117,6 +161,10 @@ int main() {
 
 	generate_font(output_file, "code9x7", "assets/fonts/code9x7.ttf", 16);
 	generate_font(output_file, "comicoro", "assets/fonts/comicoro.ttf", 15);
+
+	generate_image(output_file, "empty_artwork", "assets/images/empty-artwork.png");
+	generate_image(output_file, "icons", "assets/images/icons.png");
+	generate_image(output_file, "boxes", "assets/images/boxes.png");
 
 	fprintf(output_file, "#endif\n");
 	fclose(output_file);

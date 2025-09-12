@@ -6,6 +6,9 @@
 
 #include "../build/assets.h"
 
+#define IMAGE(NAME) (Image){NAME ## _DATA, NAME ## _WIDTH,  NAME ## _HEIGHT, 1, NAME ## _PIXEL_FORMAT}
+#define TEXTURE(NAME) LoadTextureFromImage(IMAGE(NAME))
+
 State state_new(void) {
 	// Create fonts
 	Image image = (Image){code9x7_IMAGE_DATA, code9x7_IMAGE_WIDTH, code9x7_IMAGE_HEIGHT, 1, code9x7_PIXEL_FORMAT};
@@ -19,7 +22,7 @@ State state_new(void) {
 		.glyphs = code9x7_GLYPHS,
 	};
 
-	image = (Image){comicoro_IMAGE_DATA, comicoro_IMAGE_WIDTH,  comicoro_IMAGE_HEIGHT,  1, comicoro_PIXEL_FORMAT};
+	image = (Image){comicoro_IMAGE_DATA, comicoro_IMAGE_WIDTH,  comicoro_IMAGE_HEIGHT, 1, comicoro_PIXEL_FORMAT};
 	texture = LoadTextureFromImage(image);
 	Font title_font = (Font) {
 		.baseSize = comicoro_BASE_SIZE,
@@ -31,15 +34,15 @@ State state_new(void) {
 	};
 
 	// Load empty artwork texture
-	Texture empty_artwork = LoadTexture("assets/images/empty-artwork.jpg");
+	Texture empty_artwork = TEXTURE(empty_artwork);
 	SetTextureFilter(empty_artwork, TEXTURE_FILTER_BILINEAR);
 
 	return (State){
 		.normal_font = normal_font,
 		.title_font = title_font,
 
-		.icons = LoadTexture("assets/images/icons.png"),
-		.npatches = LoadTexture("assets/images/npatches.png"),
+		.icons = TEXTURE(icons),
+		.boxes = TEXTURE(boxes),
 
 		.empty_artwork = empty_artwork,
 
