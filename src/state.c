@@ -4,28 +4,43 @@
 #include "./theme.h"
 #include "./state.h"
 
-#define CODEPOINT_START 0x20
-#define CODEPOINT_STOP 0x3000
-#define CODEPOINT_COUNT (CODEPOINT_STOP - CODEPOINT_START + 1)
+#include "../build/fonts.c"
 
 State state_new(void) {
-	// Load title font
-	static int codepoints[CODEPOINT_COUNT] = {0};
-	for (int i = 0; i < CODEPOINT_COUNT; i++)
-		codepoints[i] = CODEPOINT_START + i;
+	// Load fonts
+	Image image = (Image){
+		.data = code9x7_IMAGE_DATA,
+		.width = code9x7_IMAGE_WIDTH,
+		.height = code9x7_IMAGE_HEIGHT,
+		.mipmaps = 1,
+		.format = code9x7_PIXEL_FORMAT,
+	};
+	Texture texture = LoadTextureFromImage(image);
+	Font normal_font = (Font) {
+		.baseSize = code9x7_BASE_SIZE,
+		.glyphCount = code9x7_GLYPH_COUNT,
+		.glyphPadding = code9x7_GLYPH_PADDING,
+		.texture = texture,
+		.recs = code9x7_RECTS,
+		.glyphs = code9x7_GLYPHS,
+	};
 
-	Font normal_font = LoadFontEx(
-		"assets/fonts/code9x7.ttf",
-		THEME_NORMAL_FONT_SIZE,
-		codepoints,
-		CODEPOINT_COUNT
-	);
-	Font title_font = LoadFontEx(
-		"assets/fonts/comicoro.ttf",
-		THEME_TITLE_FONT_SIZE,
-		codepoints,
-		CODEPOINT_COUNT
-	);
+	image = (Image){
+		.data = comicoro_IMAGE_DATA,
+		.width = comicoro_IMAGE_WIDTH,
+		.height = comicoro_IMAGE_HEIGHT,
+		.mipmaps = 1,
+		.format = comicoro_PIXEL_FORMAT,
+	};
+	texture = LoadTextureFromImage(image);
+	Font title_font = (Font) {
+		.baseSize = comicoro_BASE_SIZE,
+		.glyphCount = comicoro_GLYPH_COUNT,
+		.glyphPadding = comicoro_GLYPH_PADDING,
+		.texture = texture,
+		.recs = comicoro_RECTS,
+		.glyphs = comicoro_GLYPHS,
+	};
 
 	// Load empty artwork texture
 	Texture empty_artwork = LoadTexture("assets/images/empty-artwork.jpg");
