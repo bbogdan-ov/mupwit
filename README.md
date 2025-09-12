@@ -22,7 +22,7 @@ and learning purposes.
 - libmpdclient: 2.23
 
 ```sh
-make -B
+CFLAGS=-O3 make -B
 ./build/mupwit
 ```
 
