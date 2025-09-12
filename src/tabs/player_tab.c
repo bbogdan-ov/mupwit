@@ -7,7 +7,20 @@
 #include "../theme.h"
 #include "player_tab.h"
 
+#define BAR_HEIGHT 4
+#define BAR_EXPAND 4
+
 static const char *UNKNOWN = "<unknown>";
+
+char *format_time(int secs) {
+	if (secs > 60 * 60) {
+		return TextFormat("%02d:%02d:%02d", (int)(secs / 60 / 60), (int)(secs / 60) % 60, secs % 60);
+	} else if (secs > 60) {
+		return TextFormat("%02d:%02d", (int)(secs / 60), secs % 60);
+	} else {
+		return TextFormat("00:%02d", secs);
+	}
+}
 
 const char *tag_or_unknown(struct mpd_song *song, enum mpd_tag_type tag) {
 	const char *s = mpd_song_get_tag(song, tag, 0);
@@ -135,21 +148,20 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 
 	// Draw progress bar
 	text_offset.x += gap;
-	text_offset.y += ICON_SIZE/2 - 2;
+	text_offset.y += BAR_HEIGHT + 1;
 	Rect bar_rect = rect(
 		text_offset.x,
 		text_offset.y,
 		container.width + padding - text_offset.x,
-		4
+		BAR_HEIGHT
 	);
 	draw_box(state, BOX_NORMAL, bar_rect, THEME_BLACK);
-	text_offset.y += bar_rect.height + 4;
 
 	static bool is_seeking = false;
 
 	bool bar_hover = CheckCollisionPointRec(
 		GetMousePosition(),
-		rect_shrink(bar_rect, 0, -4)
+		rect_shrink(bar_rect, 0, -BAR_EXPAND)
 	);
 	float elapsed_progress = (float)elapsed_sec / (float)duration_sec;
 
@@ -162,16 +174,20 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 		if (elapsed_progress > 1.0) elapsed_progress = 1.0;
 		else if (elapsed_progress < 0.0) elapsed_progress = 0.0;
 
+		elapsed_sec = (int)(elapsed_progress * duration_sec);
+
 		if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-			client_run_seek(client, (int)(elapsed_progress * duration_sec));
+			client_run_seek(client, elapsed_sec);
 			is_seeking = false;
 		}
 	}
 
+	// Draw progress bar fill
 	Rect fill_rect = rect_shrink(bar_rect, 1, 1);
 	fill_rect.width = floor(fill_rect.width * elapsed_progress);
 	DrawRectangleRec(fill_rect, THEME_BLACK);
 
+	// Draw progress bar thumb
 	draw_icon(
 		state,
 		ICON_PROGRESS_THUMB,
@@ -182,9 +198,17 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 		THEME_BLACK
 	);
 
-	text_offset.y += ICON_SIZE/2 - 6;
-	text_offset.y += padding;
+	// Draw time
+	text.text = format_time(elapsed_sec);
+	text.pos = vec(bar_rect.x, bar_rect.y + BAR_EXPAND + BAR_HEIGHT * 2);
+	draw_text(text);
 
+	text.text = format_time(duration_sec);
+	Vec size = measure_text(&text);
+	text.pos = vec(bar_rect.x + bar_rect.width - size.x, bar_rect.y + BAR_EXPAND + BAR_HEIGHT * 2);
+	draw_text(text);
+
+	text_offset.y += ICON_SIZE + padding;
 	if (sh > text_offset.y) {
 		// TODO: temporarily
 		SetWindowSize(sw, text_offset.y);
