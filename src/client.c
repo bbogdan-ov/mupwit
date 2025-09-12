@@ -32,7 +32,6 @@ Client client_new(void) {
 	};
 }
 
-// TODO: make it async
 // Read song album artwork into the specified buffer
 // Returns size of the read buffer (0 - no artwork, -1 - error)
 static int _readpicture(
