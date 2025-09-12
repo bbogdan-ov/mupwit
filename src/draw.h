@@ -23,11 +23,11 @@ typedef struct Text {
 } Text;
 
 typedef enum Icon {
-	ICON_PROGRESS_THUMB = 0, // hovered thumb = 1
-	ICON_PLAY = 2,
-	ICON_PAUSE = 3,
-	ICON_PREV = 4,
-	ICON_NEXT = 5,
+	ICON_PROGRESS_THUMB = 0,
+	ICON_PLAY           = 1,
+	ICON_PAUSE          = 2,
+	ICON_PREV           = 3,
+	ICON_NEXT           = 4,
 } Icon;
 
 void draw_texture_quad(Texture tex, Rect rect, Color tint);

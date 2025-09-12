@@ -191,7 +191,7 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 
 	draw_icon(
 		state,
-		ICON_PROGRESS_THUMB + (bar_hover || is_seeking),
+		ICON_PROGRESS_THUMB,
 		vec(
 			fill_rect.x + fill_rect.width - ICON_SIZE/2,
 			bar_rect.y + bar_rect.height/2 - ICON_SIZE/2
