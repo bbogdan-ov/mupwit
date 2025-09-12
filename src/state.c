@@ -4,17 +4,11 @@
 #include "./theme.h"
 #include "./state.h"
 
-#include "../build/fonts.c"
+#include "../build/fonts.h"
 
 State state_new(void) {
-	// Load fonts
-	Image image = (Image){
-		.data = code9x7_IMAGE_DATA,
-		.width = code9x7_IMAGE_WIDTH,
-		.height = code9x7_IMAGE_HEIGHT,
-		.mipmaps = 1,
-		.format = code9x7_PIXEL_FORMAT,
-	};
+	// Create fonts
+	Image image = (Image){code9x7_IMAGE_DATA, code9x7_IMAGE_WIDTH, code9x7_IMAGE_HEIGHT, 1, code9x7_PIXEL_FORMAT};
 	Texture texture = LoadTextureFromImage(image);
 	Font normal_font = (Font) {
 		.baseSize = code9x7_BASE_SIZE,
@@ -25,13 +19,7 @@ State state_new(void) {
 		.glyphs = code9x7_GLYPHS,
 	};
 
-	image = (Image){
-		.data = comicoro_IMAGE_DATA,
-		.width = comicoro_IMAGE_WIDTH,
-		.height = comicoro_IMAGE_HEIGHT,
-		.mipmaps = 1,
-		.format = comicoro_PIXEL_FORMAT,
-	};
+	image = (Image){comicoro_IMAGE_DATA, comicoro_IMAGE_WIDTH,  comicoro_IMAGE_HEIGHT,  1, comicoro_PIXEL_FORMAT};
 	texture = LoadTextureFromImage(image);
 	Font title_font = (Font) {
 		.baseSize = comicoro_BASE_SIZE,
