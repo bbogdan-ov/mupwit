@@ -170,6 +170,7 @@ void *do_fetch_cur_artwork(void *client) {
 	else if (img.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
 		comps = 4;
 
+	// Calculating the average color of the artwork
 	if (comps > 0) {
 		unsigned char *data = img.data;
 		int r, g, b;
