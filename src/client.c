@@ -154,8 +154,6 @@ void *do_fetch_cur_artwork(void *client) {
 		goto defer;
 	}
 
-	TraceLog(LOG_INFO, "MPD CLIENT: Trying to update current song artwork (type: %s)...", img_filetype);
-
 	// Unload previous CPU image
 	if (c->has_artwork_image)
 		UnloadImage(c->artwork_image);
@@ -210,8 +208,6 @@ void _set_cur_song(Client *c, struct mpd_status *status) {
 
 	// Set new current song
 	if (cur_song_id >= 0) {
-		TraceLog(LOG_INFO, "MPD CLIENT: CURRENT SONG UPDATE: Current song updated");
-
 		struct mpd_song *song = mpd_run_get_queue_song_id(c->conn, cur_song_id);
 		c->cur_song = song;
 		HANDLE_ERROR(c->conn);
