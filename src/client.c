@@ -316,26 +316,34 @@ void client_update(Client *c, Player *player, State *state) {
 
 void client_run_seek(Client *c, int seconds) {
 	if (TRYLOCK(&c->mutex) != 0) return;
-	mpd_run_seek_current(c->conn, seconds, false); // TODO: handle error
-	fetch_status(c);
+	if (mpd_run_seek_current(c->conn, seconds, false))
+		fetch_status(c);
+	else
+		HANDLE_ERROR(c->conn);
 	UNLOCK(&c->mutex);
 }
 void client_run_toggle(Client *c) {
 	if (TRYLOCK(&c->mutex) != 0) return;
-	mpd_send_command(c->conn, "pause", NULL); // TODO: handle error
-	assert(mpd_response_finish(c->conn));
+	bool res = mpd_send_command(c->conn, "pause", NULL);
+	res = res && mpd_response_finish(c->conn);
+	if (res) fetch_status(c);
+	else HANDLE_ERROR(c->conn);
 	UNLOCK(&c->mutex);
 }
 void client_run_next(Client *c) {
 	if (TRYLOCK(&c->mutex) != 0) return;
-	mpd_run_next(c->conn); // TODO: handle error
-	fetch_status(c);
+	if (mpd_run_next(c->conn))
+		fetch_status(c);
+	else
+		HANDLE_ERROR(c->conn);
 	UNLOCK(&c->mutex);
 }
 void client_run_prev(Client *c) {
 	if (TRYLOCK(&c->mutex) != 0) return;
-	mpd_run_previous(c->conn); // TODO: handle error
-	fetch_status(c);
+	if (mpd_run_previous(c->conn))
+		fetch_status(c);
+	else
+		HANDLE_ERROR(c->conn);
 	UNLOCK(&c->mutex);
 }
 
