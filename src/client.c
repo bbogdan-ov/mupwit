@@ -34,6 +34,18 @@ Client client_new(void) {
 	};
 }
 
+// Logs an libmpdclient error if any has occured and returns `true`,
+// otherwise `false`
+bool handle_error(struct mpd_connection *conn, int line) {
+	if (mpd_connection_get_error(conn) != MPD_ERROR_SUCCESS) {
+		TraceLog(LOG_ERROR, "MPD CLIENT (line %d): %s", line, mpd_connection_get_error_message(conn));
+		return true;
+	}
+	return false;
+}
+
+#define HANDLE_ERROR(CONN) handle_error(CONN, __LINE__)
+
 // Read song album artwork into the specified buffer
 // Returns size of the read buffer (0 - no artwork, -1 - error)
 static int _readpicture(
@@ -48,8 +60,7 @@ static int _readpicture(
 	while (true) {
 		bool res = mpd_send_readpicture(c->conn, song_uri, size);
 		if (!res) {
-			if (mpd_connection_get_error(c->conn) != MPD_ERROR_SUCCESS)
-				TraceLog(LOG_ERROR, "MPD CLIENT: CURRENT SONG UPDATE (line %d): %s", __LINE__, mpd_connection_get_error_message(c->conn));
+			HANDLE_ERROR(c->conn);
 			return -1;
 		}
 
@@ -203,13 +214,11 @@ void _set_cur_song(Client *c, struct mpd_status *status) {
 
 		struct mpd_song *song = mpd_run_get_queue_song_id(c->conn, cur_song_id);
 		c->cur_song = song;
+		HANDLE_ERROR(c->conn);
 
 		// Update current song artwork in the separate thread
 		pthread_t thread;
 		pthread_create(&thread, NULL, do_fetch_cur_artwork, c);
-
-		if (!song && mpd_connection_get_error(c->conn) != MPD_ERROR_SUCCESS)
-			TraceLog(LOG_ERROR, "MPD CLIENT: CURRENT SONG UPDATE: %s", mpd_connection_get_error_message(c->conn));
 	} else {
 		c->cur_song = NULL;
 	}
@@ -218,15 +227,12 @@ void fetch_status(Client *c) {
 	assert(c->conn);
 
 	struct mpd_status *status = mpd_run_status(c->conn);
+	c->cur_status = status;
 	if (status == NULL) {
-		c->cur_status = NULL;
-
-		if (mpd_connection_get_error(c->conn) != MPD_ERROR_SUCCESS)
-			TraceLog(LOG_ERROR, "MPD CLIENT: STATUS FETCH: %s", mpd_connection_get_error_message(c->conn));
+		HANDLE_ERROR(c->conn);
 		return;
 	}
 
-	c->cur_status = status;
 	_set_cur_song(c, status);
 
 	mpd_status_free(status);
@@ -248,8 +254,7 @@ void *do_connect(void *client) {
 	LOCK(&c->mutex);
 	LOCK(&c->conn_state_mutex);
 
-	if (mpd_connection_get_error(conn) != MPD_ERROR_SUCCESS) {
-		TraceLog(LOG_ERROR, "MPD CLIENT: CONNECTION: %s", mpd_connection_get_error_message(conn));
+	if (HANDLE_ERROR(conn)) {
 		mpd_connection_free(conn);
 
 		// TODO: set error message somewhere
