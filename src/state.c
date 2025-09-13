@@ -71,7 +71,7 @@ void state_update(State *s) {
 		target_color = ColorBrightness(target_color, 0.6);
 	}
 
-	// TODO: color animates at the startup, but we don't want that
+	// FIXME: color animates at the startup, but we don't want that
 	float progress = 1.0 - ((float)s->transition_timer_ms / (float)TRANSITION_MS);
 	s->transition_progress = progress;
 	s->background = ColorLerp(s->prev_background, target_color, ease_in_out_sine(progress));
