@@ -38,7 +38,7 @@ State state_new(void) {
 
 void set_prev_artwork(State *s) {
 	// FIXME: raylib won't allow me to update the texture size, so
-	// i have to delete the previous texture and create a new one
+	// i have to delete the previous texture and create a new one. Or does it?..
 	if (s->prev_artwork.exists)
 		UnloadTexture(s->prev_artwork.texture);
 
