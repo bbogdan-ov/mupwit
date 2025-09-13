@@ -41,7 +41,5 @@ void state_update(State *s);
 
 void state_set_artwork(State *s, Image image, Color average);
 void state_clear_artwork(State *s);
-Texture state_cur_artwork_texture(State *s);
-Texture state_prev_artwork_texture(State *s);
 
 #endif

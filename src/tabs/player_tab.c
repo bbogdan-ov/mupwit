@@ -39,6 +39,32 @@ bool draw_icon_button(State *state, Icon icon, Vec pos) {
 	return hover && IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
 }
 
+void draw_artwork(Artwork *artwork, Texture empty_artwork, Rect rect, Color tint) {
+	static int frame = 0;
+	static float frame_timer = 0;
+
+	if (artwork->exists)
+		draw_texture_quad(artwork->texture, rect, tint);
+	else {
+		frame_timer -= GetFrameTime();
+		if (frame_timer <= 0) {
+			frame += 1;
+			if (frame > 3) frame = 0;
+
+			frame_timer = 1.0 / 2.0;
+		}
+
+		DrawTexturePro(
+			empty_artwork,
+			(Rect){frame * 296, 0, 296, empty_artwork.height},
+			rect,
+			(Vec){0},
+			0,
+			tint
+		);
+	}
+}
+
 void player_tab_draw(Player *player, Client *client, State *state) {
 	const char *title = UNKNOWN;
 	const char *album = UNKNOWN;
@@ -69,12 +95,18 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 	Rect artwork_rect = rect(container.x, container.y, container.width, container.width);
 
 	// Previous artwork
-	draw_texture_quad(state_prev_artwork_texture(state), artwork_rect, WHITE);
+	draw_artwork(
+		&state->prev_artwork,
+		state->empty_artwork,
+		artwork_rect,
+		WHITE
+	);
 	// Current artwork
 	float alpha = state->transition_progress * 8.0;
 	if (alpha > 1.0) alpha = 1.0;
-	draw_texture_quad(
-		state_cur_artwork_texture(state),
+	draw_artwork(
+		&state->cur_artwork,
+		state->empty_artwork,
 		artwork_rect,
 		ColorAlpha(WHITE, alpha)
 	);

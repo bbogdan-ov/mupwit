@@ -91,15 +91,3 @@ void state_clear_artwork(State *s) {
 	s->prev_background = s->background;
 	s->transition_timer_ms = TRANSITION_MS;
 }
-Texture state_cur_artwork_texture(State *s) {
-	if (s->cur_artwork.exists)
-		return s->cur_artwork.texture;
-	else
-		return s->empty_artwork;
-}
-Texture state_prev_artwork_texture(State *s) {
-	if (s->prev_artwork.exists)
-		return s->prev_artwork.texture;
-	else
-		return s->empty_artwork;
-}
