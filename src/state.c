@@ -21,10 +21,6 @@
 	(Image){NAME ## _DATA, NAME ## _WIDTH,  NAME ## _HEIGHT, 1, NAME ## _PIXEL_FORMAT})
 
 State state_new(void) {
-	// Load textures
-	Texture empty_artwork = TEXTURE(empty_artwork);
-	SetTextureFilter(empty_artwork, TEXTURE_FILTER_BILINEAR);
-
 	return (State){
 		.normal_font = FONT(code9x7),
 		.title_font = FONT(comicoro),
@@ -32,7 +28,7 @@ State state_new(void) {
 		.icons = TEXTURE(icons),
 		.boxes = TEXTURE(boxes),
 
-		.empty_artwork = empty_artwork,
+		.empty_artwork = TEXTURE(empty_artwork),
 
 		.background = THEME_BACKGROUND,
 		.prev_background = THEME_BACKGROUND,
