@@ -305,8 +305,7 @@ void client_update(Client *c, Player *player, State *state) {
 			c->artwork_image_changed = false;
 		}
 
-		player->cur_song = c->cur_song;
-		player->cur_status = c->cur_status;
+		player_set_status(player, c->cur_status, c->cur_song);
 
 		c->update_timer_ms = CLIENT_UPDATE_EVERY_MS;
 	}

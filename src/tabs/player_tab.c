@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
@@ -78,13 +76,10 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 	if (player->cur_status) {
 		title = mpd_song_get_tag(player->cur_song, MPD_TAG_TITLE, 0);
 		if (title == NULL) {
-			// TODO: cache song filename
-			title = mpd_song_get_uri(player->cur_song);
-			if (title != NULL) {
-				title = memrchr(title, '/', strlen(title)) + 1;
-			} else {
+			if (player->cur_song_filename)
+				title = player->cur_song_filename;
+			else
 				title = UNKNOWN;
-			}
 		}
 
 		album = tag_or_unknown(player->cur_song, MPD_TAG_ALBUM);
