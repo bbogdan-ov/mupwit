@@ -48,7 +48,7 @@ bool handle_error(struct mpd_connection *conn, int line) {
 
 // Read song album artwork into the specified buffer
 // Returns size of the read buffer (0 - no artwork, -1 - error)
-static int _readpicture(
+static int readpicture(
 	Client *c,
 	char **buffer,
 	size_t capacity,
@@ -125,7 +125,7 @@ void *do_fetch_cur_artwork(void *client) {
 	size_t capacity = 1024 * 256; // 256KB
 	char *buffer = malloc(capacity);
 	char filetype[16] = {0};
-	int size = _readpicture(
+	int size = readpicture(
 		c,
 		&buffer,
 		capacity,
@@ -198,7 +198,7 @@ defer:
 	return NULL;
 }
 
-void _set_cur_song(Client *c, struct mpd_status *status) {
+void set_cur_song(Client *c, struct mpd_status *status) {
 	int cur_song_id = mpd_status_get_song_id(status);
 
 	bool changed = !c->cur_song || (int)mpd_song_get_id(c->cur_song) != cur_song_id;
@@ -232,7 +232,7 @@ void fetch_status(Client *c) {
 	}
 
 	c->cur_status = status;
-	_set_cur_song(c, status);
+	set_cur_song(c, status);
 
 	mpd_status_free(status);
 }
