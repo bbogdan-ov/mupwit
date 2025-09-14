@@ -30,6 +30,8 @@ int main() {
 		BeginDrawing();
 		ClearBackground(state.background);
 
+		state.cursor = MOUSE_CURSOR_DEFAULT;
+
 		switch (client.conn_state) {
 			case CLIENT_CONN_STATE_CONNECTING:
 				DrawText("connecting...", 0, 0, 30, BLACK);
@@ -42,6 +44,8 @@ int main() {
 				break;
 		}
 		UNLOCK(&client.conn_state_mutex);
+
+		SetMouseCursor(state.cursor);
 
 		EndDrawing();
 	}

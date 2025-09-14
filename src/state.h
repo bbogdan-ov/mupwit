@@ -29,6 +29,8 @@ typedef struct State {
 	// Currently playing song album artwork
 	Artwork cur_artwork;
 
+	MouseCursor cursor;
+
 	Color background;
 	Color prev_background;
 	int transition_timer_ms;

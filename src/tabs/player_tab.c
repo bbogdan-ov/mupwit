@@ -33,6 +33,8 @@ bool draw_icon_button(State *state, Icon icon, Vec pos) {
 
 	if (hover && IsMouseButtonDown(MOUSE_BUTTON_LEFT))
 		pos.y += 1;
+	else if (hover)
+		state->cursor = MOUSE_CURSOR_POINTING_HAND;
 
 	draw_icon(state, icon, pos, THEME_BLACK);
 
@@ -206,6 +208,8 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 	);
 	float elapsed_progress = (float)elapsed_sec / (float)duration_sec;
 
+	if (bar_hover)
+		state->cursor = MOUSE_CURSOR_POINTING_HAND;
 	if (!is_seeking && bar_hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
 		is_seeking = true;
 	}
