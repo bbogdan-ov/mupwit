@@ -352,4 +352,5 @@ void client_run_prev(Client *c) {
 void client_free(Client *c) {
 	if (c->conn) mpd_connection_free(c->conn);
 	if (c->cur_song) mpd_song_free(c->cur_song);
+	if (c->cur_status) mpd_status_free(c->cur_status);
 }
