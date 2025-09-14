@@ -23,8 +23,6 @@ and learning purposes.
 
 ```sh
 CFLAGS=-O3 make -B
-# make sure MPD server is running and a song is playing,
-# otherwise it will crash :((((
 ./build/mupwit
 ```
 
