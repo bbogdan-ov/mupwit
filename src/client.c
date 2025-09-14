@@ -7,10 +7,6 @@
 #include "client.h"
 #include "macros.h"
 
-// TODO: do something when queue is empty, because it crashes for some reason
-// and i don't really understand why (i tried to debug, but i have to connect
-// to a MPD server which closes the connection after a timeout)
-
 Client client_new(void) {
 	pthread_mutex_t mutex;
 	pthread_mutex_init(&mutex, NULL);
@@ -37,8 +33,10 @@ Client client_new(void) {
 // Logs an libmpdclient error if any has occured and returns `true`,
 // otherwise `false`
 bool handle_error(struct mpd_connection *conn, int line) {
-	if (mpd_connection_get_error(conn) != MPD_ERROR_SUCCESS) {
-		TraceLog(LOG_ERROR, "MPD CLIENT (line %d): %s", line, mpd_connection_get_error_message(conn));
+	enum mpd_error err = mpd_connection_get_error(conn);
+	if (err != MPD_ERROR_SUCCESS) {
+		const char *msg = mpd_connection_get_error_message(conn);
+		TraceLog(LOG_ERROR, "MPD CLIENT (line %d): %s (%d)", line, msg, err);
 		return true;
 	}
 	return false;
@@ -263,7 +261,6 @@ void *do_connect(void *client) {
 
 	c->conn = conn;
 	c->conn_state = CLIENT_CONN_STATE_READY;
-	// fetch_status(c);
 
 defer:
 	UNLOCK(&c->mutex);

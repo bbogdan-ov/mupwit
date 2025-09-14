@@ -14,8 +14,6 @@ void player_set_status(
 	struct mpd_status *cur_status,
 	struct mpd_song *cur_song
 ) {
-	assert(cur_song == NULL ? cur_status == NULL : cur_status != NULL);
-
 	p->cur_song = cur_song;
 	p->cur_status = cur_status;
 

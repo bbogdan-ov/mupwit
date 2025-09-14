@@ -74,6 +74,12 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 	unsigned duration_sec = 0;
 
 	if (player->cur_status) {
+		playstate = mpd_status_get_state(player->cur_status);
+		elapsed_sec = (unsigned)(mpd_status_get_elapsed_ms(player->cur_status) / 1000);
+		duration_sec = mpd_status_get_total_time(player->cur_status);
+	}
+
+	if (player->cur_song) {
 		title = mpd_song_get_tag(player->cur_song, MPD_TAG_TITLE, 0);
 		if (title == NULL) {
 			if (player->cur_song_filename)
@@ -84,10 +90,6 @@ void player_tab_draw(Player *player, Client *client, State *state) {
 
 		album = tag_or_unknown(player->cur_song, MPD_TAG_ALBUM);
 		artist = tag_or_unknown(player->cur_song, MPD_TAG_ARTIST);
-
-		playstate = mpd_status_get_state(player->cur_status);
-		elapsed_sec = (unsigned)(mpd_status_get_elapsed_ms(player->cur_status) / 1000);
-		duration_sec = mpd_status_get_total_time(player->cur_status);
 	}
 
 	int sw = GetScreenWidth();
