@@ -233,8 +233,6 @@ void fetch_status(Client *c) {
 
 	c->cur_status = status;
 	set_cur_song(c, status);
-
-	mpd_status_free(status);
 }
 
 void *do_connect(void *client) {
