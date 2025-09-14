@@ -224,12 +224,14 @@ void fetch_status(Client *c) {
 	assert(c->conn);
 
 	struct mpd_status *status = mpd_run_status(c->conn);
-	c->cur_status = status;
 	if (status == NULL) {
+		c->cur_song = NULL;
+		c->cur_status = NULL;
 		HANDLE_ERROR(c->conn);
 		return;
 	}
 
+	c->cur_status = status;
 	_set_cur_song(c, status);
 
 	mpd_status_free(status);
