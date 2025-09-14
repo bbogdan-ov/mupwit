@@ -9,13 +9,6 @@
 #include "macros.h"
 #include "theme.h"
 
-// TODO: set mouse cursor to pointer when hovering over interactive things.
-// For some FUCKING reason `SetMouseCursor` writes into some random ass memory
-// address (without causing a segfault) that causes some data (specifically
-// playback status data `player.cur_status`) to contain garbage number for ONLY
-// ONE FUCKING FRAME and after this frame everything gets normal. May be i
-// don't understand something?
-
 int main() {
 	InitWindow(THEME_WINDOW_WIDTH, THEME_WINDOW_HEIGHT, "MUPWIT");
 	SetTargetFPS(60);
