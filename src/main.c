@@ -35,9 +35,11 @@ int main() {
 
 		switch (client.conn_state) {
 			case CLIENT_CONN_STATE_CONNECTING:
+				// TODO: show proper message
 				DrawText("connecting...", 0, 0, 30, BLACK);
 				break;
 			case CLIENT_CONN_STATE_ERROR:
+				// TODO: show proper message
 				DrawText("error", 0, 0, 30, BLACK);
 				break;
 			case CLIENT_CONN_STATE_READY:
