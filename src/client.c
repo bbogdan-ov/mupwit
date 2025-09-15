@@ -197,48 +197,61 @@ defer:
 	return NULL;
 }
 
-void set_cur_song(Client *c, struct mpd_status *status) {
-	int cur_song_id = mpd_status_get_song_id(status);
-
-	bool changed = !c->cur_song || (int)mpd_song_get_id(c->cur_song) != cur_song_id;
-	if (!changed) return;
-	
-	// Free previously current song
-	if (c->cur_song) {
-		mpd_song_free(c->cur_song);
-		c->cur_song = NULL;
-	}
-
-	// Set new current song
-	if (cur_song_id >= 0) {
-		struct mpd_song *song = mpd_run_get_queue_song_id(c->conn, cur_song_id);
-		c->cur_song = song;
-		HANDLE_ERROR(c->conn);
-
-		// Update current song artwork in the separate thread
-		pthread_t thread;
-		pthread_create(&thread, NULL, do_fetch_cur_artwork, c);
-	}
+void set_cur_status(Client *c, struct mpd_status *status) {
+	if (c->cur_status) mpd_status_free(c->cur_status);
+	c->cur_status = status;
 }
-void fetch_status(Client *c) {
-	assert(c->conn);
-
-	// Free previously current status
+void set_cur_song(Client *c, struct mpd_song *song) {
+	if (c->cur_song) mpd_song_free(c->cur_song);
+	c->cur_song = song;
+}
+void clear_cur_status(Client *c) {
 	if (c->cur_status) {
 		mpd_status_free(c->cur_status);
 		c->cur_status = NULL;
 	}
+}
+void clear_cur_song(Client *c) {
+	if (c->cur_song) {
+		mpd_song_free(c->cur_song);
+		c->cur_song = NULL;
+	}
+}
+
+void fetch_status(Client *c) {
+	assert(c->conn);
 
 	struct mpd_status *status = mpd_run_status(c->conn);
 	if (status == NULL) {
-		c->cur_song = NULL;
-		c->cur_status = NULL;
+		clear_cur_status(c);
+		clear_cur_song(c);
 		HANDLE_ERROR(c->conn);
 		return;
 	}
 
-	c->cur_status = status;
-	set_cur_song(c, status);
+	set_cur_status(c, status);
+
+	int cur_song_id = mpd_status_get_song_id(status);
+	bool changed = !c->cur_song || (int)mpd_song_get_id(c->cur_song) != cur_song_id;
+	if (changed) {
+		clear_cur_song(c);
+
+		// Set new current song
+		if (cur_song_id >= 0) {
+			struct mpd_song *song = mpd_run_get_queue_song_id(c->conn, cur_song_id);
+			if (song == NULL) {
+				c->artwork_image_changed = true;
+				c->has_artwork_image = false;
+				HANDLE_ERROR(c->conn);
+			} else {
+				set_cur_song(c, song);
+
+				// Update current song artwork in the separate thread
+				pthread_t thread;
+				pthread_create(&thread, NULL, do_fetch_cur_artwork, c);
+			}
+		}
+	}
 }
 
 void *do_connect(void *client) {
