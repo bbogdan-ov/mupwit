@@ -31,10 +31,10 @@ bool draw_icon_button(State *state, Icon icon, Vec pos) {
 	Rect rec = rect(pos.x, pos.y, ICON_SIZE, ICON_SIZE);
 	bool hover = CheckCollisionPointRec(GetMousePosition(), rec);
 
+	if (hover)
+		state->cursor = MOUSE_CURSOR_POINTING_HAND;
 	if (hover && IsMouseButtonDown(MOUSE_BUTTON_LEFT))
 		pos.y += 1;
-	else if (hover)
-		state->cursor = MOUSE_CURSOR_POINTING_HAND;
 
 	draw_icon(state, icon, pos, THEME_BLACK);
 
