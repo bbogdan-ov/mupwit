@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <mpd/client.h>
 #include <mpd/async.h>
 
 #include "client.h"
