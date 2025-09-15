@@ -204,7 +204,10 @@ void set_cur_song(Client *c, struct mpd_status *status) {
 	if (!changed) return;
 	
 	// Free previously current song
-	if (c->cur_song) mpd_song_free(c->cur_song);
+	if (c->cur_song) {
+		mpd_song_free(c->cur_song);
+		c->cur_song = NULL;
+	}
 
 	// Set new current song
 	if (cur_song_id >= 0) {
@@ -215,12 +218,16 @@ void set_cur_song(Client *c, struct mpd_status *status) {
 		// Update current song artwork in the separate thread
 		pthread_t thread;
 		pthread_create(&thread, NULL, do_fetch_cur_artwork, c);
-	} else {
-		c->cur_song = NULL;
 	}
 }
 void fetch_status(Client *c) {
 	assert(c->conn);
+
+	// Free previously current status
+	if (c->cur_status) {
+		mpd_status_free(c->cur_status);
+		c->cur_status = NULL;
+	}
 
 	struct mpd_status *status = mpd_run_status(c->conn);
 	if (status == NULL) {
