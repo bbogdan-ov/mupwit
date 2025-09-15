@@ -5,6 +5,11 @@
 
 #define TRANSITION_MS 1000
 
+typedef enum Page {
+	PAGE_PLAYER,
+	PAGE_QUEUE,
+} Page;
+
 typedef struct Artwork {
 	bool exists;
 	Texture texture;
@@ -35,6 +40,8 @@ typedef struct State {
 	Color prev_background;
 	int transition_timer_ms;
 	float transition_progress;
+
+	Page page;
 } State;
 
 State state_new(void);
@@ -43,5 +50,8 @@ void state_update(State *s);
 
 void state_set_artwork(State *s, Image image, Color average);
 void state_clear_artwork(State *s);
+
+void state_next_page(State *s);
+void state_prev_page(State *s);
 
 #endif

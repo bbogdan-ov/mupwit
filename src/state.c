@@ -91,3 +91,16 @@ void state_clear_artwork(State *s) {
 	s->prev_background = s->background;
 	s->transition_timer_ms = TRANSITION_MS;
 }
+
+void state_next_page(State *s) {
+	switch (s->page) {
+		case PAGE_PLAYER: s->page = PAGE_QUEUE; break;
+		case PAGE_QUEUE: s->page = PAGE_PLAYER; break;
+	}
+}
+void state_prev_page(State *s) {
+	switch (s->page) {
+		case PAGE_PLAYER: s->page = PAGE_QUEUE; break;
+		case PAGE_QUEUE: s->page = PAGE_PLAYER; break;
+	}
+}

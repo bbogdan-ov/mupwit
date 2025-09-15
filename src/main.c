@@ -5,9 +5,10 @@
 #include "client.h"
 #include "player.h"
 #include "state.h"
-#include "pages/player_page.h"
 #include "macros.h"
 #include "theme.h"
+#include "pages/player_page.h"
+#include "pages/queue_page.h"
 
 int main() {
 	InitWindow(THEME_WINDOW_WIDTH, THEME_WINDOW_HEIGHT, "MUPWIT");
@@ -40,7 +41,21 @@ int main() {
 				DrawText("error", 0, 0, 30, BLACK);
 				break;
 			case CLIENT_CONN_STATE_READY:
-				player_page_draw(&player, &client, &state);
+				bool is_shift = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+				if (IsKeyPressed(KEY_TAB) && is_shift) {
+					state_prev_page(&state);
+				} else if (IsKeyPressed(KEY_TAB)) {
+					state_next_page(&state);
+				}
+
+				switch (state.page) {
+					case PAGE_PLAYER:
+						player_page_draw(&player, &client, &state);
+						break;
+					case PAGE_QUEUE:
+						queue_page_draw();
+						break;
+				}
 				break;
 		}
 		UNLOCK(&client.conn_state_mutex);
