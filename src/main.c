@@ -5,7 +5,7 @@
 #include "client.h"
 #include "player.h"
 #include "state.h"
-#include "tabs/player_tab.h"
+#include "pages/player_page.h"
 #include "macros.h"
 #include "theme.h"
 
@@ -40,7 +40,7 @@ int main() {
 				DrawText("error", 0, 0, 30, BLACK);
 				break;
 			case CLIENT_CONN_STATE_READY:
-				player_tab_draw(&player, &client, &state);
+				player_page_draw(&player, &client, &state);
 				break;
 		}
 		UNLOCK(&client.conn_state_mutex);

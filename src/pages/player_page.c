@@ -5,7 +5,7 @@
 
 #include "../draw.h"
 #include "../theme.h"
-#include "player_tab.h"
+#include "player_page.h"
 
 #define BAR_HEIGHT 4
 #define BAR_EXPAND 4
@@ -67,7 +67,7 @@ void draw_artwork(Artwork *artwork, Texture empty_artwork, Rect rect, Color tint
 	}
 }
 
-void player_tab_draw(Player *player, Client *client, State *state) {
+void player_page_draw(Player *player, Client *client, State *state) {
 	const char *title = NULL;
 	const char *album = UNKNOWN;
 	const char *artist = UNKNOWN;
