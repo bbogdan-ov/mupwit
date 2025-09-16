@@ -68,6 +68,13 @@ void draw_box(State *state, Box box, Rect rect, Color color) {
 	DrawTextureNPatch(state->boxes, npatch, rect, (Vec){0}, 0, color);
 }
 
+bool is_key_pressed(KeyboardKey key) {
+	return IsKeyPressed(key) || IsKeyPressedRepeat(key);
+}
+bool is_shift_down() {
+	return IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+}
+
 Rect rect_shrink(Rect rect, float hor, float ver) {
 	return (Rect){
 		.x = rect.x + hor,

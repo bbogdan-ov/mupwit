@@ -7,6 +7,7 @@
 #include "state.h"
 #include "macros.h"
 #include "theme.h"
+#include "draw.h"
 #include "pages/player_page.h"
 #include "pages/queue_page.h"
 
@@ -43,10 +44,10 @@ int main() {
 				DrawText("error", 0, 0, 30, BLACK);
 				break;
 			case CLIENT_CONN_STATE_READY:
-				bool is_shift = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
-				if (IsKeyPressed(KEY_TAB) && is_shift) {
+				bool is_shift = is_shift_down();
+				if (is_key_pressed(KEY_TAB) && is_shift) {
 					state_prev_page(&state);
-				} else if (IsKeyPressed(KEY_TAB)) {
+				} else if (is_key_pressed(KEY_TAB)) {
 					state_next_page(&state);
 				}
 

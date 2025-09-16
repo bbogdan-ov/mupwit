@@ -47,6 +47,9 @@ void draw_icon(State *state, Icon icon, Vec pos, Color color);
 
 void draw_box(State *state, Box box, Rect rect, Color color);
 
+bool is_key_pressed(KeyboardKey key);
+bool is_shift_down();
+
 Rect rect_shrink(Rect rect, float hor, float ver);
 
 #endif
