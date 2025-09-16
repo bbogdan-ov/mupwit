@@ -8,6 +8,8 @@
 #define SONG_PADDING 10
 #define SONG_HEIGHT (THEME_NORMAL_TEXT_SIZE*2 + SONG_PADDING*2)
 
+// TODO: focus on/scroll to the currently playing song
+
 QueuePage queue_page_new() {
 	return (QueuePage){
 		.scrollable = scrollable_new(),
@@ -48,6 +50,8 @@ void draw_song(Client *client, State *state, const struct mpd_song *song, Rect r
 	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
 
 	// Draw artwork placeholder
+	// TODO: fetch and show the artwork for each song but first i need to
+	// implement artwork caching
 	Rect artwork_rect = {
 		inner.x,
 		inner.y + SONG_HEIGHT/2 - artwork_size/2,
