@@ -26,6 +26,12 @@ typedef struct Client {
 	// `NULL` means no info is available
 	struct mpd_status *cur_status;
 
+	// Array of songs in the current queue
+	// All entities types are guaranteed to be == MPD_ENTITY_TYPE_SONG
+	struct mpd_entity **queue;
+	size_t queue_len;
+	size_t queue_cap;
+
 	// Time left untill trying to update the player status
 	int update_timer_ms;
 

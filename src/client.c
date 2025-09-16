@@ -15,9 +15,17 @@ Client client_new(void) {
 	pthread_mutex_t conn_state_mutex;
 	pthread_mutex_init(&conn_state_mutex, NULL);
 
+	size_t queue_cap = 32; // TODO: make it larger
+	size_t queue_len = 0;
+	struct mpd_entity **queue = malloc(queue_cap * sizeof(const struct mpd_entity*));
+
 	return (Client){
 		.cur_song = NULL,
 		.cur_status = NULL,
+
+		.queue = queue,
+		.queue_len = queue_len,
+		.queue_cap = queue_cap,
 
 		.update_timer_ms = 0,
 
@@ -218,6 +226,38 @@ void clear_cur_song(Client *c) {
 	}
 }
 
+void fetch_queue(Client *c) {
+	assert(c->conn);
+
+	// TODO: fetch the queue when 'playlist' idle is received
+	if (c->queue_len > 0) return;
+
+	bool res = mpd_send_list_queue_meta(c->conn);
+	if (!res) {
+		HANDLE_ERROR(c->conn);
+		return;
+	}
+
+	while (true) {
+		struct mpd_entity *entity = mpd_recv_entity(c->conn);
+		if (entity == NULL) {
+			HANDLE_ERROR(c->conn);
+			break;
+		}
+
+		enum mpd_entity_type typ = mpd_entity_get_type(entity);
+		if (typ == MPD_ENTITY_TYPE_SONG) {
+			// Push the received song entity into the queue dynamic array
+			if (c->queue_len + 1 >= c->queue_cap) {
+				c->queue_cap = (c->queue_len + 1) * 2;
+				c->queue = realloc(c->queue, c->queue_cap * sizeof(struct mpd_entity*));
+			}
+			c->queue[c->queue_len] = entity;
+			c->queue_len += 1;
+		}
+	}
+}
+
 void fetch_status(Client *c) {
 	assert(c->conn);
 
@@ -313,6 +353,7 @@ void client_update(Client *c, Player *player, State *state) {
 
 	if (c->update_timer_ms <= 0) {
 		fetch_status(c);
+		fetch_queue(c);
 
 		if (c->artwork_image_changed) {
 			if (c->has_artwork_image)
@@ -369,4 +410,9 @@ void client_free(Client *c) {
 	if (c->conn) mpd_connection_free(c->conn);
 	if (c->cur_song) mpd_song_free(c->cur_song);
 	if (c->cur_status) mpd_status_free(c->cur_status);
+
+	for (size_t i = 0; i < c->queue_len; i++) {
+		mpd_entity_free(c->queue[i]);
+	}
+	c->queue_len = 0;
 }
