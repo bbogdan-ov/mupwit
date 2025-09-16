@@ -90,7 +90,7 @@ void generate_font(FILE *file, const char *name, const char *path, int base_size
 			"{%d,%d,%d,%d,{0}},\n",
 			CODEPOINT_START + i,
 			(int)bboxes[i].xoff,
-			(int)bboxes[i].yoff + base_size - 5,
+			(int)bboxes[i].yoff + base_size - 4,
 			(int)bboxes[i].xadvance
 		);
 	}
