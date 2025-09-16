@@ -14,7 +14,7 @@ QueuePage queue_page_new() {
 	};
 }
 
-void draw_song(State *state, const struct mpd_song *song, Rect rect) {
+void draw_song(Client *client, State *state, const struct mpd_song *song, Rect rect) {
 	int artwork_size = 32;
 
 	Rect inner = (Rect){
@@ -29,10 +29,20 @@ void draw_song(State *state, const struct mpd_song *song, Rect rect) {
 	bool hover = CheckCollisionPointRec(GetMousePosition(), rect);
 	if (hover) {
 		// TODO: make color darker when `state->background` is almost white
-		background = ColorContrast(state->background, 0.3);
+		background = ColorContrast(background, 0.3);
 		state->cursor = MOUSE_CURSOR_POINTING_HAND;
 
 		draw_box(state, BOX_FILLED_ROUNDED, rect, background);
+	}
+
+	// Show "currently playing" marker
+	if (client->cur_song && mpd_song_get_id(client->cur_song) == mpd_song_get_id(song)) {
+		draw_icon(
+			state,
+			ICON_SMALL_ARROW,
+			vec(rect.x - ICON_SIZE/2, rect.y + rect.height/2 - ICON_SIZE/2),
+			THEME_BLACK
+		);
 	}
 
 	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
@@ -98,7 +108,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 			SONG_HEIGHT
 		);
 		if (CheckCollisionRecs(song_rect, rect(0, 0, sw, sh)))
-			draw_song(state, song, song_rect);
+			draw_song(client, state, song, song_rect);
 	}
 
 	scrollable_set_height(&q->scrollable, client->queue_len * SONG_HEIGHT - container.height);
