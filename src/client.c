@@ -8,6 +8,8 @@
 #include "client.h"
 #include "macros.h"
 
+const char *UNKNOWN = "<unknown>";
+
 Client client_new(void) {
 	pthread_mutex_t mutex;
 	pthread_mutex_init(&mutex, NULL);
@@ -371,6 +373,11 @@ void client_update(Client *c, Player *player, State *state) {
 
 	UNLOCK(&c->mutex);
 	return;
+}
+
+const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag) {
+	const char *t = mpd_song_get_tag(song, tag, 0);
+	return t == NULL ? UNKNOWN : t;
 }
 
 void client_run_seek(Client *c, int seconds) {

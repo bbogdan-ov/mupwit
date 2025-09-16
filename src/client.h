@@ -8,6 +8,8 @@
 #include "./player.h"
 #include "./state.h"
 
+extern const char *UNKNOWN;
+
 // Update the player status every N millis
 #define CLIENT_UPDATE_EVERY_MS 30
 
@@ -54,6 +56,8 @@ void client_connect(Client *c);
 
 // Update client every frame
 void client_update(Client *c, Player *player, State *state);
+
+const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);
 
 void client_run_seek(Client *c, int seconds);
 void client_run_toggle(Client *c);

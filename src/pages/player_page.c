@@ -10,8 +10,6 @@
 #define BAR_HEIGHT 4
 #define BAR_EXPAND 4
 
-static const char *UNKNOWN = "<unknown>";
-
 const char *format_time(int secs) {
 	if (secs > 60 * 60) {
 		return TextFormat("%02d:%02d:%02d", (int)(secs / 60 / 60), (int)(secs / 60) % 60, secs % 60);
@@ -20,11 +18,6 @@ const char *format_time(int secs) {
 	} else {
 		return TextFormat("00:%02d", secs);
 	}
-}
-
-const char *tag_or_unknown(struct mpd_song *song, enum mpd_tag_type tag) {
-	const char *s = mpd_song_get_tag(song, tag, 0);
-	return s != NULL ? s : UNKNOWN;
 }
 
 bool draw_icon_button(State *state, Icon icon, Vec pos) {
@@ -90,8 +83,8 @@ void player_page_draw(Player *player, Client *client, State *state) {
 				title = UNKNOWN;
 		}
 
-		album = tag_or_unknown(player->cur_song, MPD_TAG_ALBUM);
-		artist = tag_or_unknown(player->cur_song, MPD_TAG_ARTIST);
+		album = song_tag_or_unknown(player->cur_song, MPD_TAG_ALBUM);
+		artist = song_tag_or_unknown(player->cur_song, MPD_TAG_ARTIST);
 	}
 
 	int sw = GetScreenWidth();
