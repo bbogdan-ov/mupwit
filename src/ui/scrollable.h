@@ -13,4 +13,6 @@ void scrollable_update(Scrollable *s);
 
 void scrollable_set_height(Scrollable *s, float height);
 
+float scrollable_get_scroll(Scrollable *s);
+
 #endif

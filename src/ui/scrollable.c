@@ -1,4 +1,5 @@
 #include <raylib.h>
+#include <math.h>
 
 #include "./scrollable.h"
 #include "../macros.h"
@@ -23,4 +24,8 @@ void scrollable_update(Scrollable *s) {
 
 void scrollable_set_height(Scrollable *s, float height) {
 	s->height = MAX(height, 0);
+}
+
+float scrollable_get_scroll(Scrollable *s) {
+	return floor(s->scroll);
 }

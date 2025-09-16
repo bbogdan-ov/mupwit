@@ -14,15 +14,9 @@ QueuePage queue_page_new() {
 	};
 }
 
-void draw_song(State *state, const struct mpd_song *song, Rect container) {
+void draw_song(State *state, const struct mpd_song *song, Rect rect) {
 	int artwork_size = 32;
 
-	Rect rect = (Rect){
-		container.x,
-		container.y,
-		container.width,
-		SONG_HEIGHT
-	};
 	Rect inner = (Rect){
 		rect.x + SONG_PADDING,
 		rect.y,
@@ -91,17 +85,19 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	);
 
 	scrollable_update(&q->scrollable);
+	float scroll = scrollable_get_scroll(&q->scrollable);
 
 	for (size_t i = 0; i < client->queue_len; i++) {
 		const struct mpd_song *song = mpd_entity_get_song(client->queue[i]);
 
 		Rect song_rect = rect(
 			container.x,
-			container.y - q->scrollable.scroll + i * SONG_HEIGHT,
+			container.y - scroll + i * SONG_HEIGHT,
 			container.width,
-			container.height
+			SONG_HEIGHT
 		);
-		draw_song(state, song, song_rect);
+		if (CheckCollisionRecs(song_rect, rect(0, 0, sw, sh)))
+			draw_song(state, song, song_rect);
 	}
 
 	scrollable_set_height(&q->scrollable, client->queue_len * SONG_HEIGHT - container.height);
