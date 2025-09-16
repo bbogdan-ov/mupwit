@@ -21,6 +21,8 @@ int main() {
 	Player player = player_new();
 	State state = state_new();
 
+	QueuePage queue_page = queue_page_new();
+
 	while (!WindowShouldClose()) {
 		client_update(&client, &player, &state);
 		state_update(&state);
@@ -56,7 +58,7 @@ int main() {
 						player_page_draw(&player, &client, &state);
 						break;
 					case PAGE_QUEUE:
-						queue_page_draw(&client, &state);
+						queue_page_draw(&queue_page, &client, &state);
 						break;
 				}
 				break;
