@@ -32,6 +32,7 @@ typedef struct Client {
 	// All entities types are guaranteed to be == MPD_ENTITY_TYPE_SONG
 	struct mpd_entity **queue;
 	size_t queue_len;
+	// Queue dynamic array capacity in items (songs)
 	size_t queue_cap;
 
 	// Time left untill trying to update the player status

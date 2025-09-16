@@ -17,7 +17,7 @@ Client client_new(void) {
 	pthread_mutex_t conn_state_mutex;
 	pthread_mutex_init(&conn_state_mutex, NULL);
 
-	size_t queue_cap = 32; // TODO: make it larger
+	size_t queue_cap = 512; // 512 songs
 	size_t queue_len = 0;
 	struct mpd_entity **queue = malloc(queue_cap * sizeof(const struct mpd_entity*));
 
