@@ -28,6 +28,7 @@ void draw_song(State *state, const struct mpd_song *song, Rect rect) {
 
 	bool hover = CheckCollisionPointRec(GetMousePosition(), rect);
 	if (hover) {
+		// TODO: make color darker when `state->background` is almost white
 		background = ColorContrast(state->background, 0.3);
 		state->cursor = MOUSE_CURSOR_POINTING_HAND;
 
