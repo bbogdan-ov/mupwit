@@ -3,6 +3,7 @@
 
 typedef struct Scrollable {
 	float scroll;
+	float velocity;
 	float height;
 } Scrollable;
 
