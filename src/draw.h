@@ -29,6 +29,7 @@ typedef enum Icon {
 	ICON_PREV,
 	ICON_NEXT,
 	ICON_SMALL_ARROW,
+	ICON_DISK,
 } Icon;
 
 typedef enum Box {

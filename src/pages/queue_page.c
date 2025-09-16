@@ -59,6 +59,12 @@ void draw_song(Client *client, State *state, const struct mpd_song *song, Rect r
 		artwork_size
 	};
 	draw_box(state, BOX_NORMAL, artwork_rect, THEME_BLACK);
+	draw_icon(
+		state,
+		ICON_DISK,
+		vec(artwork_rect.x, artwork_rect.y),
+		THEME_BLACK
+	);
 	inner.width -= artwork_rect.width + SONG_PADDING;
 
 	Text text = {
