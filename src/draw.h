@@ -34,6 +34,7 @@ typedef enum Box {
 	BOX_NORMAL = 0,
 	BOX_ROUNDED,
 	BOX_3D,
+	BOX_FILLED_ROUNDED,
 } Box;
 
 void draw_texture_quad(Texture tex, Rect rect, Color tint);
