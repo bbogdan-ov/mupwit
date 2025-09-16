@@ -55,7 +55,7 @@ int main() {
 						player_page_draw(&player, &client, &state);
 						break;
 					case PAGE_QUEUE:
-						queue_page_draw();
+						queue_page_draw(&client, &state);
 						break;
 				}
 				break;
