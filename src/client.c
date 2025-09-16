@@ -271,6 +271,11 @@ void fetch_status(Client *c) {
 		return;
 	}
 
+	// TODO: clear previously current status and song later or somewhere else.
+	// `set_cur_status` frees the previously current status (as well as
+	// `set_cur_song`) but the new status may be received only after a few
+	// frames after the free so in these few frames `cur_status` and `cur_song`
+	// may contain garbage
 	set_cur_status(c, status);
 
 	int cur_song_id = mpd_status_get_song_id(status);
