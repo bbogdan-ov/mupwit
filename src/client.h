@@ -7,6 +7,7 @@
 
 #include "./player.h"
 #include "./state.h"
+#include "./dynamic_array.h"
 
 extern const char *UNKNOWN;
 
@@ -20,6 +21,12 @@ typedef enum ClientConnState {
 	CLIENT_CONN_STATE_ERROR,
 } ClientConnState;
 
+typedef struct ClientQueue {
+	struct mpd_entity **items;
+	size_t len;
+	size_t cap;
+} ClientQueue;
+
 typedef struct Client {
 	// Currently playing song
 	// `NULL` means no current song
@@ -30,10 +37,7 @@ typedef struct Client {
 
 	// Array of songs in the current queue
 	// All entities types are guaranteed to be == MPD_ENTITY_TYPE_SONG
-	struct mpd_entity **queue;
-	size_t queue_len;
-	// Queue dynamic array capacity in items (songs)
-	size_t queue_cap;
+	ClientQueue queue;
 
 	// Time left untill trying to update the player status
 	int update_timer_ms;
@@ -59,6 +63,8 @@ void client_connect(Client *c);
 void client_update(Client *c, Player *player, State *state);
 
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);
+
+struct mpd_entity *client_get_queue_entity(Client *c, size_t idx);
 
 void client_run_play_song(Client *c, unsigned id);
 void client_run_seek(Client *c, int seconds);

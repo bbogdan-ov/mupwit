@@ -123,8 +123,8 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	scrollable_update(&q->scrollable);
 	float scroll = scrollable_get_scroll(&q->scrollable);
 
-	for (size_t i = 0; i < client->queue_len; i++) {
-		const struct mpd_song *song = mpd_entity_get_song(client->queue[i]);
+	for (size_t i = 0; i < client->queue.len; i++) {
+		const struct mpd_song *song = mpd_entity_get_song(client_get_queue_entity(client, i));
 
 		Rect song_rect = rect(
 			container.x,
@@ -136,7 +136,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 			draw_song(client, state, song, song_rect);
 	}
 
-	scrollable_set_height(&q->scrollable, client->queue_len * SONG_HEIGHT - container.height);
+	scrollable_set_height(&q->scrollable, client->queue.len * SONG_HEIGHT - container.height);
 
 	UNLOCK(&client->mutex);
 }
