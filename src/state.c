@@ -63,7 +63,6 @@ void state_update(State *s) {
 		target_color = ColorBrightness(target_color, 0.6);
 	}
 
-	// FIXME: color animates at the startup, but we don't want that
 	s->background = ColorLerp(
 		s->prev_background,
 		target_color,
