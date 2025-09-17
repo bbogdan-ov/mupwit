@@ -55,4 +55,6 @@ bool is_shift_down();
 
 Rect rect_shrink(Rect rect, float hor, float ver);
 
+const char *format_time(int secs);
+
 #endif

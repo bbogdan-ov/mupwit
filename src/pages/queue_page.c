@@ -69,17 +69,32 @@ void draw_song(Client *client, State *state, const struct mpd_song *song, Rect r
 	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
 
 	Text text = {
-		.text = song_tag_or_unknown(song, MPD_TAG_TITLE),
+		.text = "",
 		.font = state->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
-		.pos = vec(
-			inner.x,
-			inner.y + SONG_HEIGHT/2 - THEME_NORMAL_TEXT_SIZE
-		),
-		.color = THEME_TEXT,
+		.pos = {0},
+		.color = THEME_SUBTLE_TEXT,
 	};
 
+	// Draw song duration
+	// Is this ok to format duration string 60 times per song for each song in
+	// the queue?..
+	text.text = format_time(mpd_song_get_duration(song));
+	Vec dur_size = measure_text(&text);
+	text.pos = vec(
+		inner.x + inner.width - dur_size.x,
+		inner.y + SONG_HEIGHT/2 - dur_size.y/2
+	);
+	draw_text(text);
+	inner.width -= dur_size.x;
+
 	// Draw song title
+	text.text = song_tag_or_unknown(song, MPD_TAG_TITLE);
+	text.color = THEME_TEXT;
+	text.pos = vec(
+		inner.x,
+		inner.y + SONG_HEIGHT/2 - THEME_NORMAL_TEXT_SIZE
+	);
 	draw_cropped_text(text, inner.width, background);
 	text.pos.y += THEME_NORMAL_TEXT_SIZE;
 

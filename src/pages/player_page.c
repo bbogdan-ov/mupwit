@@ -10,16 +10,6 @@
 #define BAR_HEIGHT 4
 #define BAR_EXPAND 4
 
-const char *format_time(int secs) {
-	if (secs > 60 * 60) {
-		return TextFormat("%02d:%02d:%02d", (int)(secs / 60 / 60), (int)(secs / 60) % 60, secs % 60);
-	} else if (secs > 60) {
-		return TextFormat("%02d:%02d", (int)(secs / 60), secs % 60);
-	} else {
-		return TextFormat("00:%02d", secs);
-	}
-}
-
 bool draw_icon_button(State *state, Icon icon, Vec pos) {
 	Rect rec = rect(pos.x, pos.y, ICON_SIZE, ICON_SIZE);
 	bool hover = CheckCollisionPointRec(GetMousePosition(), rec);
