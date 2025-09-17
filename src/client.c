@@ -267,6 +267,8 @@ void fetch_status(Client *c) {
 	if (status == NULL) {
 		clear_cur_status(c);
 		clear_cur_song(c);
+		c->artwork_image_changed = true;
+		c->has_artwork_image = false;
 		HANDLE_ERROR(c->conn);
 		return;
 	}
@@ -286,18 +288,20 @@ void fetch_status(Client *c) {
 		// Set new current song
 		if (cur_song_id >= 0) {
 			struct mpd_song *song = mpd_run_get_queue_song_id(c->conn, cur_song_id);
-			if (song == NULL) {
-				c->artwork_image_changed = true;
-				c->has_artwork_image = false;
-				HANDLE_ERROR(c->conn);
-			} else {
+			if (song) {
 				set_cur_song(c, song);
 
 				// Update current song artwork in the separate thread
 				pthread_t thread;
 				pthread_create(&thread, NULL, do_fetch_cur_artwork, c);
+
+				return;
 			}
 		}
+
+		c->artwork_image_changed = true;
+		c->has_artwork_image = false;
+		HANDLE_ERROR(c->conn);
 	}
 }
 
