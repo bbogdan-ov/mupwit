@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "./queue_page.h"
 #include "../macros.h"
 #include "../draw.h"
