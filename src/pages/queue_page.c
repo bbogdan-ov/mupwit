@@ -16,6 +16,7 @@ QueuePage queue_page_new() {
 	};
 }
 
+// TODO: draw song position in the queue
 void draw_song(Client *client, State *state, const struct mpd_song *song, Rect rect) {
 	int artwork_size = 32;
 
