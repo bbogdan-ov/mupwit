@@ -26,10 +26,11 @@ void draw_song(Client *client, State *state, const struct mpd_song *song, Rect r
 		rect.height
 	};
 
-	Color background = state->foreground;
+	Color background = state->background;
 
 	bool hover = CheckCollisionPointRec(GetMousePosition(), rect);
 	if (hover) {
+		background = state->foreground;
 		state->cursor = MOUSE_CURSOR_POINTING_HAND;
 		draw_box(state, BOX_FILLED_ROUNDED, rect, background);
 	}
@@ -66,8 +67,6 @@ void draw_song(Client *client, State *state, const struct mpd_song *song, Rect r
 	inner.x += artwork_rect.width + SONG_PADDING;
 	inner.width -= artwork_rect.width + SONG_PADDING;
 
-	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
-
 	Text text = {
 		.text = "",
 		.font = state->normal_font,
@@ -87,6 +86,8 @@ void draw_song(Client *client, State *state, const struct mpd_song *song, Rect r
 	);
 	draw_text(text);
 	inner.width -= dur_size.x;
+
+	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
 
 	// Draw song title
 	text.text = song_tag_or_unknown(song, MPD_TAG_TITLE);
