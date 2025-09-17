@@ -36,6 +36,9 @@ void draw_song(Client *client, State *state, const struct mpd_song *song, Rect r
 
 		draw_box(state, BOX_FILLED_ROUNDED, rect, background);
 	}
+	if (hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+		client_run_play_song(client, mpd_song_get_id(song));
+	}
 
 	// Show "currently playing" marker
 	if (client->cur_song && mpd_song_get_id(client->cur_song) == mpd_song_get_id(song)) {

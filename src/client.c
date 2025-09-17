@@ -389,6 +389,13 @@ const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type t
 	return t == NULL ? UNKNOWN : t;
 }
 
+void client_run_play_song(Client *c, unsigned id) {
+	if (!mpd_run_play_id(c->conn, id)) {
+		HANDLE_ERROR(c->conn);
+		return;
+	}
+	fetch_status(c);
+}
 void client_run_seek(Client *c, int seconds) {
 	if (TRYLOCK(&c->mutex) != 0) return;
 	if (mpd_run_seek_current(c->conn, seconds, false))
