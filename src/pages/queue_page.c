@@ -16,7 +16,6 @@ QueuePage queue_page_new() {
 	};
 }
 
-// TODO: draw song position in the queue
 void draw_song(Client *client, State *state, const struct mpd_song *song, Rect rect) {
 	int artwork_size = 32;
 
@@ -51,8 +50,6 @@ void draw_song(Client *client, State *state, const struct mpd_song *song, Rect r
 		);
 	}
 
-	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
-
 	// Draw artwork placeholder
 	// TODO: fetch and show the artwork for each song but first i need to
 	// implement artwork caching
@@ -69,17 +66,20 @@ void draw_song(Client *client, State *state, const struct mpd_song *song, Rect r
 		vec(artwork_rect.x, artwork_rect.y),
 		THEME_BLACK
 	);
+	inner.x += artwork_rect.width + SONG_PADDING;
 	inner.width -= artwork_rect.width + SONG_PADDING;
+
+	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
 
 	Text text = {
 		.text = song_tag_or_unknown(song, MPD_TAG_TITLE),
 		.font = state->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
 		.pos = vec(
-			inner.x + artwork_rect.width + SONG_PADDING,
+			inner.x,
 			inner.y + SONG_HEIGHT/2 - THEME_NORMAL_TEXT_SIZE
 		),
-		.color = THEME_BLACK,
+		.color = THEME_TEXT,
 	};
 
 	// Draw song title
