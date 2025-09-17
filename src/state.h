@@ -3,7 +3,7 @@
 
 #include <raylib.h>
 
-#define TRANSITION_MS 1000
+#include "./ui/tween.h"
 
 typedef enum Page {
 	PAGE_PLAYER,
@@ -33,13 +33,13 @@ typedef struct State {
 	Artwork prev_artwork;
 	// Currently playing song album artwork
 	Artwork cur_artwork;
+	Tween artwork_tween;
 
 	MouseCursor cursor;
 
 	Color background;
 	Color prev_background;
-	int transition_timer_ms;
-	float transition_progress;
+	Tween background_tween;
 
 	Page page;
 } State;

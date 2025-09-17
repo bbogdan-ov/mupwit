@@ -29,10 +29,11 @@ State state_new(void) {
 		.boxes = TEXTURE(boxes),
 
 		.empty_artwork = TEXTURE(empty_artwork),
+		.artwork_tween = tween_new(300),
 
 		.background = THEME_BACKGROUND,
 		.prev_background = THEME_BACKGROUND,
-		.transition_progress = 1.0,
+		.background_tween = tween_new(1000),
 	};
 }
 
@@ -51,14 +52,9 @@ void set_prev_artwork(State *s) {
 	s->prev_artwork.exists = true;
 }
 
-float ease_in_out_sine(float x) {
-	return -(cos(PI * x) - 1.0) / 2.0;
-}
-
 void state_update(State *s) {
-	if (s->transition_timer_ms > 0) {
-		s->transition_timer_ms -= (int)(GetFrameTime() * 1000);
-	}
+	tween_update(&s->artwork_tween);
+	tween_update(&s->background_tween);
 
 	Color target_color = THEME_BACKGROUND;
 	if (s->cur_artwork.exists) {
@@ -68,9 +64,17 @@ void state_update(State *s) {
 	}
 
 	// FIXME: color animates at the startup, but we don't want that
-	float progress = 1.0 - ((float)s->transition_timer_ms / (float)TRANSITION_MS);
-	s->transition_progress = progress;
-	s->background = ColorLerp(s->prev_background, target_color, ease_in_out_sine(progress));
+	s->background = ColorLerp(
+		s->prev_background,
+		target_color,
+		EASE_IN_OUT_SINE(tween_progress(&s->background_tween))
+	);
+}
+
+void play_tweens(State *s) {
+	s->prev_background = s->background;
+	tween_play(&s->background_tween);
+	tween_play(&s->artwork_tween);
 }
 
 void state_set_artwork(State *s, Image image, Color average) {
@@ -82,14 +86,11 @@ void state_set_artwork(State *s, Image image, Color average) {
 	s->cur_artwork.average = average;
 	s->cur_artwork.exists = true;
 
-	s->prev_background = s->background;
-	s->transition_timer_ms = TRANSITION_MS;
+	play_tweens(s);
 }
 void state_clear_artwork(State *s) {
 	s->cur_artwork.exists = false;
-
-	s->prev_background = s->background;
-	s->transition_timer_ms = TRANSITION_MS;
+	play_tweens(s);
 }
 
 void state_next_page(State *s) {
