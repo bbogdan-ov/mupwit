@@ -106,13 +106,11 @@ void player_page_draw(Player *player, Client *client, State *state) {
 		WHITE
 	);
 	// Current artwork
-	float alpha = tween_progress(&state->artwork_tween);
-	if (alpha > 1.0) alpha = 1.0;
 	draw_artwork(
 		&state->cur_artwork,
 		state->empty_artwork,
 		artwork_rect,
-		ColorAlpha(WHITE, alpha)
+		ColorAlpha(WHITE, state_artwork_alpha(state))
 	);
 
 	// Artwork border

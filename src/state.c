@@ -3,6 +3,7 @@
 
 #include "./theme.h"
 #include "./state.h"
+#include "./macros.h"
 
 #include "../build/assets.h"
 
@@ -29,11 +30,10 @@ State state_new(void) {
 		.boxes = TEXTURE(boxes),
 
 		.empty_artwork = TEXTURE(empty_artwork),
-		.artwork_tween = tween_new(300),
 
 		.background = THEME_BACKGROUND,
 		.prev_background = THEME_BACKGROUND,
-		.background_tween = tween_new(1000),
+		.transition_tween = tween_new(1000),
 	};
 }
 
@@ -53,8 +53,7 @@ void set_prev_artwork(State *s) {
 }
 
 void state_update(State *s) {
-	tween_update(&s->artwork_tween);
-	tween_update(&s->background_tween);
+	tween_update(&s->transition_tween);
 
 	Color target_color = THEME_BACKGROUND;
 	if (s->cur_artwork.exists) {
@@ -66,14 +65,13 @@ void state_update(State *s) {
 	s->background = ColorLerp(
 		s->prev_background,
 		target_color,
-		EASE_IN_OUT_SINE(tween_progress(&s->background_tween))
+		EASE_IN_OUT_SINE(tween_progress(&s->transition_tween))
 	);
 }
 
-void play_tweens(State *s) {
+void start_transition(State *s) {
 	s->prev_background = s->background;
-	tween_play(&s->background_tween);
-	tween_play(&s->artwork_tween);
+	tween_play(&s->transition_tween);
 }
 
 void state_set_artwork(State *s, Image image, Color average) {
@@ -85,11 +83,11 @@ void state_set_artwork(State *s, Image image, Color average) {
 	s->cur_artwork.average = average;
 	s->cur_artwork.exists = true;
 
-	play_tweens(s);
+	start_transition(s);
 }
 void state_clear_artwork(State *s) {
 	s->cur_artwork.exists = false;
-	play_tweens(s);
+	start_transition(s);
 }
 
 void state_next_page(State *s) {
@@ -103,4 +101,8 @@ void state_prev_page(State *s) {
 		case PAGE_PLAYER: s->page = PAGE_QUEUE; break;
 		case PAGE_QUEUE: s->page = PAGE_PLAYER; break;
 	}
+}
+
+float state_artwork_alpha(State *s) {
+	return MIN(tween_progress(&s->transition_tween) * 8.0, 1.0);
 }

@@ -33,13 +33,12 @@ typedef struct State {
 	Artwork prev_artwork;
 	// Currently playing song album artwork
 	Artwork cur_artwork;
-	Tween artwork_tween;
 
 	MouseCursor cursor;
 
 	Color background;
 	Color prev_background;
-	Tween background_tween;
+	Tween transition_tween;
 
 	Page page;
 } State;
@@ -53,5 +52,7 @@ void state_clear_artwork(State *s);
 
 void state_next_page(State *s);
 void state_prev_page(State *s);
+
+float state_artwork_alpha(State *s);
 
 #endif
