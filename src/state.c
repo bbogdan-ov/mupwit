@@ -21,6 +21,14 @@
 #define TEXTURE(NAME) LoadTextureFromImage( \
 	(Image){NAME ## _DATA, NAME ## _WIDTH,  NAME ## _HEIGHT, 1, NAME ## _PIXEL_FORMAT})
 
+Color calc_foreground(Color bg) {
+	int lum = ((int)bg.r + (int)bg.g + (int)bg.b) / 3;
+	if (lum > 210)
+		return ColorContrast(bg, -0.1);
+	else
+		return ColorContrast(bg, 0.2);
+}
+
 State state_new(void) {
 	return (State){
 		.normal_font = FONT(code9x7),
@@ -31,6 +39,7 @@ State state_new(void) {
 
 		.empty_artwork = TEXTURE(empty_artwork),
 
+		.foreground = calc_foreground(THEME_BACKGROUND),
 		.background = THEME_BACKGROUND,
 		.prev_background = THEME_BACKGROUND,
 		.transition_tween = tween_new(1000),
@@ -62,11 +71,15 @@ void state_update(State *s) {
 		target_color = ColorBrightness(target_color, 0.6);
 	}
 
-	s->background = ColorLerp(
-		s->prev_background,
-		target_color,
-		EASE_IN_OUT_SINE(tween_progress(&s->transition_tween))
-	);
+	if (tween_playing(&s->transition_tween)) {
+		float progress = tween_progress(&s->transition_tween);
+		s->background = ColorLerp(
+			s->prev_background,
+			target_color,
+			EASE_IN_OUT_SINE(progress)
+		);
+		s->foreground = calc_foreground(s->background);
+	}
 }
 
 void start_transition(State *s) {

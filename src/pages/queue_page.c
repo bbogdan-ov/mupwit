@@ -26,14 +26,11 @@ void draw_song(Client *client, State *state, const struct mpd_song *song, Rect r
 		rect.height
 	};
 
-	Color background = state->background;
+	Color background = state->foreground;
 
 	bool hover = CheckCollisionPointRec(GetMousePosition(), rect);
 	if (hover) {
-		// TODO: make color darker when `state->background` is almost white
-		background = ColorContrast(background, 0.3);
 		state->cursor = MOUSE_CURSOR_POINTING_HAND;
-
 		draw_box(state, BOX_FILLED_ROUNDED, rect, background);
 	}
 	if (hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {

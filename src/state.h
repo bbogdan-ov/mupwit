@@ -36,6 +36,7 @@ typedef struct State {
 
 	MouseCursor cursor;
 
+	Color foreground;
 	Color background;
 	Color prev_background;
 	Tween transition_tween;
