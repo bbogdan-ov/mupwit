@@ -5,14 +5,13 @@
 #include <pthread.h>
 #include <mpd/client.h>
 
-#include "./player.h"
 #include "./state.h"
 #include "./dynamic_array.h"
 
 extern const char *UNKNOWN;
 
-// Update the player status every N millis
-#define CLIENT_UPDATE_EVERY_MS 30
+// Fetch the player status every N millis
+#define CLIENT_FETCH_EVERY_MS 30
 
 // Client connection state
 typedef enum ClientConnState {
@@ -25,6 +24,7 @@ typedef struct Client {
 	// Currently playing song
 	// `NULL` means no current song
 	struct mpd_song *cur_song;
+	const char *cur_song_filename;
 	// Current playback status
 	// `NULL` means no info is available
 	struct mpd_status *cur_status;
@@ -56,7 +56,7 @@ Client client_new(void);
 void client_connect(Client *c);
 
 // Update client every frame
-void client_update(Client *c, Player *player, State *state);
+void client_update(Client *c, State *state);
 
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);
 

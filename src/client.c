@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -184,14 +186,6 @@ defer:
 	return NULL;
 }
 
-void set_cur_status(Client *c, struct mpd_status *status) {
-	if (c->cur_status) mpd_status_free(c->cur_status);
-	c->cur_status = status;
-}
-void set_cur_song(Client *c, struct mpd_song *song) {
-	if (c->cur_song) mpd_song_free(c->cur_song);
-	c->cur_song = song;
-}
 void clear_cur_status(Client *c) {
 	if (c->cur_status) {
 		mpd_status_free(c->cur_status);
@@ -201,7 +195,29 @@ void clear_cur_status(Client *c) {
 void clear_cur_song(Client *c) {
 	if (c->cur_song) {
 		mpd_song_free(c->cur_song);
+		c->cur_song_filename = NULL;
 		c->cur_song = NULL;
+	}
+}
+void set_cur_status(Client *c, struct mpd_status *status) {
+	if (c->cur_status) mpd_status_free(c->cur_status);
+	c->cur_status = status;
+}
+void set_cur_song(Client *c, struct mpd_song *song) {
+	if (c->cur_song) mpd_song_free(c->cur_song);
+	c->cur_song = song;
+
+	// Update song filename
+	if (song) {
+		const char *uri = mpd_song_get_uri(song);
+		const char *filename = NULL;
+		if (uri) {
+			filename = (const char*)memrchr(uri, '/', strlen(uri)) + 1;
+			if (filename == NULL) filename = uri;
+		}
+		c->cur_song_filename = filename;
+	} else {
+		c->cur_song_filename = NULL;
 	}
 }
 
@@ -289,12 +305,9 @@ void client_connect(Client *c) {
 	pthread_create(&thread, NULL, do_connect, c);
 }
 
-void client_update(Client *c, Player *player, State *state) {
-	if (TRYLOCK(&c->mutex) != 0) return;
-	if (TRYLOCK(&c->conn_state_mutex) != 0) {
-		UNLOCK(&c->mutex);
-		return;
-	}
+void client_update(Client *c, State *state) {
+	LOCK(&c->mutex);
+	LOCK(&c->conn_state_mutex);
 
 	if (c->conn_state != CLIENT_CONN_STATE_READY) {
 		UNLOCK(&c->mutex);
@@ -307,19 +320,16 @@ void client_update(Client *c, Player *player, State *state) {
 
 	if (c->fetch_status_timer_ms <= 0) {
 		fetch_status(c);
+		c->fetch_status_timer_ms = CLIENT_FETCH_EVERY_MS;
+	}
 
-		if (c->artwork_image_just_changed) {
-			if (c->has_artwork_image)
-				state_set_artwork(state, c->artwork_image, c->artwork_average_color);
-			else
-				state_clear_artwork(state);
+	if (c->artwork_image_just_changed) {
+		if (c->has_artwork_image)
+			state_set_artwork(state, c->artwork_image, c->artwork_average_color);
+		else
+			state_clear_artwork(state);
 
-			c->artwork_image_just_changed = false;
-		}
-
-		player_set_status(player, c->cur_status, c->cur_song);
-
-		c->fetch_status_timer_ms = CLIENT_UPDATE_EVERY_MS;
+		c->artwork_image_just_changed = false;
 	}
 
 	UNLOCK(&c->mutex);

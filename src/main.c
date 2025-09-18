@@ -3,7 +3,6 @@
 #include <assert.h>
 
 #include "client.h"
-#include "player.h"
 #include "state.h"
 #include "macros.h"
 #include "theme.h"
@@ -20,13 +19,12 @@ int main() {
 	Client client = client_new();
 	client_connect(&client);
 
-	Player player = player_new();
 	State state = state_new();
 
 	QueuePage queue_page = queue_page_new();
 
 	while (!WindowShouldClose()) {
-		client_update(&client, &player, &state);
+		client_update(&client, &state);
 		state_update(&state);
 
 		queue_page_update(&queue_page, &client);
@@ -60,7 +58,7 @@ int main() {
 
 				switch (state.page) {
 					case PAGE_PLAYER:
-						player_page_draw(&player, &client, &state);
+						player_page_draw(&client, &state);
 						break;
 					case PAGE_QUEUE:
 						queue_page_draw(&queue_page, &client, &state);

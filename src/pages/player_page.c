@@ -54,7 +54,9 @@ void draw_artwork(Artwork *artwork, Texture empty_artwork, Rect rect, Color tint
 	}
 }
 
-void player_page_draw(Player *player, Client *client, State *state) {
+void player_page_draw(Client *client, State *state) {
+	LOCK(&client->mutex);
+
 	const char *title = NULL;
 	const char *album = UNKNOWN;
 	const char *artist = UNKNOWN;
@@ -62,23 +64,23 @@ void player_page_draw(Player *player, Client *client, State *state) {
 	unsigned elapsed_sec = 0;
 	unsigned duration_sec = 0;
 
-	if (player->cur_status) {
-		playstate = mpd_status_get_state(player->cur_status);
-		elapsed_sec = (unsigned)(mpd_status_get_elapsed_ms(player->cur_status) / 1000);
-		duration_sec = mpd_status_get_total_time(player->cur_status);
+	if (client->cur_status) {
+		playstate = mpd_status_get_state(client->cur_status);
+		elapsed_sec = (unsigned)(mpd_status_get_elapsed_ms(client->cur_status) / 1000);
+		duration_sec = mpd_status_get_total_time(client->cur_status);
 	}
 
-	if (player->cur_song) {
-		title = mpd_song_get_tag(player->cur_song, MPD_TAG_TITLE, 0);
+	if (client->cur_song) {
+		title = mpd_song_get_tag(client->cur_song, MPD_TAG_TITLE, 0);
 		if (title == NULL) {
-			if (player->cur_song_filename)
-				title = player->cur_song_filename;
+			if (client->cur_song_filename)
+				title = client->cur_song_filename;
 			else
 				title = UNKNOWN;
 		}
 
-		album = song_tag_or_unknown(player->cur_song, MPD_TAG_ALBUM);
-		artist = song_tag_or_unknown(player->cur_song, MPD_TAG_ARTIST);
+		album = song_tag_or_unknown(client->cur_song, MPD_TAG_ALBUM);
+		artist = song_tag_or_unknown(client->cur_song, MPD_TAG_ARTIST);
 	}
 
 	int sw = GetScreenWidth();
@@ -241,4 +243,6 @@ void player_page_draw(Player *player, Client *client, State *state) {
 		// TODO: temporarily
 		SetWindowSize(sw, text_offset.y);
 	}
+
+	UNLOCK(&client->mutex);
 }
