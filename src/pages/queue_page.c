@@ -66,6 +66,7 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 		ENTRY_HEIGHT
 	};
 
+	// Draw only visible entries
 	if (!CheckCollisionRecs(rect, screen_rect())) return;
 
 	const struct mpd_song *song = mpd_entity_get_song(entry->entity);
@@ -74,20 +75,19 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 	Color background = state->background;
 
 	bool is_hovering = CheckCollisionPointRec(GetMousePosition(), rect);
-	bool is_dragging = queue->reordering_idx == idx;
+	bool is_reordering = queue->reordering_idx == idx;
 
-	if ((is_hovering && queue->reordering_idx < 0) || is_dragging) {
+	// Draw background when hovering over or reordering the entry
+	if ((is_hovering && queue->reordering_idx < 0) || is_reordering) {
 		background = state->foreground;
+		state->cursor = MOUSE_CURSOR_POINTING_HAND;
 		draw_box(state, BOX_FILLED_ROUNDED, rect, background);
-
-		if (is_hovering) state->cursor = MOUSE_CURSOR_POINTING_HAND;
 	}
 
 	if (is_hovering && queue->reordering_idx < 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-		Vec mouse = GetMousePosition();
-
+		// Start reordering
 		queue->reordering_idx = idx;
-		queue->reorder_click_offset_y = mouse.y - rect.y;
+		queue->reorder_click_offset_y = GetMouseY() - rect.y;
 	}
 	// if (is_hovering && IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
 	// 	client_run_play_song(client, mpd_song_get_id(song));
