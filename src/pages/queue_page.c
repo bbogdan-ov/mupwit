@@ -59,6 +59,49 @@ void entry_tween_to_rest(QueueEntry *e) {
 	tween_play(&e->pos_tween);
 }
 
+int entry_number_from_pos(QueueEntry *e) {
+	return (int)((e->pos_y + ENTRY_HEIGHT / 2) / ENTRY_HEIGHT);
+}
+
+// Reorder entry UI element, does NOT affect an actual queue.
+// Any entry reordering also does NOT affect the order of items in the array (`entries`)
+void entry_reorder(QueueEntry *e, QueuePage *queue, int to_number) {
+	int range_from = 0;
+	int range_to = 0;
+	int move_by = 0;
+
+	if (to_number > e->number) {
+		// Entry was moved down
+		range_from = e->number;
+		range_to = to_number;
+		move_by = -1;
+	} else if (to_number < e->number) {
+		// Entry was moved up
+		range_from = to_number;
+		range_to = e->number;
+		move_by = 1;
+	}
+
+	if (move_by == 0) return;
+
+	// Reorder all entries inside range `range_from`-`range_to`
+	for (size_t i = 0; i < queue->entries.len; i++) {
+		if ((int)i == queue->reordering_idx) continue;
+
+		QueueEntry *another = &queue->entries.items[i];
+
+		if (another->number >= range_from && another->number <= range_to) {
+			int moved_number = another->number + move_by;
+			if (moved_number >= 0 && moved_number < (int)queue->entries.len) {
+				another->number = moved_number;
+				entry_tween_to_rest(another);
+			}
+		}
+	}
+
+	e->number = CLAMP(to_number, 0, queue->entries.len - 1);
+}
+
 void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, State *state) {
 	Rect rect = (Rect){
 		state->container.x,
@@ -206,91 +249,31 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 
 	QueueEntry *reordering = &q->entries.items[q->reordering_idx];
 
-	float offset_y = state->container.y - state->scroll;
-	float new_pos_y = GetMouseY() - q->reorder_click_offset_y - offset_y;
+	// Move currently reordering entry to mouse position
+	reordering->pos_y = GetMouseY()
+		- q->reorder_click_offset_y
+		- state->container.y
+		+ state->scroll;
 
-	int new_number = (int)((new_pos_y + ENTRY_HEIGHT/2) / ENTRY_HEIGHT);
+	// Reorder and draw currently reordering entry
+	entry_reorder(reordering, q, entry_number_from_pos(reordering));
+	entry_draw(q->reordering_idx, reordering, q, client, state);
 
-	int from_number = 0;
-	int to_number = 0;
-	int move_by = 0;
-	if (new_number > reordering->number) {
-		// Entry was moved down
-		from_number = reordering->number;
-		to_number = new_number;
-		move_by = -1;
-	} else if (new_number < reordering->number) {
-		// Entry was moved up
-		from_number = new_number;
-		to_number = reordering->number;
-		move_by = 1;
-	}
-
-	if (move_by != 0) {
-		// Reorder all entries inside range `from_number`-`to_number`
-		for (size_t i = 0; i < q->entries.len; i++) {
-			if ((int)i == q->reordering_idx) continue;
-
-			QueueEntry *another = &q->entries.items[i];
-
-			if (another->number >= from_number && another->number <= to_number) {
-				int new_number = another->number + move_by;
-				if (new_number >= 0 && new_number < (int)q->entries.len) {
-					another->number = new_number;
-					entry_tween_to_rest(another);
-				}
-			}
-		}
-
-		reordering->number = CLAMP(new_number, 0, q->entries.len - 1);
-	}
-
-	reordering->pos_y = new_pos_y;
-
-	// Scroll follows currently reordering entry
+	// Scroll following
 	float relative_pos_y = reordering->pos_y - state->scroll;
 	float top = (relative_pos_y + 0) - 0;
 	float bottom = (relative_pos_y + ENTRY_HEIGHT) - state->container.height;
 	if (top < 0.0)    q->scrollable.target_scroll += top / 3.0;
 	if (bottom > 0.0) q->scrollable.target_scroll += bottom / 3.0;
 
-	entry_draw(q->reordering_idx, reordering, q, client, state);
-
 	// Reordering stopped
 	if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+		// Reorder actual queue
 		bool res = client_run_reorder(client, q->reordered_from_number, reordering->number);
 		if (!res) {
+			// Discard previous reorder on error
 			TraceLog(LOG_ERROR, "QUEUE: Unable to reorder, discarding");
-
-			new_number = q->reordered_from_number;
-			if (new_number > reordering->number) {
-				// Entry was moved down
-				from_number = reordering->number;
-				to_number = new_number;
-				move_by = -1;
-			} else if (new_number < reordering->number) {
-				// Entry was moved up
-				from_number = new_number;
-				to_number = reordering->number;
-				move_by = 1;
-			}
-
-			// Reorder all entries inside range `from_number`-`to_number`
-			for (size_t i = 0; i < q->entries.len; i++) {
-				if ((int)i == q->reordering_idx) continue;
-
-				QueueEntry *another = &q->entries.items[i];
-
-				if (another->number >= from_number && another->number <= to_number) {
-					int new_number = another->number + move_by;
-					if (new_number >= 0 && new_number < (int)q->entries.len) {
-						another->number = new_number;
-						entry_tween_to_rest(another);
-					}
-				}
-			}
-
-			reordering->number = new_number;
+			entry_reorder(reordering, q, q->reordered_from_number);
 		}
 
 		entry_tween_to_rest(reordering);
