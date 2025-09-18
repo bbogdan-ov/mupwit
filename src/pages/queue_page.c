@@ -250,8 +250,8 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 	float relative_pos_y = reordering->pos_y - state->scroll;
 	float top = (relative_pos_y + 0) - 0;
 	float bottom = (relative_pos_y + ENTRY_HEIGHT) - state->container.height;
-	if (top < 0.0)    q->scrollable.velocity = top / 4.0;
-	if (bottom > 0.0) q->scrollable.velocity = bottom / 4.0;
+	if (top < 0.0)    q->scrollable.target_scroll += top / 3.0;
+	if (bottom > 0.0) q->scrollable.target_scroll += bottom / 3.0;
 
 	entry_draw(q->reordering_idx, reordering, q, client, state);
 
@@ -272,7 +272,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 
 	scrollable_update(&q->scrollable);
 
-	state->scroll = scrollable_get_scroll(&q->scrollable);
+	state->scroll = q->scrollable.scroll;
 	state->container = rect(
 		padding,
 		padding,

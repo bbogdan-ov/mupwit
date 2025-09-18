@@ -4,28 +4,41 @@
 #include "./scrollable.h"
 #include "../macros.h"
 
+#include <raymath.h>
+
 Scrollable scrollable_new() {
-	return (Scrollable){0};
+	return (Scrollable){
+		.tween = tween_new(300),
+	};
 }
 
 void scrollable_update(Scrollable *s) {
 	// TODO: scroll only when mouse is over the scrollable thingy
 	Vector2 wheel = GetMouseWheelMoveV();
 
-	s->velocity -= wheel.y * 14;
-	s->scroll += s->velocity;
-	s->velocity *= 0.6;
+	scrollable_scroll_by(s, -wheel.y * SCROLL_WHEEL_MOVEMENT);
+	s->target_scroll = CLAMP(s->target_scroll, 0, s->height);
 
-	if (s->scroll > s->height)
-		s->scroll = s->height;
-	else if (s->scroll < 0)
-		s->scroll = 0;
+	tween_update(&s->tween);
+
+	if (tween_playing(&s->tween)) {
+		s->scroll = floor(Lerp(
+			s->prev_scroll,
+			s->target_scroll,
+			EASE_OUT_CUBIC(tween_progress(&s->tween))
+		));
+	} else {
+		s->scroll = floor(s->target_scroll);
+	}
 }
 
+void scrollable_scroll_by(Scrollable *s, float movement) {
+	if (movement == 0.0) return;
+
+	s->prev_scroll = s->scroll;
+	s->target_scroll += movement;
+	tween_play(&s->tween);
+}
 void scrollable_set_height(Scrollable *s, float height) {
 	s->height = MAX(height, 0);
-}
-
-float scrollable_get_scroll(Scrollable *s) {
-	return floor(s->scroll);
 }
