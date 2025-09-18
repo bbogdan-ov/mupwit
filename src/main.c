@@ -13,6 +13,10 @@
 // TODO: add ability to undo actions like queue reordering or song selection
 
 int main() {
+#ifdef RELEASE
+	SetTraceLogLevel(LOG_WARNING);
+#endif
+
 	InitWindow(THEME_WINDOW_WIDTH, THEME_WINDOW_HEIGHT, "MUPWIT");
 	SetTargetFPS(60);
 
