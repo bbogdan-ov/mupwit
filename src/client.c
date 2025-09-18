@@ -95,6 +95,7 @@ static int readpicture(
 
 	return size;
 }
+// FIXME!!: I THINK THIS FUNCTION MEMORY LEAKS!
 // Fetch album artwork of the currently playing song
 // Returns whether texture data was successfully updated
 // Does nothing and returns `false` if there is no current song
