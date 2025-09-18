@@ -260,8 +260,37 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 	if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
 		bool res = client_run_reorder(client, q->reordered_from_number, reordering->number);
 		if (!res) {
-			TraceLog(LOG_INFO, "QUEUE: Unable to reorder, discarding");
-			// TODO: discard changes on error and show the message to the user
+			TraceLog(LOG_ERROR, "QUEUE: Unable to reorder, discarding");
+
+			new_number = q->reordered_from_number;
+			if (new_number > reordering->number) {
+				// Entry was moved down
+				from_number = reordering->number;
+				to_number = new_number;
+				move_by = -1;
+			} else if (new_number < reordering->number) {
+				// Entry was moved up
+				from_number = new_number;
+				to_number = reordering->number;
+				move_by = 1;
+			}
+
+			// Reorder all entries inside range `from_number`-`to_number`
+			for (size_t i = 0; i < q->entries.len; i++) {
+				if ((int)i == q->reordering_idx) continue;
+
+				QueueEntry *another = &q->entries.items[i];
+
+				if (another->number >= from_number && another->number <= to_number) {
+					int new_number = another->number + move_by;
+					if (new_number >= 0 && new_number < (int)q->entries.len) {
+						another->number = new_number;
+						entry_tween_to_rest(another);
+					}
+				}
+			}
+
+			reordering->number = new_number;
 		}
 
 		entry_tween_to_rest(reordering);
