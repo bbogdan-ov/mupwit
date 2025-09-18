@@ -278,6 +278,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		sh - padding*2
 	);
 
+	// Draw the entries
 	for (size_t i = 0; i < q->entries.len; i++) {
 		if ((int)i == q->reordering_idx) continue;
 
@@ -294,7 +295,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		entry_draw((int)i, entry, q, client, state);
 	}
 
-	// Draw entry that is currently being dragged
+	// Draw entry that is currently being reordered
 	draw_reordering_entry(q, client, state);
 
 	scrollable_set_height(
