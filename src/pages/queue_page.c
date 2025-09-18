@@ -9,8 +9,8 @@
 #include <raymath.h>
 
 #define ENTRY_PADDING 10
-#define ENTRY_HEIGHT (THEME_NORMAL_TEXT_SIZE*2 + ENTRY_PADDING*2)
 #define ARTWORK_SIZE 32
+#define ENTRY_HEIGHT (ARTWORK_SIZE + ENTRY_PADDING*2)
 
 // TODO: focus on/scroll to the currently playing song
 
