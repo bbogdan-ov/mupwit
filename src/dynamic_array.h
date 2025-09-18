@@ -5,8 +5,12 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include "./macros.h"
+
+#define DA_INIT_CAP 32
+
 #define DA_RESERVE(da, capacity) if ((capacity) >= (da)->cap) { \
-	(da)->cap = (capacity) * 2; \
+	(da)->cap = MAX((capacity) * 2, DA_INIT_CAP); \
 	(da)->items = realloc((da)->items, (da)->cap * sizeof((da)->items[0])); \
 	if ((da)->items == NULL) { \
 		TraceLog(LOG_ERROR, "DYNAMIC ARRAY: Out of memory! (line %d)", __LINE__); \
