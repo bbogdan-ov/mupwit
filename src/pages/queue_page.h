@@ -38,6 +38,8 @@ typedef struct QueuePage {
 	// Currently reordering entry index
 	// -1 - nothing is being dragged
 	int reordering_idx;
+	// Number of the reordering entry from which it was reordered
+	int reordered_from_number;
 	float reorder_click_offset_y;
 
 	Scrollable scrollable;

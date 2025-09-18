@@ -88,6 +88,7 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 	if (is_hovering && queue->reordering_idx < 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
 		// Start reordering
 		queue->reordering_idx = idx;
+		queue->reordered_from_number = entry->number;
 		queue->reorder_click_offset_y = GetMouseY() - rect.y;
 	}
 	// if (is_hovering && IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
@@ -257,7 +258,12 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 
 	// Reordering stopped
 	if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-		// TODO!: actually reorder queue on the server
+		bool res = client_run_reorder(client, q->reordered_from_number, reordering->number);
+		if (!res) {
+			TraceLog(LOG_INFO, "QUEUE: Unable to reorder, discarding");
+			// TODO: discard changes on error and show the message to the user
+		}
+
 		entry_tween_to_rest(reordering);
 		q->reordering_idx = -1;
 	}

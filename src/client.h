@@ -61,6 +61,7 @@ void client_update(Client *c, Player *player, State *state);
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);
 
 void client_run_play_song(Client *c, unsigned id);
+bool client_run_reorder(Client *c, unsigned from, unsigned to);
 void client_run_seek(Client *c, int seconds);
 void client_run_toggle(Client *c);
 void client_run_next(Client *c);

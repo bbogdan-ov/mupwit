@@ -337,6 +337,13 @@ void client_run_play_song(Client *c, unsigned id) {
 	}
 	fetch_status(c);
 }
+bool client_run_reorder(Client *c, unsigned from, unsigned to) {
+	if (from == to) return true;
+
+	bool res = mpd_run_move(c->conn, from, to);
+	if (!res) CONN_HANDLE_ERROR(c->conn);
+	return res;
+}
 void client_run_seek(Client *c, int seconds) {
 	if (TRYLOCK(&c->mutex) != 0) return;
 	if (mpd_run_seek_current(c->conn, seconds, false))
