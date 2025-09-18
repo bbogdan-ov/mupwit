@@ -11,6 +11,7 @@
 #define ENTRY_PADDING 10
 #define ARTWORK_SIZE 32
 #define ENTRY_HEIGHT (ARTWORK_SIZE + ENTRY_PADDING*2)
+#define GRAB_THRESHOLD 8
 
 // TODO: focus on/scroll to the currently playing song
 // TODO: draw "no songs" when queue is empty
@@ -18,6 +19,7 @@
 QueuePage queue_page_new() {
 	return (QueuePage){
 		.entries = (QueueEntriesList){0},
+		.trying_to_grab_idx = -1,
 		.reordering_idx = -1,
 
 		.scrollable = scrollable_new(),
@@ -56,6 +58,7 @@ void entry_free(QueueEntry *e) {
 
 void entry_tween_to_rest(QueueEntry *e) {
 	e->prev_pos_y = e->pos_y;
+	e->pos_y = e->number * ENTRY_HEIGHT;
 	tween_play(&e->pos_tween);
 }
 
@@ -66,6 +69,8 @@ int entry_number_from_pos(QueueEntry *e) {
 // Reorder entry UI element, does NOT affect an actual queue.
 // Any entry reordering also does NOT affect the order of items in the array (`entries`)
 void entry_reorder(QueueEntry *e, QueuePage *queue, int to_number) {
+	to_number = CLAMP(to_number, 0, queue->entries.len - 1);
+
 	int range_from = 0;
 	int range_to = 0;
 	int move_by = 0;
@@ -99,10 +104,13 @@ void entry_reorder(QueueEntry *e, QueuePage *queue, int to_number) {
 		}
 	}
 
-	e->number = CLAMP(to_number, 0, queue->entries.len - 1);
+	e->number = to_number;
 }
 
 void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, State *state) {
+#define IS_REORDERING (queue->reordering_idx == idx)
+#define IS_TRYING_TO_GRAB (queue->trying_to_grab_idx == idx)
+
 	Rect rect = (Rect){
 		state->container.x,
 		state->container.y - state->scroll + entry->pos_y,
@@ -113,33 +121,79 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 	// Draw only visible entries
 	if (!CheckCollisionRecs(rect, screen_rect())) return;
 
+	tween_update(&entry->pos_tween);
+	float pos_y = Lerp(
+		entry->prev_pos_y,
+		entry->pos_y,
+		EASE_OUT_CUBIC(tween_progress(&entry->pos_tween))
+	);
+	rect.y = state->container.y - state->scroll + pos_y;
+
 	const struct mpd_song *song = mpd_entity_get_song(entry->entity);
 
 	Rect inner = rect_shrink(rect, ENTRY_PADDING, 0);
 	Color background = state->background;
 
+	// ==============================
+	// Entry events
+	// ==============================
+
+	bool is_playing = client->cur_song && mpd_song_get_id(client->cur_song) == mpd_song_get_id(song);
 	bool is_hovering = CheckCollisionPointRec(GetMousePosition(), rect);
-	bool is_reordering = queue->reordering_idx == idx;
+
+	// Clicking on entry will start "trying to grab mode"
+	if (is_hovering && queue->reordering_idx < 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+		queue->trying_to_grab_idx = idx;
+		queue->reorder_click_offset_y = GetMouseY() - rect.y;
+	}
+
+	if (IS_TRYING_TO_GRAB) {
+		// If we dragged more than `GRAB_THRESHOLD` from the
+		// previous click position...
+		float diff = queue->reorder_click_offset_y + rect.y - GetMouseY();
+		if (fabs(diff) > GRAB_THRESHOLD) {
+			// Start reordering
+			entry->prev_pos_y = entry->pos_y;
+			tween_play(&entry->pos_tween);
+
+			queue->trying_to_grab_idx = -1;
+			queue->reordering_idx = idx;
+			queue->reordered_from_number = entry->number;
+		}
+
+		// Stop "trying to grab mode"
+		if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+			queue->trying_to_grab_idx = -1;
+		}
+	}
+
+	// Releasing mouse button will play this song
+	if (
+		!is_playing
+		&& is_hovering
+		&& queue->reordering_idx < 0
+		&& IsMouseButtonReleased(MOUSE_BUTTON_LEFT)
+	) {
+		client_run_play_song(client, mpd_song_get_id(song));
+	}
+
+	// ==============================
+	// Draw entry
+	// ==============================
 
 	// Draw background when hovering over or reordering the entry
-	if ((is_hovering && queue->reordering_idx < 0) || is_reordering) {
+	if (
+		(is_hovering && queue->reordering_idx < 0 && queue->trying_to_grab_idx < 0)
+		|| IS_REORDERING
+		|| IS_TRYING_TO_GRAB
+	) {
 		background = state->foreground;
 		state->cursor = MOUSE_CURSOR_POINTING_HAND;
 		draw_box(state, BOX_FILLED_ROUNDED, rect, background);
 	}
 
-	if (is_hovering && queue->reordering_idx < 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-		// Start reordering
-		queue->reordering_idx = idx;
-		queue->reordered_from_number = entry->number;
-		queue->reorder_click_offset_y = GetMouseY() - rect.y;
-	}
-	// if (is_hovering && IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
-	// 	client_run_play_song(client, mpd_song_get_id(song));
-	// }
-
 	// Show "currently playing" marker
-	if (client->cur_song && mpd_song_get_id(client->cur_song) == mpd_song_get_id(song)) {
+	if (is_playing) {
 		draw_icon(
 			state,
 			ICON_SMALL_ARROW,
@@ -303,15 +357,6 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		if ((int)i == q->reordering_idx) continue;
 
 		QueueEntry *entry = &q->entries.items[i];
-
-		tween_update(&entry->pos_tween);
-		float target_pos_y = entry->number * ENTRY_HEIGHT;
-		entry->pos_y = Lerp(
-			entry->prev_pos_y,
-			target_pos_y,
-			EASE_OUT_CUBIC(tween_progress(&entry->pos_tween))
-		);
-
 		entry_draw((int)i, entry, q, client, state);
 	}
 

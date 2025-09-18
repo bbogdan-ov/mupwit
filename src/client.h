@@ -29,8 +29,8 @@ typedef struct Client {
 	// `NULL` means no info is available
 	struct mpd_status *cur_status;
 
-	// Time left untill trying to update the player status
-	int update_timer_ms;
+	// Time left untill trying to fetch the player status
+	int fetch_status_timer_ms;
 
 	// Artwork image (CPU) of the current song
 	Image artwork_image;
@@ -61,6 +61,7 @@ void client_update(Client *c, Player *player, State *state);
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);
 
 void client_run_play_song(Client *c, unsigned id);
+// Move song from position `from` to `to` (0-based)
 bool client_run_reorder(Client *c, unsigned from, unsigned to);
 void client_run_seek(Client *c, int seconds);
 void client_run_toggle(Client *c);

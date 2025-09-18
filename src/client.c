@@ -303,9 +303,9 @@ void client_update(Client *c, Player *player, State *state) {
 	}
 	UNLOCK(&c->conn_state_mutex);
 
-	c->update_timer_ms -= (int)(GetFrameTime() * 1000);
+	c->fetch_status_timer_ms -= (int)(GetFrameTime() * 1000);
 
-	if (c->update_timer_ms <= 0) {
+	if (c->fetch_status_timer_ms <= 0) {
 		fetch_status(c);
 
 		if (c->artwork_image_just_changed) {
@@ -319,7 +319,7 @@ void client_update(Client *c, Player *player, State *state) {
 
 		player_set_status(player, c->cur_status, c->cur_song);
 
-		c->update_timer_ms = CLIENT_UPDATE_EVERY_MS;
+		c->fetch_status_timer_ms = CLIENT_UPDATE_EVERY_MS;
 	}
 
 	UNLOCK(&c->mutex);
@@ -335,7 +335,7 @@ void client_run_play_song(Client *c, unsigned id) {
 		CONN_HANDLE_ERROR(c->conn);
 		return;
 	}
-	fetch_status(c);
+	c->fetch_status_timer_ms = 0;
 }
 bool client_run_reorder(Client *c, unsigned from, unsigned to) {
 	if (from == to) return true;
@@ -345,36 +345,30 @@ bool client_run_reorder(Client *c, unsigned from, unsigned to) {
 	return res;
 }
 void client_run_seek(Client *c, int seconds) {
-	if (TRYLOCK(&c->mutex) != 0) return;
 	if (mpd_run_seek_current(c->conn, seconds, false))
-		fetch_status(c);
+		c->fetch_status_timer_ms = 0;
 	else
 		CONN_HANDLE_ERROR(c->conn);
-	UNLOCK(&c->mutex);
 }
 void client_run_toggle(Client *c) {
-	if (TRYLOCK(&c->mutex) != 0) return;
 	bool res = mpd_send_command(c->conn, "pause", NULL);
 	res = res && mpd_response_finish(c->conn);
-	if (res) fetch_status(c);
-	else CONN_HANDLE_ERROR(c->conn);
-	UNLOCK(&c->mutex);
+	if (res)
+		c->fetch_status_timer_ms = 0;
+	else
+		CONN_HANDLE_ERROR(c->conn);
 }
 void client_run_next(Client *c) {
-	if (TRYLOCK(&c->mutex) != 0) return;
 	if (mpd_run_next(c->conn))
-		fetch_status(c);
+		c->fetch_status_timer_ms = 0;
 	else
 		CONN_HANDLE_ERROR(c->conn);
-	UNLOCK(&c->mutex);
 }
 void client_run_prev(Client *c) {
-	if (TRYLOCK(&c->mutex) != 0) return;
 	if (mpd_run_previous(c->conn))
-		fetch_status(c);
+		c->fetch_status_timer_ms = 0;
 	else
 		CONN_HANDLE_ERROR(c->conn);
-	UNLOCK(&c->mutex);
 }
 
 void client_free(Client *c) {
