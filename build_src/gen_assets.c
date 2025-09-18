@@ -91,7 +91,11 @@ void generate_image(FILE *file, const char *name, const char *path) {
 
 	int comps = format_comps(image.format);
 	fprintf(file, "#define %s_PIXEL_FORMAT ", name);
-	if (comps == 3) {
+	if (comps == 1) {
+		fprintf(file, "PIXELFORMAT_UNCOMPRESSED_GRAYSCALE\n");
+	} else if (comps == 2) {
+		fprintf(file, "PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA\n");
+	} else if (comps == 3) {
 		fprintf(file, "PIXELFORMAT_UNCOMPRESSED_R8G8B8\n");
 	} else if (comps == 4) {
 		fprintf(file, "PIXELFORMAT_UNCOMPRESSED_R8G8B8A8\n");
