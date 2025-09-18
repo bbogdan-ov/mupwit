@@ -215,7 +215,10 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 	draw_icon(
 		state,
 		ICON_DISK,
-		vec(artwork_rect.x, artwork_rect.y),
+		vec(
+			artwork_rect.x + artwork_rect.width/2 - ICON_SIZE/2,
+			artwork_rect.y + artwork_rect.height/2 - ICON_SIZE/2
+		),
 		THEME_BLACK
 	);
 	inner.x += artwork_rect.width + ENTRY_PADDING;

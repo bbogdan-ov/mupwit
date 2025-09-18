@@ -6,7 +6,7 @@
 #include "./theme.h"
 #include "./state.h"
 
-#define ICON_SIZE 32
+#define ICON_SIZE 16
 
 typedef struct Rectangle Rect;
 typedef struct Vector2 Vec;
