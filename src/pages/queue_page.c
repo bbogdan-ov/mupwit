@@ -15,7 +15,7 @@
 
 QueuePage queue_page_new() {
 	return (QueuePage){
-		.entries = (QueueEntriesList)DA_ALLOC(512, sizeof(QueueEntry)),
+		.entries = (QueueEntriesList){0},
 		.reordering_idx = -1,
 
 		.scrollable = scrollable_new(),
@@ -173,6 +173,7 @@ void fetch_queue(QueuePage *q, Client *client) {
 	}
 
 	queue_page_free(q);
+	DA_RESERVE(&q->entries, 512);
 
 	// Receive queue entities/songs from the server
 	while (true) {

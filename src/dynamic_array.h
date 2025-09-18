@@ -5,14 +5,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-void *da_alloc(size_t capacity);
-
-#define DA_ALLOC(capacity, item_size) { \
-	.items = da_alloc((capacity) * (item_size)), \
-	.len = 0, \
-	.cap = (capacity), \
-}
-
 #define DA_RESERVE(da, capacity) if ((capacity) >= (da)->cap) { \
 	(da)->cap = (capacity) * 2; \
 	(da)->items = realloc((da)->items, (da)->cap * sizeof((da)->items[0])); \
