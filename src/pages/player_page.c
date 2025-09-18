@@ -9,6 +9,8 @@
 
 #define BAR_HEIGHT 4
 #define BAR_EXPAND 4
+#define PADDING 32
+#define GAP 16
 
 bool draw_icon_button(State *state, Icon icon, Vec pos) {
 	Rect rec = rect(pos.x, pos.y, ICON_SIZE, ICON_SIZE);
@@ -79,10 +81,8 @@ void player_page_draw(Player *player, Client *client, State *state) {
 
 	int sw = GetScreenWidth();
 	int sh = GetScreenHeight();
-	int padding = 32;
-	int gap = 16;
 
-	Rect container = rect_shrink(rect(0, 0, sw, sh), padding, padding);
+	Rect container = rect_shrink(rect(0, 0, sw, sh), PADDING, PADDING);
 	float offset_y = container.y;
 
 	// Draw artwork
@@ -106,7 +106,7 @@ void player_page_draw(Player *player, Client *client, State *state) {
 	// Artwork border
 	draw_box(state, BOX_3D, rect_shrink(artwork_rect, -1, -1), THEME_BLACK);
 
-	offset_y += artwork_rect.height + gap;
+	offset_y += artwork_rect.height + GAP;
 
 	BeginScissorMode(container.x, container.y, container.width, container.height);
 
@@ -141,7 +141,7 @@ void player_page_draw(Player *player, Client *client, State *state) {
 	EndScissorMode();
 
 	// Draw control buttons
-	text_offset.y += gap;
+	text_offset.y += GAP;
 
 	draw_box(
 		state,
@@ -171,12 +171,12 @@ void player_page_draw(Player *player, Client *client, State *state) {
 	text_offset.x += ICON_SIZE;
 
 	// Draw progress bar
-	text_offset.x += gap;
+	text_offset.x += GAP;
 	text_offset.y += BAR_HEIGHT + 1;
 	Rect bar_rect = rect(
 		text_offset.x,
 		text_offset.y,
-		container.width + padding - text_offset.x,
+		container.width + PADDING - text_offset.x,
 		BAR_HEIGHT
 	);
 	draw_box(state, BOX_NORMAL, bar_rect, THEME_BLACK);
@@ -234,7 +234,7 @@ void player_page_draw(Player *player, Client *client, State *state) {
 	text.pos = vec(bar_rect.x + bar_rect.width - size.x, bar_rect.y + BAR_EXPAND + BAR_HEIGHT * 2);
 	draw_text(text);
 
-	text_offset.y += ICON_SIZE + padding;
+	text_offset.y += ICON_SIZE + PADDING;
 	if (sh > text_offset.y) {
 		// TODO: temporarily
 		SetWindowSize(sw, text_offset.y);
