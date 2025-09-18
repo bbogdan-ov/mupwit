@@ -57,24 +57,25 @@ void entry_tween_to_rest(QueueEntry *e) {
 	tween_play(&e->pos_tween);
 }
 
-void entry_draw(
-	int idx,
-	QueueEntry *entry,
-	QueuePage *queue,
-	Client *client,
-	State *state,
-	Rect rect
-) {
-	const struct mpd_song *song = mpd_entity_get_song(entry->entity);
-
+void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, State *state) {
 	int artwork_size = 32;
 
+	Rect rect = (Rect){
+		state->container.x,
+		state->container.y - state->scroll + entry->pos_y,
+		state->container.width,
+		ENTRY_HEIGHT
+	};
 	Rect inner = (Rect){
 		rect.x + ENTRY_PADDING,
 		rect.y,
 		rect.width - ENTRY_PADDING*2,
 		rect.height
 	};
+
+	if (!CheckCollisionRecs(rect, screen_rect())) return;
+
+	const struct mpd_song *song = mpd_entity_get_song(entry->entity);
 
 	Color background = state->background;
 
@@ -204,12 +205,12 @@ void queue_page_update(QueuePage *q, Client *client) {
 	UNLOCK(&client->mutex);
 }
 
-void draw_reodering_entry(QueuePage *q, Client *client, State *state, Rect container) {
+void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 	if (q->reordering_idx < 0) return;
 
 	QueueEntry *reordering = &q->entries.items[q->reordering_idx];
 
-	float offset_y = container.y - scrollable_get_scroll(&q->scrollable);
+	float offset_y = state->container.y - state->scroll;
 	float new_pos_y = GetMouseY() - q->reorder_click_offset_y - offset_y;
 
 	int new_number = (int)((new_pos_y + ENTRY_HEIGHT/2) / ENTRY_HEIGHT);
@@ -250,21 +251,7 @@ void draw_reodering_entry(QueuePage *q, Client *client, State *state, Rect conta
 
 	reordering->pos_y = new_pos_y;
 
-	Rect song_rect = rect(
-		container.x,
-		offset_y + reordering->pos_y,
-		container.width,
-		ENTRY_HEIGHT
-	);
-
-	entry_draw(
-		q->reordering_idx,
-		reordering,
-		q,
-		client,
-		state,
-		song_rect
-	);
+	entry_draw(q->reordering_idx, reordering, q, client, state);
 
 	// Reordering stopped
 	if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
@@ -281,15 +268,15 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	int sh = GetScreenHeight();
 	int padding = 8;
 
-	Rect container = rect(
+	scrollable_update(&q->scrollable);
+
+	state->scroll = scrollable_get_scroll(&q->scrollable);
+	state->container = rect(
 		padding,
 		padding,
 		sw - padding*2,
 		sh - padding*2
 	);
-
-	scrollable_update(&q->scrollable);
-	float scroll = scrollable_get_scroll(&q->scrollable);
 
 	for (size_t i = 0; i < q->entries.len; i++) {
 		if ((int)i == q->reordering_idx) continue;
@@ -304,28 +291,16 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 			EASE_OUT_CUBIC(tween_progress(&entry->pos_tween))
 		);
 
-		Rect song_rect = rect(
-			container.x,
-			container.y - scroll + entry->pos_y,
-			container.width,
-			ENTRY_HEIGHT
-		);
-
-		if (CheckCollisionRecs(song_rect, rect(0, 0, sw, sh)))
-			entry_draw(
-				(int)i,
-				entry,
-				q,
-				client,
-				state,
-				song_rect
-			);
+		entry_draw((int)i, entry, q, client, state);
 	}
 
 	// Draw entry that is currently being dragged
-	draw_reodering_entry(q, client, state, container);
+	draw_reordering_entry(q, client, state);
 
-	scrollable_set_height(&q->scrollable, q->entries.len * ENTRY_HEIGHT - container.height);
+	scrollable_set_height(
+		&q->scrollable,
+		q->entries.len * ENTRY_HEIGHT - state->container.height
+	);
 
 	UNLOCK(&client->mutex);
 }

@@ -36,6 +36,7 @@ int main() {
 		BeginDrawing();
 		ClearBackground(state.background);
 
+		state.container = screen_rect();
 		state.cursor = MOUSE_CURSOR_DEFAULT;
 
 		switch (client.conn_state) {

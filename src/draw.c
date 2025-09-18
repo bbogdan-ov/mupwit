@@ -75,6 +75,10 @@ bool is_shift_down() {
 	return IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
 }
 
+Rect screen_rect() {
+	return (Rect){0, 0, GetScreenWidth(), GetScreenHeight()};
+}
+
 Rect rect_shrink(Rect rect, float hor, float ver) {
 	return (Rect){
 		.x = rect.x + hor,

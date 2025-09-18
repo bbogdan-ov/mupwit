@@ -53,6 +53,8 @@ void draw_box(State *state, Box box, Rect rect, Color color);
 bool is_key_pressed(KeyboardKey key);
 bool is_shift_down();
 
+Rect screen_rect();
+
 Rect rect_shrink(Rect rect, float hor, float ver);
 
 const char *format_time(int secs);
