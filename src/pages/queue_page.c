@@ -58,7 +58,7 @@ void entry_draw(QueueEntry *entry, Client *client, State *state, Rect rect) {
 		state->cursor = MOUSE_CURSOR_POINTING_HAND;
 		draw_box(state, BOX_FILLED_ROUNDED, rect, background);
 	}
-	if (hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+	if (hover && IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
 		client_run_play_song(client, mpd_song_get_id(entry->song));
 	}
 
