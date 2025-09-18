@@ -12,6 +12,8 @@
 #define PADDING 32
 #define GAP 16
 
+// TODO: draw "no song" when no info about current song is available
+
 bool draw_icon_button(State *state, Icon icon, Vec pos) {
 	Rect rec = rect(pos.x, pos.y, ICON_SIZE, ICON_SIZE);
 	bool hover = CheckCollisionPointRec(GetMousePosition(), rec);

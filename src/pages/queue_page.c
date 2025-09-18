@@ -13,6 +13,7 @@
 #define ENTRY_HEIGHT (ARTWORK_SIZE + ENTRY_PADDING*2)
 
 // TODO: focus on/scroll to the currently playing song
+// TODO: draw "no songs" when queue is empty
 
 QueuePage queue_page_new() {
 	return (QueuePage){
