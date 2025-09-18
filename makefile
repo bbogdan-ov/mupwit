@@ -34,7 +34,7 @@ $(BUILD_DIR)/assets.h: $(BUILD_DIR)/gen_assets $(ASSETS)
 
 # Compile 'gen_assets'
 $(BUILD_DIR)/gen_assets: $(BUILD_SRC_DIR)/gen_assets.c | $(BUILD_DIR)
-	gcc $(FLAGS) -lm \
+	gcc $(FLAGS) -lraylib -lm \
 		$(BUILD_SRC_DIR)/gen_assets.c -o $(BUILD_DIR)/gen_assets
 
 $(BUILD_DIR):

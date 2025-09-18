@@ -1,70 +1,40 @@
 // Build "script" that loads, decodes and converts assets into a ./build/assets.h file
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
+#include <raylib.h>
 #include <math.h>
-
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "./stb_truetype.h"
-#define STB_IMAGE_IMPLEMENTATION
-#include "./stb_image.h"
 
 #define CODEPOINT_START 0x20
 #define CODEPOINT_STOP 0x3000
 #define CODEPOINT_COUNT (CODEPOINT_STOP - CODEPOINT_START + 1)
 
-#define BITMAP_WIDTH (8 * 128)
-#define BITMAP_HEIGHT (8 * 92)
-#define BITMAP_LEN (BITMAP_WIDTH * BITMAP_HEIGHT)
+int format_comps(PixelFormat format) {
+	if (format == PIXELFORMAT_UNCOMPRESSED_GRAYSCALE) return 1;
+	if (format == PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA) return 2;
+	if (format == PIXELFORMAT_UNCOMPRESSED_R8G8B8) return 3;
+	if (format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) return 4;
+
+	fprintf(stderr, "ERROR: Unhandled image format (%d)\n", format);
+	exit(1);
+}
 
 void generate_font(FILE *file, const char *name, const char *path, int base_size) {
-	unsigned char ttf_buffer[1 << 20];
-	unsigned char bitmap[BITMAP_LEN];
-
-	stbtt_bakedchar bboxes[CODEPOINT_COUNT];
-
-	FILE *ttf_file = fopen(path, "rb");
-	assert(ttf_file);
-
-	// Raterize font
-	fread(ttf_buffer, 1, 1 << 20, ttf_file);
-	stbtt_BakeFontBitmap(
-		ttf_buffer,
-		0,
-		base_size,
-		bitmap,
-		BITMAP_WIDTH,
-		BITMAP_HEIGHT,
-		CODEPOINT_START,
-		CODEPOINT_STOP,
-		bboxes
-	);
-	fclose(ttf_file);
-
-#if 0
-	// Generate PBM image
-	FILE *img = fopen(name, "wb");
-	fprintf(img, "P4\n%d %d\n", BITMAP_WIDTH, BITMAP_HEIGHT);
-	for (int i = 0; i < BITMAP_LEN; i += 8) {
-		unsigned char byte = 0;
-		byte |= bitmap[i + 0] ? 1 << 7 : 0;
-		byte |= bitmap[i + 1] ? 1 << 6 : 0;
-		byte |= bitmap[i + 2] ? 1 << 5 : 0;
-		byte |= bitmap[i + 3] ? 1 << 4 : 0;
-		byte |= bitmap[i + 4] ? 1 << 3 : 0;
-		byte |= bitmap[i + 5] ? 1 << 2 : 0;
-		byte |= bitmap[i + 6] ? 1 << 1 : 0;
-		byte |= bitmap[i + 7] ? 1 << 0 : 0;
-		fputc(byte, img);
+	int codepoints[CODEPOINT_COUNT];
+	for (int i = 0; i < CODEPOINT_COUNT; i++) {
+		codepoints[i] = i + CODEPOINT_START;
 	}
-	fclose(img);
-#else
+
+	Font font = LoadFontEx(path, base_size, codepoints, CODEPOINT_COUNT);
+	Image image = LoadImageFromTexture(font.texture);
+
 	// Write font data into the output file
 	fprintf(file, "#define %s_BASE_SIZE %d\n", name, (int)base_size);
 	fprintf(file, "#define %s_GLYPH_COUNT %d\n", name, (int)CODEPOINT_COUNT);
 	fprintf(file, "#define %s_GLYPH_PADDING 0\n", name);
-	fprintf(file, "#define %s_IMAGE_WIDTH %d\n", name, BITMAP_WIDTH);
-	fprintf(file, "#define %s_IMAGE_HEIGHT %d\n", name, BITMAP_HEIGHT);
+	fprintf(file, "#define %s_IMAGE_WIDTH %d\n", name, image.width);
+	fprintf(file, "#define %s_IMAGE_HEIGHT %d\n", name, image.height);
 	fprintf(file, "#define %s_PIXEL_FORMAT PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA\n", name);
 
 	fprintf(file, "extern Rectangle %s_RECTS[];\n", name);
@@ -76,9 +46,14 @@ void generate_font(FILE *file, const char *name, const char *path, int base_size
 	// Generate rectangles
 	fprintf(file, "Rectangle %s_RECTS[] = {\n", name);
 	for (int i = 0; i < CODEPOINT_COUNT; i++) {
-		unsigned short w = bboxes[i].x1 - bboxes[i].x0;
-		unsigned short h = bboxes[i].y1 - bboxes[i].y0;
-		fprintf(file, "{%d,%d,%d,%d},\n", bboxes[i].x0, bboxes[i].y0, w, h);
+		fprintf(
+			file,
+			"{%f,%f,%f,%f},\n",
+			font.recs[i].x,
+			font.recs[i].y,
+			font.recs[i].width,
+			font.recs[i].height
+		);
 	}
 	fprintf(file, "};\n\n");
 
@@ -88,45 +63,38 @@ void generate_font(FILE *file, const char *name, const char *path, int base_size
 		fprintf(
 			file,
 			"{%d,%d,%d,%d,{0}},\n",
-			CODEPOINT_START + i,
-			(int)bboxes[i].xoff,
-			(int)bboxes[i].yoff + base_size - 4,
-			(int)bboxes[i].xadvance
+			font.glyphs[i].value,
+			font.glyphs[i].offsetX,
+			font.glyphs[i].offsetY,
+			font.glyphs[i].advanceX
 		);
 	}
 	fprintf(file, "};\n\n");
 
 	// Generate image data
+	int comps = format_comps(image.format);
 	fprintf(file, "unsigned char %s_IMAGE_DATA[] = {\n", name);
-	for (int i = 0; i < BITMAP_LEN; i++) {
-		fprintf(file, "%d,%d,", 255, bitmap[i]);
-		if (i % 64 == 0) fputc('\n', file);
+	for (int i = 0; i < image.width * image.height * comps; i += comps) {
+		fprintf(file, "%d,%d,", 255, ((unsigned char*)image.data)[i + 1]);
+		if (i % 128 == 0) fputc('\n', file);
 	}
 	fprintf(file, "\n};\n\n");
 
 	fprintf(file, "#endif\n");
-#endif
 }
 
 void generate_image(FILE *file, const char *name, const char *path) {
-	int width, height, comps;
-	unsigned char *data = stbi_load(path, &width, &height, &comps, 0);
-	if (data == NULL) {
-		fprintf(stderr, "ERROR: Something went wrong when reading image file %s\n", path);
-		exit(1);
-	}
+	Image image = LoadImage(path);
 
-	fprintf(file, "#define %s_WIDTH %d\n", name, width);
-	fprintf(file, "#define %s_HEIGHT %d\n", name, height);
+	fprintf(file, "#define %s_WIDTH %d\n", name, image.width);
+	fprintf(file, "#define %s_HEIGHT %d\n", name, image.height);
 
+	int comps = format_comps(image.format);
 	fprintf(file, "#define %s_PIXEL_FORMAT ", name);
 	if (comps == 3) {
 		fprintf(file, "PIXELFORMAT_UNCOMPRESSED_R8G8B8\n");
 	} else if (comps == 4) {
 		fprintf(file, "PIXELFORMAT_UNCOMPRESSED_R8G8B8A8\n");
-	} else {
-		fprintf(stderr, "ERROR: Unhandled number of components (%d)\n", comps);
-		exit(1);
 	}
 
 	fprintf(file, "extern unsigned char %s_DATA[];\n", name);
@@ -135,17 +103,15 @@ void generate_image(FILE *file, const char *name, const char *path) {
 
 	// Generate image data
 	fprintf(file, "unsigned char %s_DATA[] = {\n", name);
-	for (int i = 0; i < width * height * comps; i += comps) {
+	for (int i = 0; i < image.width * image.height * comps; i += comps) {
 		for (int j = 0; j < comps; j++) {
-			fprintf(file, "%d,", data[i + j]);
+			fprintf(file, "%d,", ((unsigned char*)image.data)[i + j]);
 		}
 		if (i % 64 == 0) fputc('\n', file);
 	}
 	fprintf(file, "\n};\n\n");
 
 	fprintf(file, "#endif\n");
-
-	stbi_image_free(data);
 }
 
 int main() {
@@ -159,12 +125,17 @@ int main() {
 		"\n"
 	);
 
+	SetTraceLogLevel(LOG_WARNING);
+	InitWindow(0, 0, "");
+
 	generate_font(output_file, "code9x7", "assets/fonts/code9x7.ttf", 16);
 	generate_font(output_file, "comicoro", "assets/fonts/comicoro.ttf", 15);
 
 	generate_image(output_file, "empty_artwork", "assets/images/empty-artwork.png");
 	generate_image(output_file, "icons", "assets/images/icons.png");
 	generate_image(output_file, "boxes", "assets/images/boxes.png");
+
+	CloseWindow();
 
 	fprintf(output_file, "#endif\n");
 	fclose(output_file);
