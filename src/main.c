@@ -29,8 +29,6 @@ int main() {
 
 		queue_page_update(&queue_page, &client);
 
-		client_update_after(&client);
-
 		if (TRYLOCK(&client.conn_state_mutex) != 0) {
 			continue;
 		}
@@ -77,6 +75,7 @@ int main() {
 	CloseWindow();
 
 	client_free(&client);
+	queue_page_free(&queue_page);
 
 	return 0;
 }

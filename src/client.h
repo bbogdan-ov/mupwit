@@ -21,12 +21,6 @@ typedef enum ClientConnState {
 	CLIENT_CONN_STATE_ERROR,
 } ClientConnState;
 
-typedef struct ClientQueue {
-	struct mpd_entity **items;
-	size_t len;
-	size_t cap;
-} ClientQueue;
-
 typedef struct Client {
 	// Currently playing song
 	// `NULL` means no current song
@@ -34,11 +28,6 @@ typedef struct Client {
 	// Current playback status
 	// `NULL` means no info is available
 	struct mpd_status *cur_status;
-
-	// Array of songs in the current queue
-	// All entities types are guaranteed to be == MPD_ENTITY_TYPE_SONG
-	ClientQueue queue;
-	bool queue_just_changed;
 
 	// Time left untill trying to update the player status
 	int update_timer_ms;
@@ -55,6 +44,12 @@ typedef struct Client {
 	struct mpd_connection *conn;
 } Client;
 
+// Logs an libmpdclient error if any has occured and returns `true`,
+// otherwise `false`
+bool conn_handle_error(struct mpd_connection *conn, int line);
+
+#define CONN_HANDLE_ERROR(CONN) conn_handle_error(CONN, __LINE__)
+
 Client client_new(void);
 
 // Connect to a MPD server
@@ -62,11 +57,8 @@ void client_connect(Client *c);
 
 // Update client every frame
 void client_update(Client *c, Player *player, State *state);
-void client_update_after(Client *c);
 
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);
-
-struct mpd_entity *client_get_queue_entity(Client *c, size_t idx);
 
 void client_run_play_song(Client *c, unsigned id);
 void client_run_seek(Client *c, int seconds);

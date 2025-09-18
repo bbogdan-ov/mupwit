@@ -4,12 +4,24 @@
 #include "../client.h"
 #include "../state.h"
 #include "../ui/scrollable.h"
+#include "../ui/tween.h"
 
 typedef struct QueueEntry {
-	float pos_y;
-	bool dragging;
+	// Position of the entry in the queue (0-based)
+	int number;
 
-	const struct mpd_song *song;
+	// Current drawing position of the entry UI element
+	float pos_y;
+	// Previous drawing position of the entry UI element assigned before
+	// playing `pos_tween`.
+	// Used to smoothly interpolate between this value and `target_pos_y`.
+	float prev_pos_y;
+	Tween pos_tween;
+
+	// MPD queue entity/song
+	// Type is guaranteed to be MPD_ENTITY_TYPE_SONG
+	struct mpd_entity *entity;
+	// Prerendered song duration in human-readable format
 	char *duration_text;
 } QueueEntry;
 
@@ -20,7 +32,13 @@ typedef struct QueueEntriesList {
 } QueueEntriesList;
 
 typedef struct QueuePage {
+	// Array of song UI elements in the current queue
 	QueueEntriesList entries;
+
+	// Currently reordering entry index
+	// -1 - nothing is being dragged
+	int reordering_idx;
+	float reorder_click_offset_y;
 
 	Scrollable scrollable;
 } QueuePage;
@@ -30,5 +48,7 @@ QueuePage queue_page_new();
 void queue_page_update(QueuePage *q, Client *client);
 
 void queue_page_draw(QueuePage *q, Client *client, State *state);
+
+void queue_page_free(QueuePage *q);
 
 #endif

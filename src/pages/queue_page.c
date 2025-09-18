@@ -6,6 +6,8 @@
 #include "../theme.h"
 #include "../dynamic_array.h"
 
+#include <raymath.h>
+
 #define ENTRY_PADDING 10
 #define ENTRY_HEIGHT (THEME_NORMAL_TEXT_SIZE*2 + ENTRY_PADDING*2)
 
@@ -14,12 +16,13 @@
 QueuePage queue_page_new() {
 	return (QueuePage){
 		.entries = (QueueEntriesList)DA_ALLOC(512, sizeof(QueueEntry)),
+		.reordering_idx = -1,
 
 		.scrollable = scrollable_new(),
 	};
 }
 
-QueueEntry entry_new(struct mpd_entity *entity, size_t idx) {
+QueueEntry entry_new(struct mpd_entity *entity, size_t number) {
 	const struct mpd_song *song = mpd_entity_get_song(entity);
 
 	const char *text = format_time(mpd_song_get_duration(song));
@@ -28,19 +31,42 @@ QueueEntry entry_new(struct mpd_entity *entity, size_t idx) {
 	memcpy(duration_text, text, len);
 
 	return (QueueEntry){
-		.pos_y = idx * ENTRY_HEIGHT,
-		.song = song,
+		.number = number,
+
+		.pos_y = number * ENTRY_HEIGHT,
+		.prev_pos_y = number * ENTRY_HEIGHT,
+		.pos_tween = tween_new(200),
+
+		.entity = entity,
 		.duration_text = duration_text,
 	};
 }
-void entry_free(QueueEntry *entry) {
-	if (entry->duration_text) {
-		free(entry->duration_text);
-		entry->duration_text = NULL;
+void entry_free(QueueEntry *e) {
+	if (e->duration_text) {
+		free(e->duration_text);
+		e->duration_text = NULL;
+	}
+	if (e->entity) {
+		mpd_entity_free(e->entity);
+		e->entity = NULL;
 	}
 }
 
-void entry_draw(QueueEntry *entry, Client *client, State *state, Rect rect) {
+void entry_tween_to_rest(QueueEntry *e) {
+	e->prev_pos_y = e->pos_y;
+	tween_play(&e->pos_tween);
+}
+
+void entry_draw(
+	int idx,
+	QueueEntry *entry,
+	QueuePage *queue,
+	Client *client,
+	State *state,
+	Rect rect
+) {
+	const struct mpd_song *song = mpd_entity_get_song(entry->entity);
+
 	int artwork_size = 32;
 
 	Rect inner = (Rect){
@@ -52,18 +78,28 @@ void entry_draw(QueueEntry *entry, Client *client, State *state, Rect rect) {
 
 	Color background = state->background;
 
-	bool hover = CheckCollisionPointRec(GetMousePosition(), rect);
-	if (hover) {
+	bool is_hovering = CheckCollisionPointRec(GetMousePosition(), rect);
+	bool is_dragging = queue->reordering_idx == idx;
+
+	if ((is_hovering && queue->reordering_idx < 0) || is_dragging) {
 		background = state->foreground;
-		state->cursor = MOUSE_CURSOR_POINTING_HAND;
 		draw_box(state, BOX_FILLED_ROUNDED, rect, background);
-	}
-	if (hover && IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
-		client_run_play_song(client, mpd_song_get_id(entry->song));
+
+		if (is_hovering) state->cursor = MOUSE_CURSOR_POINTING_HAND;
 	}
 
+	if (is_hovering && queue->reordering_idx < 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+		Vec mouse = GetMousePosition();
+
+		queue->reordering_idx = idx;
+		queue->reorder_click_offset_y = mouse.y - rect.y;
+	}
+	// if (is_hovering && IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+	// 	client_run_play_song(client, mpd_song_get_id(song));
+	// }
+
 	// Show "currently playing" marker
-	if (client->cur_song && mpd_song_get_id(client->cur_song) == mpd_song_get_id(entry->song)) {
+	if (client->cur_song && mpd_song_get_id(client->cur_song) == mpd_song_get_id(song)) {
 		draw_icon(
 			state,
 			ICON_SMALL_ARROW,
@@ -107,12 +143,12 @@ void entry_draw(QueueEntry *entry, Client *client, State *state, Rect rect) {
 		inner.y + ENTRY_HEIGHT/2 - dur_size.y/2
 	);
 	draw_text(text);
-	inner.width -= dur_size.x;
+	inner.width -= dur_size.x + ENTRY_PADDING;
 
 	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
 
 	// Draw song title
-	text.text = song_tag_or_unknown(entry->song, MPD_TAG_TITLE);
+	text.text = song_tag_or_unknown(song, MPD_TAG_TITLE);
 	text.color = THEME_TEXT;
 	text.pos = vec(
 		inner.x,
@@ -122,39 +158,122 @@ void entry_draw(QueueEntry *entry, Client *client, State *state, Rect rect) {
 	text.pos.y += THEME_NORMAL_TEXT_SIZE;
 
 	// Draw song artist
-	text.text = song_tag_or_unknown(entry->song, MPD_TAG_ARTIST);
+	text.text = song_tag_or_unknown(song, MPD_TAG_ARTIST);
 	text.color = THEME_SUBTLE_TEXT;
 	draw_cropped_text(text, inner.width, background);
 
 	EndScissorMode();
 }
 
-void rebuild_entries(QueuePage *q, Client *client) {
-	// Clean up previous queue entries
-	for (size_t i = 0; i < q->entries.len; i++) {
-		entry_free(&q->entries.items[i]);
+void fetch_queue(QueuePage *q, Client *client) {
+	bool res = mpd_send_list_queue_meta(client->conn);
+	if (!res) {
+		CONN_HANDLE_ERROR(client->conn);
+		return;
 	}
 
-	q->entries.len = 0;
-	DA_RESERVE(&q->entries, client->queue.len);
-	for (size_t i = 0; i < client->queue.len; i++) {
-		DA_PUSH(&q->entries, entry_new(client->queue.items[i], i));
+	queue_page_free(q);
+
+	// Receive queue entities/songs from the server
+	while (true) {
+		struct mpd_entity *entity = mpd_recv_entity(client->conn);
+		if (entity == NULL) {
+			CONN_HANDLE_ERROR(client->conn);
+			break;
+		}
+
+		enum mpd_entity_type typ = mpd_entity_get_type(entity);
+		if (typ == MPD_ENTITY_TYPE_SONG) {
+			// Push the received song entity into the queue dynamic array
+			size_t idx = q->entries.len;
+			DA_PUSH(&q->entries, entry_new(entity, idx));
+		}
 	}
 }
 
 void queue_page_update(QueuePage *q, Client *client) {
-	// TODO: do not lock the client
+	// TODO!: fetch the queue when 'playlist' idle is received
+	if (q->entries.len > 0) return;
+
 	LOCK(&client->mutex);
 
-	if (client->queue_just_changed) {
-		rebuild_entries(q, client);
-	}
+	// TODO: fetch queue asynchronously or in a separate thread
+	fetch_queue(q, client);
 
 	UNLOCK(&client->mutex);
 }
 
+void draw_reodering_entry(QueuePage *q, Client *client, State *state, Rect container) {
+	if (q->reordering_idx < 0) return;
+
+	QueueEntry *reordering = &q->entries.items[q->reordering_idx];
+
+	float offset_y = container.y - scrollable_get_scroll(&q->scrollable);
+	float new_pos_y = GetMouseY() - q->reorder_click_offset_y - offset_y;
+
+	int new_number = (int)((new_pos_y + ENTRY_HEIGHT/2) / ENTRY_HEIGHT);
+
+	int from_number = 0;
+	int to_number = 0;
+	int move_by = 0;
+	if (new_number > reordering->number) {
+		// Entry was moved down
+		from_number = reordering->number;
+		to_number = new_number;
+		move_by = -1;
+	} else if (new_number < reordering->number) {
+		// Entry was moved up
+		from_number = new_number;
+		to_number = reordering->number;
+		move_by = 1;
+	}
+
+	if (move_by != 0) {
+		// Reorder all entries inside range `from_number`-`to_number`
+		for (size_t i = 0; i < q->entries.len; i++) {
+			if ((int)i == q->reordering_idx) continue;
+
+			QueueEntry *another = &q->entries.items[i];
+
+			if (another->number >= from_number && another->number <= to_number) {
+				int new_number = another->number + move_by;
+				if (new_number >= 0 && new_number < (int)q->entries.len) {
+					another->number = new_number;
+					entry_tween_to_rest(another);
+				}
+			}
+		}
+
+		reordering->number = CLAMP(new_number, 0, q->entries.len - 1);
+	}
+
+	reordering->pos_y = new_pos_y;
+
+	Rect song_rect = rect(
+		container.x,
+		offset_y + reordering->pos_y,
+		container.width,
+		ENTRY_HEIGHT
+	);
+
+	entry_draw(
+		q->reordering_idx,
+		reordering,
+		q,
+		client,
+		state,
+		song_rect
+	);
+
+	// Reordering stopped
+	if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+		// TODO!: actually reorder queue on the server
+		entry_tween_to_rest(reordering);
+		q->reordering_idx = -1;
+	}
+}
+
 void queue_page_draw(QueuePage *q, Client *client, State *state) {
-	// TODO: do not lock the client
 	LOCK(&client->mutex);
 
 	int sw = GetScreenWidth();
@@ -172,7 +291,17 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	float scroll = scrollable_get_scroll(&q->scrollable);
 
 	for (size_t i = 0; i < q->entries.len; i++) {
+		if ((int)i == q->reordering_idx) continue;
+
 		QueueEntry *entry = &q->entries.items[i];
+
+		tween_update(&entry->pos_tween);
+		float target_pos_y = entry->number * ENTRY_HEIGHT;
+		entry->pos_y = Lerp(
+			entry->prev_pos_y,
+			target_pos_y,
+			EASE_OUT_CUBIC(tween_progress(&entry->pos_tween))
+		);
 
 		Rect song_rect = rect(
 			container.x,
@@ -180,11 +309,29 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 			container.width,
 			ENTRY_HEIGHT
 		);
+
 		if (CheckCollisionRecs(song_rect, rect(0, 0, sw, sh)))
-			entry_draw(entry, client, state, song_rect);
+			entry_draw(
+				(int)i,
+				entry,
+				q,
+				client,
+				state,
+				song_rect
+			);
 	}
 
-	scrollable_set_height(&q->scrollable, client->queue.len * ENTRY_HEIGHT - container.height);
+	// Draw entry that is currently being dragged
+	draw_reodering_entry(q, client, state, container);
+
+	scrollable_set_height(&q->scrollable, q->entries.len * ENTRY_HEIGHT - container.height);
 
 	UNLOCK(&client->mutex);
+}
+
+void queue_page_free(QueuePage *q) {
+	for (size_t i = 0; i < q->entries.len; i++) {
+		entry_free(&q->entries.items[i]);
+	}
+	q->entries.len = 0;
 }

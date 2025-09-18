@@ -10,24 +10,7 @@
 
 const char *UNKNOWN = "<unknown>";
 
-Client client_new(void) {
-	pthread_mutex_t mutex;
-	pthread_mutex_init(&mutex, NULL);
-
-	pthread_mutex_t conn_state_mutex;
-	pthread_mutex_init(&conn_state_mutex, NULL);
-
-	return (Client){
-		.queue = (ClientQueue)DA_ALLOC(512, sizeof(struct mpd_entity*)),
-
-		.mutex = mutex,
-		.conn_state_mutex = conn_state_mutex,
-	};
-}
-
-// Logs an libmpdclient error if any has occured and returns `true`,
-// otherwise `false`
-bool handle_error(struct mpd_connection *conn, int line) {
+bool conn_handle_error(struct mpd_connection *conn, int line) {
 	enum mpd_error err = mpd_connection_get_error(conn);
 	if (err != MPD_ERROR_SUCCESS) {
 		const char *msg = mpd_connection_get_error_message(conn);
@@ -37,7 +20,18 @@ bool handle_error(struct mpd_connection *conn, int line) {
 	return false;
 }
 
-#define HANDLE_ERROR(CONN) handle_error(CONN, __LINE__)
+Client client_new(void) {
+	pthread_mutex_t mutex;
+	pthread_mutex_init(&mutex, NULL);
+
+	pthread_mutex_t conn_state_mutex;
+	pthread_mutex_init(&conn_state_mutex, NULL);
+
+	return (Client){
+		.mutex = mutex,
+		.conn_state_mutex = conn_state_mutex,
+	};
+}
 
 // Read song album artwork into the specified buffer
 // Returns size of the read buffer (0 - no artwork, -1 - error)
@@ -53,7 +47,7 @@ static int readpicture(
 	while (true) {
 		bool res = mpd_send_readpicture(c->conn, song_uri, size);
 		if (!res) {
-			HANDLE_ERROR(c->conn);
+			CONN_HANDLE_ERROR(c->conn);
 			return -1;
 		}
 
@@ -106,7 +100,6 @@ void *do_fetch_cur_artwork(void *client) {
 	Client *c = (Client*)client;
 
 	LOCK(&c->mutex);
-	assert(c->conn);
 
 	c->has_artwork_image = false;
 
@@ -212,44 +205,14 @@ void clear_cur_song(Client *c) {
 	}
 }
 
-void fetch_queue(Client *c) {
-	assert(c->conn);
-
-	// TODO: fetch the queue when 'playlist' idle is received
-	if (c->queue.len > 0) return;
-	c->queue_just_changed = true;
-
-	bool res = mpd_send_list_queue_meta(c->conn);
-	if (!res) {
-		HANDLE_ERROR(c->conn);
-		return;
-	}
-
-	while (true) {
-		struct mpd_entity *entity = mpd_recv_entity(c->conn);
-		if (entity == NULL) {
-			HANDLE_ERROR(c->conn);
-			break;
-		}
-
-		enum mpd_entity_type typ = mpd_entity_get_type(entity);
-		if (typ == MPD_ENTITY_TYPE_SONG) {
-			// Push the received song entity into the queue dynamic array
-			DA_PUSH(&c->queue, entity);
-		}
-	}
-}
-
 void fetch_status(Client *c) {
-	assert(c->conn);
-
 	struct mpd_status *status = mpd_run_status(c->conn);
 	if (status == NULL) {
 		clear_cur_status(c);
 		clear_cur_song(c);
 		c->artwork_image_just_changed = true;
 		c->has_artwork_image = false;
-		HANDLE_ERROR(c->conn);
+		CONN_HANDLE_ERROR(c->conn);
 		return;
 	}
 
@@ -281,7 +244,7 @@ void fetch_status(Client *c) {
 
 		c->artwork_image_just_changed = true;
 		c->has_artwork_image = false;
-		HANDLE_ERROR(c->conn);
+		CONN_HANDLE_ERROR(c->conn);
 	}
 }
 
@@ -301,7 +264,7 @@ void *do_connect(void *client) {
 	LOCK(&c->mutex);
 	LOCK(&c->conn_state_mutex);
 
-	if (HANDLE_ERROR(conn)) {
+	if (CONN_HANDLE_ERROR(conn)) {
 		mpd_connection_free(conn);
 
 		// TODO: set error message somewhere
@@ -344,7 +307,6 @@ void client_update(Client *c, Player *player, State *state) {
 
 	if (c->update_timer_ms <= 0) {
 		fetch_status(c);
-		fetch_queue(c);
 
 		if (c->artwork_image_just_changed) {
 			if (c->has_artwork_image)
@@ -362,26 +324,15 @@ void client_update(Client *c, Player *player, State *state) {
 
 	UNLOCK(&c->mutex);
 }
-void client_update_after(Client *c) {
-	if (TRYLOCK(&c->mutex) != 0) return;
-
-	c->queue_just_changed = false;
-
-	UNLOCK(&c->mutex);
-}
 
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag) {
 	const char *t = mpd_song_get_tag(song, tag, 0);
 	return t == NULL ? UNKNOWN : t;
 }
 
-struct mpd_entity *client_get_queue_entity(Client *c, size_t idx) {
-	return ((struct mpd_entity**)c->queue.items)[idx];
-}
-
 void client_run_play_song(Client *c, unsigned id) {
 	if (!mpd_run_play_id(c->conn, id)) {
-		HANDLE_ERROR(c->conn);
+		CONN_HANDLE_ERROR(c->conn);
 		return;
 	}
 	fetch_status(c);
@@ -391,7 +342,7 @@ void client_run_seek(Client *c, int seconds) {
 	if (mpd_run_seek_current(c->conn, seconds, false))
 		fetch_status(c);
 	else
-		HANDLE_ERROR(c->conn);
+		CONN_HANDLE_ERROR(c->conn);
 	UNLOCK(&c->mutex);
 }
 void client_run_toggle(Client *c) {
@@ -399,7 +350,7 @@ void client_run_toggle(Client *c) {
 	bool res = mpd_send_command(c->conn, "pause", NULL);
 	res = res && mpd_response_finish(c->conn);
 	if (res) fetch_status(c);
-	else HANDLE_ERROR(c->conn);
+	else CONN_HANDLE_ERROR(c->conn);
 	UNLOCK(&c->mutex);
 }
 void client_run_next(Client *c) {
@@ -407,7 +358,7 @@ void client_run_next(Client *c) {
 	if (mpd_run_next(c->conn))
 		fetch_status(c);
 	else
-		HANDLE_ERROR(c->conn);
+		CONN_HANDLE_ERROR(c->conn);
 	UNLOCK(&c->mutex);
 }
 void client_run_prev(Client *c) {
@@ -415,7 +366,7 @@ void client_run_prev(Client *c) {
 	if (mpd_run_previous(c->conn))
 		fetch_status(c);
 	else
-		HANDLE_ERROR(c->conn);
+		CONN_HANDLE_ERROR(c->conn);
 	UNLOCK(&c->mutex);
 }
 
@@ -423,9 +374,4 @@ void client_free(Client *c) {
 	if (c->conn) mpd_connection_free(c->conn);
 	if (c->cur_song) mpd_song_free(c->cur_song);
 	if (c->cur_status) mpd_status_free(c->cur_status);
-
-	for (size_t i = 0; i < c->queue.len; i++) {
-		mpd_entity_free(client_get_queue_entity(c, i));
-	}
-	c->queue.len = 0;
 }

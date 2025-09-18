@@ -4,6 +4,7 @@
 #include <math.h>
 
 #define EASE_IN_OUT_SINE(X) (-(cos(PI * X) - 1.0) / 2.0)
+#define EASE_OUT_CUBIC(X) (1 - pow(1 - X, 3))
 
 typedef struct Tween {
 	unsigned duration_ms;

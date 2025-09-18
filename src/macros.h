@@ -6,6 +6,7 @@
 
 #define MAX(A, B) (A < B ? B : A)
 #define MIN(A, B) (A > B ? B : A)
+#define CLAMP(VALUE, MN, MX) (MIN(MAX(VALUE, MN), MX))
 
 #define LOCK(MUTEX) assert(pthread_mutex_lock(MUTEX) == 0)
 #define TRYLOCK(MUTEX) pthread_mutex_trylock(MUTEX)
