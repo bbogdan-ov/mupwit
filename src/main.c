@@ -11,6 +11,8 @@
 #include "pages/player_page.h"
 #include "pages/queue_page.h"
 
+// TODO: add ability to undo actions like queue reordering or song selection
+
 int main() {
 	InitWindow(THEME_WINDOW_WIDTH, THEME_WINDOW_HEIGHT, "MUPWIT");
 	SetTargetFPS(60);
