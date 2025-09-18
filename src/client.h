@@ -38,6 +38,7 @@ typedef struct Client {
 	// Array of songs in the current queue
 	// All entities types are guaranteed to be == MPD_ENTITY_TYPE_SONG
 	ClientQueue queue;
+	bool queue_just_changed;
 
 	// Time left untill trying to update the player status
 	int update_timer_ms;
@@ -46,7 +47,7 @@ typedef struct Client {
 	Image artwork_image;
 	Color artwork_average_color;
 	bool has_artwork_image;
-	bool artwork_image_changed;
+	bool artwork_image_just_changed;
 
 	pthread_mutex_t mutex;
 	pthread_mutex_t conn_state_mutex;
@@ -61,6 +62,7 @@ void client_connect(Client *c);
 
 // Update client every frame
 void client_update(Client *c, Player *player, State *state);
+void client_update_after(Client *c);
 
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);
 

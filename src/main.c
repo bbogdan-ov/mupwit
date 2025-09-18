@@ -27,6 +27,10 @@ int main() {
 		client_update(&client, &player, &state);
 		state_update(&state);
 
+		queue_page_update(&queue_page, &client);
+
+		client_update_after(&client);
+
 		if (TRYLOCK(&client.conn_state_mutex) != 0) {
 			continue;
 		}

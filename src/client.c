@@ -18,20 +18,10 @@ Client client_new(void) {
 	pthread_mutex_init(&conn_state_mutex, NULL);
 
 	return (Client){
-		.cur_song = NULL,
-		.cur_status = NULL,
-
 		.queue = (ClientQueue)DA_ALLOC(512, sizeof(struct mpd_entity*)),
-
-		.update_timer_ms = 0,
-
-		.artwork_image = (Image){0},
-		.has_artwork_image = false,
 
 		.mutex = mutex,
 		.conn_state_mutex = conn_state_mutex,
-		.conn_state = CLIENT_CONN_STATE_CONNECTING,
-		.conn = NULL,
 	};
 }
 
@@ -138,7 +128,7 @@ void *do_fetch_cur_artwork(void *client) {
 
 	// Simply return if there is an error or no artwork
 	if (size <= 0) {
-		c->artwork_image_changed = true;
+		c->artwork_image_just_changed = true;
 		goto defer;
 	}
 
@@ -165,7 +155,7 @@ void *do_fetch_cur_artwork(void *client) {
 	Image img = LoadImageFromMemory(img_filetype, (unsigned char*)buffer, size);
 	c->artwork_image = img;
 	c->has_artwork_image = true;
-	c->artwork_image_changed = true;
+	c->artwork_image_just_changed = true;
 
 	int comps = 0;
 	if (img.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8)
@@ -227,6 +217,7 @@ void fetch_queue(Client *c) {
 
 	// TODO: fetch the queue when 'playlist' idle is received
 	if (c->queue.len > 0) return;
+	c->queue_just_changed = true;
 
 	bool res = mpd_send_list_queue_meta(c->conn);
 	if (!res) {
@@ -256,7 +247,7 @@ void fetch_status(Client *c) {
 	if (status == NULL) {
 		clear_cur_status(c);
 		clear_cur_song(c);
-		c->artwork_image_changed = true;
+		c->artwork_image_just_changed = true;
 		c->has_artwork_image = false;
 		HANDLE_ERROR(c->conn);
 		return;
@@ -288,7 +279,7 @@ void fetch_status(Client *c) {
 			}
 		}
 
-		c->artwork_image_changed = true;
+		c->artwork_image_just_changed = true;
 		c->has_artwork_image = false;
 		HANDLE_ERROR(c->conn);
 	}
@@ -355,13 +346,13 @@ void client_update(Client *c, Player *player, State *state) {
 		fetch_status(c);
 		fetch_queue(c);
 
-		if (c->artwork_image_changed) {
+		if (c->artwork_image_just_changed) {
 			if (c->has_artwork_image)
 				state_set_artwork(state, c->artwork_image, c->artwork_average_color);
 			else
 				state_clear_artwork(state);
 
-			c->artwork_image_changed = false;
+			c->artwork_image_just_changed = false;
 		}
 
 		player_set_status(player, c->cur_status, c->cur_song);
@@ -370,7 +361,13 @@ void client_update(Client *c, Player *player, State *state) {
 	}
 
 	UNLOCK(&c->mutex);
-	return;
+}
+void client_update_after(Client *c) {
+	if (TRYLOCK(&c->mutex) != 0) return;
+
+	c->queue_just_changed = false;
+
+	UNLOCK(&c->mutex);
 }
 
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag) {
