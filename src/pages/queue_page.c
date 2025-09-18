@@ -66,12 +66,7 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 		state->container.width,
 		ENTRY_HEIGHT
 	};
-	Rect inner = (Rect){
-		rect.x + ENTRY_PADDING,
-		rect.y,
-		rect.width - ENTRY_PADDING*2,
-		rect.height
-	};
+	Rect inner = rect_shrink(rect, ENTRY_PADDING, 0);
 
 	if (!CheckCollisionRecs(rect, screen_rect())) return;
 
