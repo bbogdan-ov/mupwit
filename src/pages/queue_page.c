@@ -10,6 +10,7 @@
 
 #define ENTRY_PADDING 10
 #define ENTRY_HEIGHT (THEME_NORMAL_TEXT_SIZE*2 + ENTRY_PADDING*2)
+#define ARTWORK_SIZE 32
 
 // TODO: focus on/scroll to the currently playing song
 
@@ -58,20 +59,18 @@ void entry_tween_to_rest(QueueEntry *e) {
 }
 
 void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, State *state) {
-	int artwork_size = 32;
-
 	Rect rect = (Rect){
 		state->container.x,
 		state->container.y - state->scroll + entry->pos_y,
 		state->container.width,
 		ENTRY_HEIGHT
 	};
-	Rect inner = rect_shrink(rect, ENTRY_PADDING, 0);
 
 	if (!CheckCollisionRecs(rect, screen_rect())) return;
 
 	const struct mpd_song *song = mpd_entity_get_song(entry->entity);
 
+	Rect inner = rect_shrink(rect, ENTRY_PADDING, 0);
 	Color background = state->background;
 
 	bool is_hovering = CheckCollisionPointRec(GetMousePosition(), rect);
@@ -109,9 +108,9 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 	// implement artwork caching
 	Rect artwork_rect = {
 		inner.x,
-		inner.y + ENTRY_HEIGHT/2 - artwork_size/2,
-		artwork_size,
-		artwork_size
+		inner.y + ENTRY_HEIGHT/2 - ARTWORK_SIZE/2,
+		ARTWORK_SIZE,
+		ARTWORK_SIZE
 	};
 	draw_box(state, BOX_NORMAL, artwork_rect, THEME_BLACK);
 	draw_icon(
