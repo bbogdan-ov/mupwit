@@ -95,7 +95,6 @@ static int readpicture(
 
 	return size;
 }
-// FIXME!!: I THINK THIS FUNCTION MEMORY LEAKS!
 // Fetch album artwork of the currently playing song
 // Returns whether texture data was successfully updated
 // Does nothing and returns `false` if there is no current song
@@ -104,7 +103,11 @@ void *do_fetch_cur_artwork(void *client) {
 
 	LOCK(&c->mutex);
 
-	c->has_artwork_image = false;
+	// Unload previous CPU image
+	if (c->has_artwork_image) {
+		UnloadImage(c->artwork_image);
+		c->has_artwork_image = false;
+	}
 
 	if (c->cur_song == NULL) {
 		UNLOCK(&c->mutex);
@@ -143,10 +146,6 @@ void *do_fetch_cur_artwork(void *client) {
 		goto defer;
 	}
 
-	// Unload previous CPU image
-	if (c->has_artwork_image)
-		UnloadImage(c->artwork_image);
-
 	// FIXME: Is `LoadImageFromMemory` thread-safe?
 	Image img = LoadImageFromMemory(img_filetype, (unsigned char*)buffer, size);
 	c->artwork_image = img;
@@ -162,8 +161,7 @@ void *do_fetch_cur_artwork(void *client) {
 	// Calculating the average color of the artwork
 	if (comps > 0) {
 		unsigned char *data = img.data;
-		int r, g, b;
-		r = g = b = 0;
+		int r = 0, g = 0, b = 0;
 		int n = 0;
 		for (int i = 0; i < img.width * img.height * comps; i += comps) {
 			r += data[i + 0];
@@ -172,11 +170,8 @@ void *do_fetch_cur_artwork(void *client) {
 
 			n++;
 		}
-		r /= n;
-		g /= n;
-		b /= n;
 
-		c->artwork_average_color = (Color){r, g, b, 255};
+		c->artwork_average_color = (Color){r/n, g/n, b/n, 255};
 	} else {
 		c->artwork_average_color = (Color){0};
 	}
