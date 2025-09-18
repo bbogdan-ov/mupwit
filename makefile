@@ -9,6 +9,14 @@ SOURCES := $(shell find $(SRC_DIR) -name '*.c')
 INCLUDES := $(shell find $(SRC_DIR) -name '*.h')
 ASSETS := $(shell find assets/ -name '*.ttf' -or -name '*.png')
 
+ifdef DEBUG
+CFLAGS := $(CFLAGS) -DDEBUG
+endif
+
+ifdef RELEASE
+CFLAGS := $(CFLAGS) -O3 -DRELEASE
+endif
+
 # Build!!!
 $(BUILD_DIR)/mupwit: $(SOURCES) $(INCLUDES) $(BUILD_DIR)/assets.h $(BUILD_DIR)/assets.o
 	gcc $(CFLAGS) $(FLAGS) $(LIBS) \

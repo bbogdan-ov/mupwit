@@ -68,9 +68,10 @@ int main() {
 		}
 		UNLOCK(&client.conn_state_mutex);
 
-		// TODO: temporarily, used to see lags and stutters
+#ifdef DEBUG
 		double time = GetTime() * 10;
 		DrawRectangle(cos(time) * 20 + 20, sin(time) * 20 + 20, 20, 20, ColorAlpha(RED, 0.5));
+#endif
 
 		SetMouseCursor(state.cursor);
 
