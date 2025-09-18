@@ -245,6 +245,13 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 
 	reordering->pos_y = new_pos_y;
 
+	// Scroll follows currently reordering entry
+	float relative_pos_y = reordering->pos_y - state->scroll;
+	float top = (relative_pos_y + 0) - 0;
+	float bottom = (relative_pos_y + ENTRY_HEIGHT) - state->container.height;
+	if (top < 0.0)    q->scrollable.velocity = top / 4.0;
+	if (bottom > 0.0) q->scrollable.velocity = bottom / 4.0;
+
 	entry_draw(q->reordering_idx, reordering, q, client, state);
 
 	// Reordering stopped
