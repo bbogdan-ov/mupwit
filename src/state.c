@@ -46,7 +46,7 @@ State state_new(void) {
 		.prev_background = THEME_BACKGROUND,
 		.background_tween = tween_new(1000),
 
-		.page_tween = tween_new(300),
+		.page_tween = tween_new(200),
 		.page_transition = 1.0,
 	};
 }

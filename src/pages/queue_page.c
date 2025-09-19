@@ -9,9 +9,13 @@
 #include <raymath.h>
 
 #define PADDING 8
-#define ENTRY_PADDING 10
+
+#define STATS_PADDING 4
+#define STATS_HEIGHT (THEME_NORMAL_TEXT_SIZE + STATS_PADDING*2)
+
 #define ARTWORK_SIZE 32
-#define ENTRY_HEIGHT (ARTWORK_SIZE + ENTRY_PADDING*2)
+#define ENTRY_HEIGHT (ARTWORK_SIZE + PADDING*2)
+
 #define GRAB_THRESHOLD 8
 
 // TODO: focus on/scroll to the currently playing song
@@ -132,7 +136,7 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 
 	const struct mpd_song *song = mpd_entity_get_song(entry->entity);
 
-	Rect inner = rect_shrink(rect, ENTRY_PADDING, 0);
+	Rect inner = rect_shrink(rect, PADDING, 0);
 	Color background = state->background;
 
 	// ==============================
@@ -222,8 +226,8 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 		),
 		THEME_BLACK
 	);
-	inner.x += artwork_rect.width + ENTRY_PADDING;
-	inner.width -= artwork_rect.width + ENTRY_PADDING;
+	inner.x += artwork_rect.width + PADDING;
+	inner.width -= artwork_rect.width + PADDING;
 
 	Text text = {
 		.text = "",
@@ -241,7 +245,7 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 		inner.y + ENTRY_HEIGHT/2 - dur_size.y/2
 	);
 	draw_text(text);
-	inner.width -= dur_size.x + ENTRY_PADDING;
+	inner.width -= dur_size.x + PADDING;
 
 	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
 
@@ -286,6 +290,9 @@ void fetch_queue(QueuePage *q, Client *client) {
 			// Push the received song entity into the queue dynamic array
 			size_t idx = q->entries.len;
 			DA_PUSH(&q->entries, entry_new(entity, idx));
+
+			const struct mpd_song *song = mpd_entity_get_song(entity);
+			q->total_duration += mpd_song_get_duration(song);
 		}
 	}
 }
@@ -362,7 +369,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		PADDING + sw * (1.0 - transition),
 		PADDING,
 		sw - PADDING*2,
-		sh - PADDING*2
+		sh - PADDING*2 - STATS_HEIGHT
 	);
 
 	// Draw background gradient
@@ -372,7 +379,10 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		DrawRectangleGradientH(offset_x, 0, sw, sh, ColorAlpha(state->background, 0.0), state->background);
 	}
 
+	// ==============================
 	// Draw the entries
+	// ==============================
+
 	for (size_t i = 0; i < q->entries.len; i++) {
 		if ((int)i == q->reordering_idx) continue;
 
@@ -387,6 +397,52 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		&q->scrollable,
 		q->entries.len * ENTRY_HEIGHT - state->container.height
 	);
+
+	// ==============================
+	// Draw queue stats
+	// ==============================
+
+	// TODO!: temporarily, it is very VERY inefficient
+	Rect stats_rect = rect(
+		0,
+		sh - STATS_HEIGHT + STATS_HEIGHT * (1.0 - transition),
+		sw,
+		STATS_HEIGHT
+	);
+	DrawRectangleRec(stats_rect, state->background);
+	DrawRectangle(
+		stats_rect.x,
+		stats_rect.y - 1,
+		stats_rect.width,
+		1,
+		THEME_BLACK
+	);
+
+	// Draw number of tracks
+	Text text = (Text){
+		.text = TextFormat("%d tracks", q->entries.len),
+		.font = state->normal_font,
+		.size = THEME_NORMAL_TEXT_SIZE,
+		.pos = {
+			stats_rect.x + PADDING*2,
+			stats_rect.y + STATS_PADDING
+		},
+		.color = THEME_SUBTLE_TEXT,
+	};
+	draw_text(text);
+
+	// Draw queue elapsed time
+	unsigned elapsed = 0;
+	for (size_t i = 0; i < q->entries.len; i++) {
+		if ((int)i >= mpd_status_get_song_pos(client->cur_status)) break;
+		elapsed += mpd_song_get_duration(mpd_entity_get_song(q->entries.items[i].entity));
+	}
+	elapsed += mpd_status_get_elapsed_ms(client->cur_status) / (int)1000;
+
+	text.text = format_elapsed_time(elapsed, q->total_duration);
+	Vec dur_size = measure_text(&text);
+	text.pos.x = stats_rect.x + stats_rect.width - dur_size.x - PADDING*2;
+	draw_text(text);
 
 	UNLOCK(&client->mutex);
 }

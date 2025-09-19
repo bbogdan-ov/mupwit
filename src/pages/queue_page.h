@@ -35,6 +35,8 @@ typedef struct QueuePage {
 	// Array of song UI elements in the current queue
 	QueueEntriesList entries;
 
+	unsigned total_duration;
+
 	int trying_to_grab_idx;
 	// Currently reordering entry index
 	// -1 - nothing is being dragged
