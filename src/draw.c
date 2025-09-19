@@ -71,11 +71,16 @@ void draw_box(State *state, Box box, Rect rect, Color color) {
 bool is_key_pressed(KeyboardKey key) {
 	return IsKeyPressed(key) || IsKeyPressedRepeat(key);
 }
-bool is_shift_down() {
+bool is_shift_down(void) {
 	return IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
 }
 
-Rect screen_rect() {
+Vec get_mouse_pos(void) {
+	if (!IsWindowFocused()) return (Vec){-999, -999};
+	return GetMousePosition();
+}
+
+Rect screen_rect(void) {
 	return (Rect){0, 0, GetScreenWidth(), GetScreenHeight()};
 }
 

@@ -143,7 +143,7 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 	// ==============================
 
 	bool is_playing = client->cur_song && mpd_song_get_id(client->cur_song) == mpd_song_get_id(song);
-	bool is_hovering = CheckCollisionPointRec(GetMousePosition(), rect);
+	bool is_hovering = CheckCollisionPointRec(get_mouse_pos(), rect);
 
 	// Clicking on entry will start "trying to grab mode"
 	if (is_hovering && queue->reordering_idx < 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {

@@ -17,7 +17,7 @@
 
 bool draw_icon_button(State *state, Icon icon, Vec pos) {
 	Rect rec = rect(pos.x, pos.y, BUTTON_SIZE, BUTTON_SIZE);
-	bool hover = CheckCollisionPointRec(GetMousePosition(), rec);
+	bool hover = CheckCollisionPointRec(get_mouse_pos(), rec);
 
 	if (hover)
 		state->cursor = MOUSE_CURSOR_POINTING_HAND;
@@ -208,7 +208,7 @@ void player_page_draw(Client *client, State *state) {
 	static bool is_seeking = false;
 
 	bool bar_hover = CheckCollisionPointRec(
-		GetMousePosition(),
+		get_mouse_pos(),
 		rect_shrink(bar_rect, 0, -BAR_EXPAND)
 	);
 	float elapsed_progress = (float)elapsed_sec / (float)duration_sec;
