@@ -424,6 +424,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	// Draw scroll thumb
 	// ==============================
 
+	// TODO: implement dragging the thumb to scroll
 	int cont_height = (int)state->container.height;
 	int scroll_height = cont_height + (int)q->scrollable.height;
 	int thumb_height = MAX(cont_height * cont_height / scroll_height, 32);
