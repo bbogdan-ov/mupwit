@@ -383,10 +383,18 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	// Draw the entries
 	// ==============================
 
+	unsigned elapsed = mpd_status_get_elapsed_ms(client->cur_status) / (int)1000;
+
 	for (size_t i = 0; i < q->entries.len; i++) {
+		QueueEntry *entry = &q->entries.items[i];
+
+		// TODO: it would be better to cache the total elapsed time
+		if (entry->number < mpd_status_get_song_pos(client->cur_status)) {
+			elapsed += mpd_song_get_duration(mpd_entity_get_song(entry->entity));
+		}
+
 		if ((int)i == q->reordering_idx) continue;
 
-		QueueEntry *entry = &q->entries.items[i];
 		entry_draw((int)i, entry, q, client, state);
 	}
 
@@ -402,7 +410,6 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	// Draw queue stats
 	// ==============================
 
-	// TODO!: temporarily, it is very VERY inefficient
 	Rect stats_rect = rect(
 		0,
 		sh - STATS_HEIGHT + STATS_HEIGHT * (1.0 - transition),
@@ -432,13 +439,6 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	draw_text(text);
 
 	// Draw queue elapsed time
-	unsigned elapsed = 0;
-	for (size_t i = 0; i < q->entries.len; i++) {
-		if ((int)i >= mpd_status_get_song_pos(client->cur_status)) break;
-		elapsed += mpd_song_get_duration(mpd_entity_get_song(q->entries.items[i].entity));
-	}
-	elapsed += mpd_status_get_elapsed_ms(client->cur_status) / (int)1000;
-
 	text.text = format_elapsed_time(elapsed, q->total_duration);
 	Vec dur_size = measure_text(&text);
 	text.pos.x = stats_rect.x + stats_rect.width - dur_size.x - PADDING*2;
