@@ -103,12 +103,6 @@ void *do_fetch_cur_artwork(void *client) {
 
 	LOCK(&c->mutex);
 
-	// Unload previous CPU image
-	if (c->has_artwork_image) {
-		UnloadImage(c->artwork_image);
-		c->has_artwork_image = false;
-	}
-
 	if (c->cur_song == NULL) {
 		UNLOCK(&c->mutex);
 		return NULL;
@@ -128,6 +122,7 @@ void *do_fetch_cur_artwork(void *client) {
 	// Simply return if there is an error or no artwork
 	if (size <= 0) {
 		c->artwork_image_just_changed = true;
+		c->has_artwork_image = false;
 		goto defer;
 	}
 
@@ -143,6 +138,8 @@ void *do_fetch_cur_artwork(void *client) {
 	} else if (strcmp(filetype, "image/gif") == 0) {
 		img_filetype = ".gif";
 	} else {
+		c->artwork_image_just_changed = true;
+		c->has_artwork_image = false;
 		goto defer;
 	}
 
@@ -158,19 +155,17 @@ void *do_fetch_cur_artwork(void *client) {
 	else if (img.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
 		comps = 4;
 
-	// Calculating the average color of the artwork
+	// Calculate average color of the artwork
 	if (comps > 0) {
 		unsigned char *data = img.data;
 		int r = 0, g = 0, b = 0;
-		int n = 0;
 		for (int i = 0; i < img.width * img.height * comps; i += comps) {
 			r += data[i + 0];
 			g += data[i + 1];
 			b += data[i + 2];
-
-			n++;
 		}
 
+		int n = img.width * img.height;
 		c->artwork_average_color = (Color){r/n, g/n, b/n, 255};
 	} else {
 		c->artwork_average_color = (Color){0};
@@ -182,13 +177,13 @@ defer:
 	return NULL;
 }
 
-void clear_cur_status(Client *c) {
+void free_cur_status(Client *c) {
 	if (c->cur_status) {
 		mpd_status_free(c->cur_status);
 		c->cur_status = NULL;
 	}
 }
-void clear_cur_song(Client *c) {
+void free_cur_song(Client *c) {
 	if (c->cur_song) {
 		mpd_song_free(c->cur_song);
 		c->cur_song_filename = NULL;
@@ -196,11 +191,11 @@ void clear_cur_song(Client *c) {
 	}
 }
 void set_cur_status(Client *c, struct mpd_status *status) {
-	if (c->cur_status) mpd_status_free(c->cur_status);
+	free_cur_status(c);
 	c->cur_status = status;
 }
 void set_cur_song(Client *c, struct mpd_song *song) {
-	if (c->cur_song) mpd_song_free(c->cur_song);
+	free_cur_song(c);
 	c->cur_song = song;
 
 	// Update song filename
@@ -220,8 +215,8 @@ void set_cur_song(Client *c, struct mpd_song *song) {
 void fetch_status(Client *c) {
 	struct mpd_status *status = mpd_run_status(c->conn);
 	if (status == NULL) {
-		clear_cur_status(c);
-		clear_cur_song(c);
+		free_cur_status(c);
+		free_cur_song(c);
 		c->artwork_image_just_changed = true;
 		c->has_artwork_image = false;
 		CONN_HANDLE_ERROR(c->conn);
@@ -233,15 +228,13 @@ void fetch_status(Client *c) {
 	int cur_song_id = mpd_status_get_song_id(status);
 	bool changed = !c->cur_song || (int)mpd_song_get_id(c->cur_song) != cur_song_id;
 	if (changed) {
-		clear_cur_song(c);
-
 		// Set new current song
 		if (cur_song_id >= 0) {
 			struct mpd_song *song = mpd_run_get_queue_song_id(c->conn, cur_song_id);
 			if (song) {
 				set_cur_song(c, song);
 
-				// Update current song artwork in the separate thread
+				// Update current song artwork in a separate thread
 				pthread_t thread;
 				pthread_create(&thread, NULL, do_fetch_cur_artwork, c);
 
@@ -249,6 +242,8 @@ void fetch_status(Client *c) {
 			}
 		}
 
+		// No current song
+		free_cur_song(c);
 		c->artwork_image_just_changed = true;
 		c->has_artwork_image = false;
 		CONN_HANDLE_ERROR(c->conn);
@@ -315,10 +310,13 @@ void client_update(Client *c, State *state) {
 	}
 
 	if (c->artwork_image_just_changed) {
-		if (c->has_artwork_image)
+		if (c->has_artwork_image) {
 			state_set_artwork(state, c->artwork_image, c->artwork_average_color);
-		else
+			UnloadImage(c->artwork_image);
+			c->has_artwork_image = false;
+		} else {
 			state_clear_artwork(state);
+		}
 
 		c->artwork_image_just_changed = false;
 	}

@@ -273,7 +273,12 @@ void fetch_queue(QueuePage *q, Client *client) {
 		return;
 	}
 
-	queue_page_free(q);
+	// Free previous entries
+	for (size_t i = 0; i < q->entries.len; i++) {
+		entry_free(&q->entries.items[i]);
+	}
+	q->entries.len = 0;
+
 	DA_RESERVE(&q->entries, 512);
 
 	// Receive queue entities/songs from the server
@@ -489,4 +494,5 @@ void queue_page_free(QueuePage *q) {
 		entry_free(&q->entries.items[i]);
 	}
 	q->entries.len = 0;
+	free(q->entries.items);
 }
