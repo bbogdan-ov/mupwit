@@ -1,7 +1,8 @@
 # MUPWIT - MUsic Player WIth Things
 
 > [!WARNING]
-> **WIP**! It can crush in any moment!
+> **WIP**! It is still kinda raw and missing some useful features, but hey, it
+> is already capable of managing playback and queue, so check it out!!
 
 A small and simple [MPD](https://www.musicpd.org) client written in C99 and
 [RAYLIB](https://www.raylib.com).
