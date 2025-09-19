@@ -24,12 +24,12 @@
 	(Image){NAME ## _DATA, NAME ## _WIDTH,  NAME ## _HEIGHT, 1, NAME ## _PIXEL_FORMAT})
 
 Color calc_foreground(Color bg) {
-	int lum = ((int)bg.r + (int)bg.g + (int)bg.b) / 3;
-	if (lum > 210)
-		return ColorContrast(bg, -0.1);
-	else
-		return ColorContrast(bg, 0.2);
+	return ColorBrightness(ColorContrast(bg, -0.1), -0.1);
 }
+Color calc_background(Color color) {
+	return ColorBrightness(ColorContrast(color, 0.8), 0.6);
+}
+
 
 State state_new(void) {
 	return (State){
@@ -57,9 +57,7 @@ void state_update(State *s) {
 
 	Color target_color = THEME_BACKGROUND;
 	if (s->cur_artwork.exists) {
-		target_color = s->cur_artwork.average;
-		target_color = ColorContrast(target_color, 0.8);
-		target_color = ColorBrightness(target_color, 0.6);
+		target_color = calc_background(s->cur_artwork.average);
 	}
 
 	if (tween_playing(&s->background_tween)) {
