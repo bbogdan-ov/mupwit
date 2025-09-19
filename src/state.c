@@ -30,7 +30,6 @@ Color calc_background(Color color) {
 	return ColorBrightness(ColorContrast(color, 0.8), 0.6);
 }
 
-
 State state_new(void) {
 	return (State){
 		.normal_font = FONT(code9x7),
@@ -114,6 +113,7 @@ void state_set_artwork(State *s, Image image, Color average) {
 	start_background_tween(s);
 }
 void state_clear_artwork(State *s) {
+	set_prev_artwork(s);
 	s->cur_artwork.exists = false;
 	start_background_tween(s);
 }
@@ -140,5 +140,5 @@ void state_prev_page(State *s) {
 }
 
 float state_artwork_alpha(State *s) {
-	return MIN(tween_progress(&s->background_tween) * 8.0, 1.0);
+	return MIN(tween_progress(&s->background_tween) * 6.0, 1.0);
 }
