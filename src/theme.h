@@ -13,9 +13,10 @@
 
 #define THEME_WHITE (GetColor(0xdbdce5ff))
 #define THEME_BLACK (GetColor(0x111111ff))
+#define THEME_GRAY (ColorAlpha(THEME_BLACK, 0.7))
 
 #define THEME_BACKGROUND THEME_WHITE
 #define THEME_TEXT THEME_BLACK
-#define THEME_SUBTLE_TEXT (ColorAlpha(THEME_TEXT, 0.7))
+#define THEME_SUBTLE_TEXT THEME_GRAY
 
 #endif

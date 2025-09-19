@@ -438,12 +438,12 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		stats_rect.y - 1,
 		stats_rect.width,
 		1,
-		THEME_BLACK
+		THEME_GRAY
 	);
 
 	// Draw number of tracks
 	Text text = (Text){
-		.text = TextFormat("%d tracks", q->entries.len),
+		.text = TextFormat("♪ %d", q->entries.len),
 		.font = state->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
 		.pos = {
