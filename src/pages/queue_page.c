@@ -375,21 +375,22 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 
 	int sw = GetScreenWidth();
 	int sh = GetScreenHeight();
-
-	scrollable_set_height(
-		&q->scrollable,
-		q->entries.len * ENTRY_HEIGHT - state->container.height
-	);
-
-	scrollable_update(&q->scrollable);
-
-	state->scroll = q->scrollable.scroll;
-	state->container = rect(
+	Rect container = rect(
 		PADDING + sw * (1.0 - transition),
 		PADDING,
 		sw - PADDING*2,
 		sh - PADDING*2 - STATS_HEIGHT
 	);
+
+	scrollable_set_height(
+		&q->scrollable,
+		q->entries.len * ENTRY_HEIGHT - container.height
+	);
+
+	scrollable_update(&q->scrollable);
+
+	state->scroll = q->scrollable.scroll;
+	state->container = container;
 
 	// Draw background gradient
 	if (tween_playing(&state->page_tween)) {
@@ -431,7 +432,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	if (thumb_height < cont_height)
 		DrawRectangle(
 			state->container.x + state->container.width + 3,
-			state->container.y + state->scroll * (cont_height) / scroll_height,
+			state->container.y + state->scroll * (cont_height - thumb_height + PADDING) / scroll_height,
 			2,
 			thumb_height,
 			state->foreground
