@@ -4,9 +4,10 @@
 #include <math.h>
 
 // Thanks to easings.net
-#define EASE_IN_OUT_SINE(X) (-(cos(PI * (X)) - 1.0) / 2.0)
-#define EASE_OUT_CUBIC(X) (1 - pow(1 - (X), 3))
-#define EASE_IN_OUT_CUBIC(X) ((X) < 0.5 ? 4.0 * (X) * (X) * (X) : 1.0 - pow(-2.0 * (X) + 2.0, 3.0) / 2.0)
+#define EASE_IN_OUT_SINE(x) (-(cos(PI * (x)) - 1.0) / 2.0)
+#define EASE_OUT_CUBIC(x) (1 - pow(1 - (x), 3))
+#define EASE_IN_OUT_CUBIC(x) ((x) < 0.5 ? 4.0 * (x) * (x) * (x) : 1.0 - pow(-2.0 * (x) + 2.0, 3.0) / 2.0)
+#define EASE_IN_OUT_QUAD(x) (x < 0.5 ? 2 * x * x : 1 - pow(-2 * x + 2, 2) / 2)
 
 typedef struct Tween {
 	unsigned duration_ms;

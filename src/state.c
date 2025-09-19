@@ -75,7 +75,7 @@ void state_update(State *s) {
 		s->page_transition = Lerp(
 			s->prev_page_transition,
 			1.0,
-			EASE_IN_OUT_SINE(tween_progress(&s->page_tween))
+			EASE_IN_OUT_QUAD(tween_progress(&s->page_tween))
 		);
 	else
 		s->page_transition = 1.0;
