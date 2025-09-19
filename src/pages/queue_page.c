@@ -407,6 +407,22 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	);
 
 	// ==============================
+	// Draw scroll thumb
+	// ==============================
+
+	int cont_height = (int)state->container.height;
+	int scroll_height = cont_height + (int)q->scrollable.height;
+	int thumb_height = MAX(cont_height * cont_height / scroll_height, 32);
+	if (thumb_height < cont_height)
+		DrawRectangle(
+			state->container.x + state->container.width + 3,
+			state->container.y + state->scroll * (cont_height) / scroll_height,
+			2,
+			thumb_height,
+			state->foreground
+		);
+
+	// ==============================
 	// Draw queue stats
 	// ==============================
 
