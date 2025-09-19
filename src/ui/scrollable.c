@@ -13,7 +13,6 @@ Scrollable scrollable_new() {
 }
 
 void scrollable_update(Scrollable *s) {
-	// TODO: scroll only when mouse is over the scrollable thingy
 	Vector2 wheel = GetMouseWheelMoveV();
 
 	scrollable_scroll_by(s, -wheel.y * SCROLL_WHEEL_MOVEMENT);
