@@ -11,7 +11,7 @@
 extern const char *UNKNOWN;
 
 // Fetch the player status every N millis
-#define CLIENT_FETCH_EVERY_MS 30
+#define CLIENT_FETCH_EVERY_MS (1000/20)
 
 // Client connection state
 typedef enum ClientConnState {
