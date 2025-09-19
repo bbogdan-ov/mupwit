@@ -45,6 +45,8 @@ typedef struct QueuePage {
 	int reordered_from_number;
 	float reorder_click_offset_y;
 
+	bool is_opened;
+
 	Scrollable scrollable;
 } QueuePage;
 

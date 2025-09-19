@@ -18,7 +18,6 @@
 
 #define GRAB_THRESHOLD 8
 
-// TODO: focus on/scroll to the currently playing song
 // TODO: draw "no songs" when queue is empty
 
 QueuePage queue_page_new() {
@@ -347,20 +346,40 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 }
 
 void queue_page_draw(QueuePage *q, Client *client, State *state) {
+	LOCK(&client->mutex);
+
 	float transition = state->page_transition;
-	if (state->page != PAGE_QUEUE) {
+	if (state->page == PAGE_QUEUE) {
+		if (!q->is_opened) {
+			q->is_opened = true;
+
+			// Scroll to the currently playing song
+			if (client->cur_status) {
+				int cur_number = mpd_status_get_song_pos(client->cur_status);
+				if (cur_number >= 0) {
+					int scroll = cur_number * ENTRY_HEIGHT + ENTRY_HEIGHT/2 - GetScreenHeight()/2;
+					q->scrollable.target_scroll = scroll;
+				}
+			}
+		}
+	} else {
+		q->is_opened = false;
+
 		if (state->prev_page == PAGE_QUEUE) {
-			if (!tween_playing(&state->page_tween)) return;
+			if (!tween_playing(&state->page_tween)) goto defer;
 			transition = 1.0 - transition;
 		} else {
-			return;
+			goto defer;
 		}
 	}
 
-	LOCK(&client->mutex);
-
 	int sw = GetScreenWidth();
 	int sh = GetScreenHeight();
+
+	scrollable_set_height(
+		&q->scrollable,
+		q->entries.len * ENTRY_HEIGHT - state->container.height
+	);
 
 	scrollable_update(&q->scrollable);
 
@@ -400,11 +419,6 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 
 	// Draw entry that is currently being reordered
 	draw_reordering_entry(q, client, state);
-
-	scrollable_set_height(
-		&q->scrollable,
-		q->entries.len * ENTRY_HEIGHT - state->container.height
-	);
 
 	// ==============================
 	// Draw scroll thumb
@@ -460,6 +474,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	text.pos.x = stats_rect.x + stats_rect.width - dur_size.x - PADDING*2;
 	draw_text(text);
 
+defer:
 	UNLOCK(&client->mutex);
 }
 

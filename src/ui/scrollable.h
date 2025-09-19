@@ -6,10 +6,10 @@
 #define SCROLL_WHEEL_MOVEMENT 64
 
 typedef struct Scrollable {
-	float scroll;
-	float prev_scroll;
-	float target_scroll;
-	float height;
+	int scroll;
+	int prev_scroll;
+	int target_scroll;
+	int height;
 	Tween tween;
 } Scrollable;
 
@@ -17,7 +17,7 @@ Scrollable scrollable_new();
 
 void scrollable_update(Scrollable *s);
 
-void scrollable_scroll_by(Scrollable *s, float movement);
-void scrollable_set_height(Scrollable *s, float height);
+void scrollable_scroll_by(Scrollable *s, int movement);
+void scrollable_set_height(Scrollable *s, int height);
 
 #endif
