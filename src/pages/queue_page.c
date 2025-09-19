@@ -8,6 +8,7 @@
 
 #include <raymath.h>
 
+#define PADDING 8
 #define ENTRY_PADDING 10
 #define ARTWORK_SIZE 32
 #define ENTRY_HEIGHT (ARTWORK_SIZE + ENTRY_PADDING*2)
@@ -339,21 +340,37 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 }
 
 void queue_page_draw(QueuePage *q, Client *client, State *state) {
+	float transition = state->page_transition;
+	if (state->page != PAGE_QUEUE) {
+		if (state->prev_page == PAGE_QUEUE) {
+			if (!tween_playing(&state->page_tween)) return;
+			transition = 1.0 - transition;
+		} else {
+			return;
+		}
+	}
+
 	LOCK(&client->mutex);
 
 	int sw = GetScreenWidth();
 	int sh = GetScreenHeight();
-	int padding = 8;
 
 	scrollable_update(&q->scrollable);
 
 	state->scroll = q->scrollable.scroll;
 	state->container = rect(
-		padding,
-		padding,
-		sw - padding*2,
-		sh - padding*2
+		PADDING + sw * (1.0 - transition),
+		PADDING,
+		sw - PADDING*2,
+		sh - PADDING*2
 	);
+
+	// Draw background gradient
+	if (tween_playing(&state->page_tween)) {
+		float offset_x = sw * (1.0 - transition * 2.0);
+		DrawRectangle(offset_x + sw, 0, sw, sh, state->background);
+		DrawRectangleGradientH(offset_x, 0, sw, sh, ColorAlpha(state->background, 0.0), state->background);
+	}
 
 	// Draw the entries
 	for (size_t i = 0; i < q->entries.len; i++) {

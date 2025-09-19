@@ -58,6 +58,16 @@ void draw_artwork(Artwork *artwork, Texture empty_artwork, Rect rect, Color tint
 }
 
 void player_page_draw(Client *client, State *state) {
+	float transition = state->page_transition;
+	if (state->page != PAGE_PLAYER) {
+		if (state->prev_page == PAGE_PLAYER) {
+			if (!tween_playing(&state->page_tween)) return;
+			transition = 1.0 - transition;
+		} else {
+			return;
+		}
+	}
+
 	LOCK(&client->mutex);
 
 	const char *title = NULL;
@@ -89,11 +99,13 @@ void player_page_draw(Client *client, State *state) {
 	int sw = GetScreenWidth();
 	int sh = GetScreenHeight();
 
-	Rect container = rect_shrink(rect(0, 0, sw, sh), PADDING, PADDING);
-	float offset_y = container.y;
+	state->container = rect(-sw * 0.25 * (1.0 - transition), 0, sw, sh);
+	state->container = rect_shrink(state->container, PADDING, PADDING);
+	float offset_y = state->container.y;
 
 	// Draw artwork
-	Rect artwork_rect = rect(container.x, container.y, container.width, container.width);
+	Rect artwork_rect = state->container;
+	artwork_rect.height = artwork_rect.width;
 
 	// Previous artwork
 	draw_artwork(
@@ -115,13 +127,18 @@ void player_page_draw(Client *client, State *state) {
 
 	offset_y += artwork_rect.height + GAP;
 
-	BeginScissorMode(container.x, container.y, container.width, container.height);
+	BeginScissorMode(
+		state->container.x,
+		state->container.y,
+		state->container.width,
+		state->container.height
+	);
 
 	// ==============================
 	// Draw info
 	// ==============================
 
-	Vec text_offset = vec(container.x, offset_y);
+	Vec text_offset = vec(state->container.x, offset_y);
 	Text text = (Text){
 		.text = title,
 		.font = state->title_font,
@@ -131,7 +148,7 @@ void player_page_draw(Client *client, State *state) {
 	};
 
 	// Draw song title
-	Vec text_bounds = draw_cropped_text(text, container.width, state->background);
+	Vec text_bounds = draw_cropped_text(text, state->container.width, state->background);
 	text_offset.y += text_bounds.y;
 
 	// Draw artist and album
@@ -142,7 +159,7 @@ void player_page_draw(Client *client, State *state) {
 		.pos = text_offset,
 		.color = THEME_SUBTLE_TEXT,
 	};
-	text_bounds = draw_cropped_text(text, container.width, state->background);
+	text_bounds = draw_cropped_text(text, state->container.width, state->background);
 	text_offset.y += text_bounds.y;
 
 	EndScissorMode();
@@ -183,7 +200,7 @@ void player_page_draw(Client *client, State *state) {
 	Rect bar_rect = rect(
 		text_offset.x,
 		text_offset.y,
-		container.width + PADDING - text_offset.x,
+		state->container.width - BUTTON_SIZE*3 - GAP,
 		BAR_HEIGHT
 	);
 	draw_box(state, BOX_NORMAL, bar_rect, THEME_BLACK);

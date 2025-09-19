@@ -39,14 +39,18 @@ typedef struct State {
 	Color foreground;
 	Color background;
 	Color prev_background;
-	Tween transition_tween;
+	Tween background_tween;
+
+	Page page;
+	Page prev_page;
+	Tween page_tween;
+	float page_transition;
+	float prev_page_transition;
 
 	// Current rectangle in which things are being drawn
 	Rectangle container;
 	// Current scroll Y offset
 	float scroll;
-
-	Page page;
 } State;
 
 State state_new(void);

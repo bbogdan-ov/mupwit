@@ -28,6 +28,13 @@ int main() {
 	QueuePage queue_page = queue_page_new();
 
 	while (!WindowShouldClose()) {
+		bool is_shift = is_shift_down();
+		if (is_key_pressed(KEY_TAB) && is_shift) {
+			state_prev_page(&state);
+		} else if (is_key_pressed(KEY_TAB)) {
+			state_next_page(&state);
+		}
+
 		client_update(&client, &state);
 		state_update(&state);
 
@@ -53,21 +60,8 @@ int main() {
 				DrawText("error", 0, 0, 30, BLACK);
 				break;
 			case CLIENT_CONN_STATE_READY:
-				bool is_shift = is_shift_down();
-				if (is_key_pressed(KEY_TAB) && is_shift) {
-					state_prev_page(&state);
-				} else if (is_key_pressed(KEY_TAB)) {
-					state_next_page(&state);
-				}
-
-				switch (state.page) {
-					case PAGE_PLAYER:
-						player_page_draw(&client, &state);
-						break;
-					case PAGE_QUEUE:
-						queue_page_draw(&queue_page, &client, &state);
-						break;
-				}
+				player_page_draw(&client, &state);
+				queue_page_draw(&queue_page, &client, &state);
 				break;
 		}
 		UNLOCK(&client.conn_state_mutex);

@@ -5,6 +5,8 @@
 #include "./state.h"
 #include "./macros.h"
 
+#include <raymath.h>
+
 #include "../build/assets.h"
 
 #define FONT(NAME) (Font){ \
@@ -42,12 +44,16 @@ State state_new(void) {
 		.foreground = calc_foreground(THEME_BACKGROUND),
 		.background = THEME_BACKGROUND,
 		.prev_background = THEME_BACKGROUND,
-		.transition_tween = tween_new(1000),
+		.background_tween = tween_new(1000),
+
+		.page_tween = tween_new(300),
+		.page_transition = 1.0,
 	};
 }
 
 void state_update(State *s) {
-	tween_update(&s->transition_tween);
+	tween_update(&s->background_tween);
+	tween_update(&s->page_tween);
 
 	Color target_color = THEME_BACKGROUND;
 	if (s->cur_artwork.exists) {
@@ -56,20 +62,31 @@ void state_update(State *s) {
 		target_color = ColorBrightness(target_color, 0.6);
 	}
 
-	if (tween_playing(&s->transition_tween)) {
-		float progress = tween_progress(&s->transition_tween);
+	if (tween_playing(&s->background_tween)) {
+		float progress = tween_progress(&s->background_tween);
 		s->background = ColorLerp(
 			s->prev_background,
 			target_color,
 			EASE_IN_OUT_SINE(progress)
 		);
 		s->foreground = calc_foreground(s->background);
+	} else {
+		// Leave as it is
 	}
+
+	if (tween_playing(&s->page_tween))
+		s->page_transition = Lerp(
+			s->prev_page_transition,
+			1.0,
+			EASE_IN_OUT_SINE(tween_progress(&s->page_tween))
+		);
+	else
+		s->page_transition = 1.0;
 }
 
-void start_transition(State *s) {
+void start_background_tween(State *s) {
 	s->prev_background = s->background;
-	tween_play(&s->transition_tween);
+	tween_play(&s->background_tween);
 }
 
 void set_prev_artwork(State *s) {
@@ -96,26 +113,34 @@ void state_set_artwork(State *s, Image image, Color average) {
 	s->cur_artwork.average = average;
 	s->cur_artwork.exists = true;
 
-	start_transition(s);
+	start_background_tween(s);
 }
 void state_clear_artwork(State *s) {
 	s->cur_artwork.exists = false;
-	start_transition(s);
+	start_background_tween(s);
+}
+
+void set_page(State *s, Page page) {
+	s->prev_page = s->page;
+	s->page = page;
+
+	s->prev_page_transition = 1.0 - s->page_transition;
+	tween_play(&s->page_tween);
 }
 
 void state_next_page(State *s) {
 	switch (s->page) {
-		case PAGE_PLAYER: s->page = PAGE_QUEUE; break;
-		case PAGE_QUEUE: s->page = PAGE_PLAYER; break;
+		case PAGE_PLAYER: set_page(s, PAGE_QUEUE); break;
+		case PAGE_QUEUE: set_page(s, PAGE_PLAYER); break;
 	}
 }
 void state_prev_page(State *s) {
 	switch (s->page) {
-		case PAGE_PLAYER: s->page = PAGE_QUEUE; break;
-		case PAGE_QUEUE: s->page = PAGE_PLAYER; break;
+		case PAGE_PLAYER: set_page(s, PAGE_QUEUE); break;
+		case PAGE_QUEUE: set_page(s, PAGE_PLAYER); break;
 	}
 }
 
 float state_artwork_alpha(State *s) {
-	return MIN(tween_progress(&s->transition_tween) * 8.0, 1.0);
+	return MIN(tween_progress(&s->background_tween) * 8.0, 1.0);
 }
