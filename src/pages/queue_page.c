@@ -33,7 +33,7 @@ QueuePage queue_page_new() {
 QueueEntry entry_new(struct mpd_entity *entity, size_t number) {
 	const struct mpd_song *song = mpd_entity_get_song(entity);
 
-	const char *text = format_time(mpd_song_get_duration(song));
+	const char *text = format_time(mpd_song_get_duration(song), false);
 	size_t len = strlen(text) + 1;
 	char *duration_text = malloc(len);
 	memcpy(duration_text, text, len);
@@ -469,7 +469,11 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	draw_text(text);
 
 	// Draw queue elapsed time
-	text.text = format_elapsed_time(elapsed, q->total_duration);
+	unsigned time_left = 0;
+	if (elapsed <= q->total_duration)
+		time_left = q->total_duration - elapsed;
+
+	text.text = format_time(time_left, true);
 	Vec dur_size = measure_text(&text);
 	text.pos.x = stats_rect.x + stats_rect.width - dur_size.x - PADDING*2;
 	draw_text(text);

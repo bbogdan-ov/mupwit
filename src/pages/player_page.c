@@ -249,11 +249,11 @@ void player_page_draw(Client *client, State *state) {
 	);
 
 	// Draw time
-	text.text = format_time(elapsed_sec);
+	text.text = format_time(elapsed_sec, false);
 	text.pos = vec(bar_rect.x, bar_rect.y + BAR_EXPAND + BAR_HEIGHT * 2);
 	draw_text(text);
 
-	text.text = format_time(duration_sec);
+	text.text = format_time(duration_sec, false);
 	Vec size = measure_text(&text);
 	text.pos = vec(bar_rect.x + bar_rect.width - size.x, bar_rect.y + BAR_EXPAND + BAR_HEIGHT * 2);
 	draw_text(text);

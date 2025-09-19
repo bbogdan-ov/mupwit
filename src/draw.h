@@ -59,7 +59,6 @@ Rect screen_rect(void);
 
 Rect rect_shrink(Rect rect, float hor, float ver);
 
-const char *format_time(unsigned secs);
-const char *format_elapsed_time(unsigned elapsed, unsigned duration);
+const char *format_time(unsigned secs, bool minus);
 
 #endif

@@ -93,16 +93,18 @@ Rect rect_shrink(Rect rect, float hor, float ver) {
 	};
 }
 
-const char *format_time(unsigned secs) {
-	if (secs > 60 * 60) {
-		return TextFormat("%02d:%02d:%02d", (int)(secs / 60 / 60), (int)(secs / 60) % 60, secs % 60);
-	} else if (secs > 60) {
-		return TextFormat("%02d:%02d", (int)(secs / 60), secs % 60);
-	} else {
-		return TextFormat("00:%02d", secs);
-	}
-}
+const char *format_time(unsigned secs, bool minus) {
+#define HOURS "%02d:%02d:%02d", (int)(secs / 60 / 60), (int)(secs / 60) % 60, secs % 60
+#define MINS "%02d:%02d", (int)(secs / 60), secs % 60
+#define SECS "00:%02d", secs
 
-const char *format_elapsed_time(unsigned elapsed, unsigned duration) {
-	return TextFormat("%s / %s", format_time(elapsed), format_time(duration));
+	if (minus) {
+		if (secs > 60 * 60) return TextFormat("-"HOURS);
+		if (secs > 60) return TextFormat("-"MINS);
+		return TextFormat("-"SECS);
+	}
+
+	if (secs > 60 * 60) return TextFormat(HOURS);
+	if (secs > 60) return TextFormat(MINS);
+	return TextFormat(SECS);
 }
