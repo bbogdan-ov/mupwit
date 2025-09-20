@@ -26,6 +26,10 @@ and learning purposes.
 - [ ] Customization
 - [ ] Visualizer?..
 
+## Controls
+
+`tab` - open queue
+
 ## Screenshots
 
 ![1](./screenshots/1.png)
