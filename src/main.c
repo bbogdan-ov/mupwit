@@ -40,17 +40,17 @@ int main() {
 
 		queue_page_update(&queue_page, &client);
 
-		if (TRYLOCK(&client.conn_state_mutex) != 0) {
-			continue;
-		}
-
 		BeginDrawing();
 		ClearBackground(state.background);
 
 		state.container = screen_rect();
 		state.cursor = MOUSE_CURSOR_DEFAULT;
 
-		switch (client.conn_state) {
+		LOCK(&client.conn_mutex);
+		ClientConnState conn_state = client.conn_state;
+		UNLOCK(&client.conn_mutex);
+
+		switch (conn_state) {
 			case CLIENT_CONN_STATE_CONNECTING:
 				// TODO: show proper message
 				DrawText("connecting...", 0, 0, 30, BLACK);
@@ -64,7 +64,6 @@ int main() {
 				queue_page_draw(&queue_page, &client, &state);
 				break;
 		}
-		UNLOCK(&client.conn_state_mutex);
 
 #ifdef DEBUG
 		double time = GetTime() * 10;

@@ -68,7 +68,7 @@ void player_page_draw(Client *client, State *state) {
 		}
 	}
 
-	LOCK(&client->mutex);
+	LOCK(&client->status_mutex);
 
 	const char *title = NULL;
 	const char *album = UNKNOWN;
@@ -264,5 +264,5 @@ void player_page_draw(Client *client, State *state) {
 		SetWindowSize(sw, text_offset.y);
 	}
 
-	UNLOCK(&client->mutex);
+	UNLOCK(&client->status_mutex);
 }

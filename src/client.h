@@ -21,6 +21,7 @@ typedef enum ClientConnState {
 } ClientConnState;
 
 typedef struct Client {
+	pthread_mutex_t status_mutex;
 	// Currently playing song
 	// `NULL` means no current song
 	struct mpd_song *cur_song;
@@ -29,19 +30,19 @@ typedef struct Client {
 	// `NULL` means no info is available
 	struct mpd_status *cur_status;
 
-	// Time left untill trying to fetch the player status
-	int fetch_status_timer_ms;
-
+	pthread_mutex_t artwork_mutex;
 	// Artwork image (CPU) of the current song
 	Image artwork_image;
 	Color artwork_average_color;
-	bool has_artwork_image;
-	bool artwork_image_just_changed;
+	bool artwork_exists;
+	bool artwork_just_changed;
 
-	pthread_mutex_t mutex;
-	pthread_mutex_t conn_state_mutex;
+	pthread_mutex_t conn_mutex;
 	ClientConnState conn_state;
 	struct mpd_connection *conn;
+
+	// Time left untill trying to fetch the player status
+	int fetch_status_timer_ms;
 } Client;
 
 // Logs an libmpdclient error if any has occured and returns `true`,

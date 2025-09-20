@@ -267,10 +267,12 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 }
 
 void fetch_queue(QueuePage *q, Client *client) {
+	LOCK(&client->conn_mutex);
+
 	bool res = mpd_send_list_queue_meta(client->conn);
 	if (!res) {
 		CONN_HANDLE_ERROR(client->conn);
-		return;
+		goto defer;
 	}
 
 	// Free previous entries
@@ -299,18 +301,17 @@ void fetch_queue(QueuePage *q, Client *client) {
 			q->total_duration += mpd_song_get_duration(song);
 		}
 	}
+
+defer:
+	UNLOCK(&client->conn_mutex);
 }
 
 void queue_page_update(QueuePage *q, Client *client) {
 	// TODO!: fetch the queue when 'playlist' idle is received
 	if (q->entries.len > 0) return;
 
-	LOCK(&client->mutex);
-
 	// TODO: fetch queue asynchronously or in a separate thread
 	fetch_queue(q, client);
-
-	UNLOCK(&client->mutex);
 }
 
 void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
@@ -351,7 +352,7 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 }
 
 void queue_page_draw(QueuePage *q, Client *client, State *state) {
-	LOCK(&client->mutex);
+	LOCK(&client->status_mutex);
 
 	float transition = state->page_transition;
 	if (state->page == PAGE_QUEUE) {
@@ -487,7 +488,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	draw_text(text);
 
 defer:
-	UNLOCK(&client->mutex);
+	UNLOCK(&client->status_mutex);
 }
 
 void queue_page_free(QueuePage *q) {
