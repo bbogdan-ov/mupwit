@@ -359,6 +359,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 			q->is_opened = true;
 
 			// Scroll to the currently playing song
+			// TODO: scroll down a bit more to make song appear at the top
 			if (client->cur_status) {
 				int cur_number = mpd_status_get_song_pos(client->cur_status);
 				if (cur_number >= 0) {
