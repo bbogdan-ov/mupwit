@@ -117,9 +117,20 @@ void *do_fetch_cur_artwork(void *client) {
 	Client *c = (Client*)client;
 
 	LOCK(&c->status_mutex);
+	LOCK(&c->artwork_mutex);
+
+	// Free previous artwork image
+	if (c->artwork_exists) {
+		UnloadImage(c->artwork_image);
+		c->artwork_exists = false;
+	}
 
 	if (c->cur_song == NULL) {
+		c->artwork_just_changed = true;
+		c->artwork_exists = false;
+
 		UNLOCK(&c->status_mutex);
+		UNLOCK(&c->artwork_mutex);
 		return NULL;
 	}
 
@@ -135,7 +146,6 @@ void *do_fetch_cur_artwork(void *client) {
 	);
 
 	UNLOCK(&c->status_mutex);
-	LOCK(&c->artwork_mutex);
 
 	// Simply return if there is an error or no artwork
 	if (size <= 0) {
@@ -344,13 +354,10 @@ void client_update(Client *c, State *state) {
 
 	if (TRYLOCK(&c->artwork_mutex) == 0) {
 		if (c->artwork_just_changed) {
-			if (c->artwork_exists) {
+			if (c->artwork_exists)
 				state_set_artwork(state, c->artwork_image, c->artwork_average_color);
-				UnloadImage(c->artwork_image);
-				c->artwork_exists = false;
-			} else {
+			else
 				state_clear_artwork(state);
-			}
 
 			c->artwork_just_changed = false;
 		}
