@@ -312,6 +312,7 @@ void *do_connect(void *client) {
 
 	Client *c = (Client*)client;
 
+	// TODO!: show "no server" message when connection was refused by the server
 	if (CONN_HANDLE_ERROR(conn)) {
 		mpd_connection_free(conn);
 
