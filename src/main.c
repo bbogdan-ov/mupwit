@@ -12,6 +12,13 @@
 
 // TODO: add ability to undo actions like queue reordering or song selection
 
+// TODO: when 'close' is received hide the window instead of closing it and
+// write its PID into some sort of a temporarily file so if we'll try to open a
+// new window, MUPWIT will try to seach for this PID file and restore
+// visibility state of the already opened window so we don't initialize and
+// open completely a new window.
+// But making this cross-platform is the another story...
+
 int main() {
 #ifdef RELEASE
 	SetTraceLogLevel(LOG_WARNING);
