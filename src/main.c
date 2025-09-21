@@ -1,6 +1,11 @@
 #include <stdio.h>
 #include <raylib.h>
 #include <assert.h>
+#include <errno.h>
+#include <unistd.h>
+
+#define __USE_POSIX
+#include <signal.h>
 
 #include "client.h"
 #include "state.h"
@@ -10,16 +15,106 @@
 #include "pages/player_page.h"
 #include "pages/queue_page.h"
 
+static const char *PID_FILE = "/tmp/mupwit.pid";
+
 // TODO: add ability to undo actions like queue reordering or song selection
 
-// TODO: when 'close' is received hide the window instead of closing it and
-// write its PID into some sort of a temporarily file so if we'll try to open a
-// new window, MUPWIT will try to seach for this PID file and restore
-// visibility state of the already opened window so we don't initialize and
-// open completely a new window.
-// But making this cross-platform is the another story...
+// Try to find for /tmp/mupwit.pid and if present, return true and
+// send a custom signal to restore it's visibility state
+// If something went wrong, return false
+bool restore_previous(void) {
+	FILE *file = fopen(PID_FILE, "r");
+	if (file == NULL) return false;
+
+	fseek(file, 0, SEEK_END);
+	size_t file_size = ftell(file);
+	fseek(file, 0, SEEK_SET);
+
+	char buffer[24] = {0}; // enough to store 64 bit unsigned int
+	fread(buffer, 1, MIN(24, file_size), file);
+	if (ferror(file) != 0) goto error;
+
+	errno = 0;
+	long pid = strtol(buffer, NULL, 10);
+	if (errno != 0) {
+		pid = 0;
+		goto error;
+	}
+
+	// Send SIGUSR1 to restore window visibility state
+	if (kill(pid, SIGUSR1) != 0) {
+		goto no_pid;
+	}
+
+	fclose(file);
+	TraceLog(LOG_INFO, "Restored previously opened window (PID = %d)", pid);
+	return true;
+
+error:
+	fclose(file);
+	TraceLog(LOG_ERROR, "Something went wrong while trying to restore the window (PID = %d)", pid);
+	return false;
+
+no_pid:
+	fclose(file);
+	TraceLog(
+		LOG_WARNING,
+		"%s file is present but no program with this PID was found, "
+		"deleting this file (PID = %d)",
+		PID_FILE,
+		pid
+	);
+
+	if (remove(PID_FILE) != 0)
+		TraceLog(LOG_ERROR, "Unable to delete %s file", PID_FILE);
+
+	return false;
+}
+
+void save_pid(void) {
+	FILE *file = fopen(PID_FILE, "w");
+	if (file == NULL) {
+		TraceLog(LOG_ERROR, "Unable to save PID into %s", PID_FILE);
+		return;
+	}
+
+	pid_t pid = getpid();
+
+	char buffer[24] = {0}; // enough to store 64 bit unsigned int
+	int nbytes = sprintf(buffer, "%d", pid);
+	if (nbytes <= 0) goto defer;
+
+	fwrite(buffer, 1, nbytes, file);
+	if (ferror(file) != 0) goto defer;
+
+	fclose(file);
+	TraceLog(LOG_INFO, "Saved PID into %s (PID = %d)", PID_FILE, pid);
+	return;
+
+defer:
+	fclose(file);
+	TraceLog(LOG_ERROR, "Something went wrong while trying to store PID (PID = %d)", pid);
+	return;
+}
+
+void handle_signal(int sig) {
+	if (sig == SIGUSR1) {
+		printf("INFO: Received SIGUSR1, restoring the window...\n");
+	} else {
+		TraceLog(LOG_WARNING, "Received unhandled signal %d", sig);
+	}
+}
 
 int main() {
+#if defined(__linux__) && defined(RELEASE)
+	bool restored = restore_previous();
+	if (restored > 0) {
+		return 0;
+	}
+
+	save_pid();
+#endif
+
 #ifdef RELEASE
 	SetTraceLogLevel(LOG_WARNING);
 #endif
@@ -34,7 +129,27 @@ int main() {
 
 	QueuePage queue_page = queue_page_new();
 
-	while (!WindowShouldClose()) {
+	while (true) {
+
+#if defined(__linux__) && defined(RELEASE)
+		if (WindowShouldClose() && !IsWindowState(FLAG_WINDOW_HIDDEN)) {
+			if (signal(SIGUSR1, handle_signal) == SIG_ERR) {
+				TraceLog(LOG_WARNING, "Unable to catch SIGUSR1 to suspend the execution, just quitting");
+				break;
+			}
+
+			printf("INFO: Window hidden, waiting for SIGUSR1 to show it again...\n");
+			SetWindowState(FLAG_WINDOW_HIDDEN);
+
+			pause();
+
+			printf("INFO: Window restored due received SIGUSR1\n");
+			ClearWindowState(FLAG_WINDOW_HIDDEN);
+		}
+#else
+		if (WindowShouldClose()) break;
+#endif
+
 		bool is_shift = is_shift_down();
 		if (is_key_pressed(KEY_TAB) && is_shift) {
 			state_prev_page(&state);
