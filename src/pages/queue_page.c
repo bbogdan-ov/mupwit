@@ -70,47 +70,6 @@ int entry_number_from_pos(QueueEntry *e) {
 	return (int)((e->pos_y + ENTRY_HEIGHT / 2) / ENTRY_HEIGHT);
 }
 
-// Reorder entry UI element, does NOT affect an actual queue.
-// Any entry reordering also does NOT affect the order of items in the array (`entries`)
-void entry_reorder(QueueEntry *e, QueuePage *queue, int to_number) {
-	to_number = CLAMP(to_number, 0, queue->entries.len - 1);
-
-	int range_from = 0;
-	int range_to = 0;
-	int move_by = 0;
-
-	if (to_number > e->number) {
-		// Entry was moved down
-		range_from = e->number;
-		range_to = to_number;
-		move_by = -1;
-	} else if (to_number < e->number) {
-		// Entry was moved up
-		range_from = to_number;
-		range_to = e->number;
-		move_by = 1;
-	}
-
-	if (move_by == 0) return;
-
-	// Reorder all entries inside range `range_from`-`range_to`
-	for (size_t i = 0; i < queue->entries.len; i++) {
-		if ((int)i == queue->reordering_idx) continue;
-
-		QueueEntry *another = &queue->entries.items[i];
-
-		if (another->number >= range_from && another->number <= range_to) {
-			int moved_number = another->number + move_by;
-			if (moved_number >= 0 && moved_number < (int)queue->entries.len) {
-				another->number = moved_number;
-				entry_tween_to_rest(another);
-			}
-		}
-	}
-
-	e->number = to_number;
-}
-
 void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, State *state) {
 #define IS_REORDERING (queue->reordering_idx == idx)
 #define IS_TRYING_TO_GRAB (queue->trying_to_grab_idx == idx)
@@ -266,6 +225,47 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 	EndScissorMode();
 }
 
+// Reorder entry UI element, does NOT affect an actual queue.
+// Any entry reordering also does NOT affect the order of items in the array (`entries`)
+void queue_reorder_entry(QueuePage *q, QueueEntry *entry, int to_number) {
+	to_number = CLAMP(to_number, 0, q->entries.len - 1);
+
+	int range_from = 0;
+	int range_to = 0;
+	int move_by = 0;
+
+	if (to_number > entry->number) {
+		// Entry was moved down
+		range_from = entry->number;
+		range_to = to_number;
+		move_by = -1;
+	} else if (to_number < entry->number) {
+		// Entry was moved up
+		range_from = to_number;
+		range_to = entry->number;
+		move_by = 1;
+	}
+
+	if (move_by == 0) return;
+
+	// Reorder all entries inside range `range_from`-`range_to`
+	for (size_t i = 0; i < q->entries.len; i++) {
+		if ((int)i == q->reordering_idx) continue;
+
+		QueueEntry *another = &q->entries.items[i];
+
+		if (another->number >= range_from && another->number <= range_to) {
+			int moved_number = another->number + move_by;
+			if (moved_number >= 0 && moved_number < (int)q->entries.len) {
+				another->number = moved_number;
+				entry_tween_to_rest(another);
+			}
+		}
+	}
+
+	entry->number = to_number;
+}
+
 void fetch_queue(QueuePage *q, Client *client) {
 	LOCK(&client->conn_mutex);
 
@@ -326,7 +326,7 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 		+ state->scroll;
 
 	// Reorder and draw currently reordering entry
-	entry_reorder(reordering, q, entry_number_from_pos(reordering));
+	queue_reorder_entry(q, reordering, entry_number_from_pos(reordering));
 	entry_draw(q->reordering_idx, reordering, q, client, state);
 
 	// Scroll following
@@ -343,7 +343,7 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 		if (!res) {
 			// Discard previous reorder on error
 			TraceLog(LOG_ERROR, "QUEUE: Unable to reorder, discarding");
-			entry_reorder(reordering, q, q->reordered_from_number);
+			queue_reorder_entry(q, reordering, q->reordered_from_number);
 		}
 
 		entry_tween_to_rest(reordering);
