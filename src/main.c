@@ -110,6 +110,7 @@ void catch_signal(void) {
 
 int main() {
 #if defined(__linux__) && defined(RELEASE)
+	// TODO: allow disabling previous window restoring via cli args
 	bool restored = restore_previous();
 	if (restored > 0) {
 		return 0;
