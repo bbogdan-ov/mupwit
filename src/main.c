@@ -100,11 +100,11 @@ defer:
 }
 
 void handle_signal(int sig) {
-	if (sig == SIGUSR1) {
-		printf("INFO: Received SIGUSR1, restoring the window...\n");
-		should_restore = true;
-	} else {
-		TraceLog(LOG_WARNING, "Received unhandled signal %d", sig);
+	should_restore = sig == SIGUSR1;
+}
+void catch_signal(void) {
+	if (signal(SIGUSR1, handle_signal) == SIG_ERR) {
+		TraceLog(LOG_WARNING, "Unable to catch SIGUSR1, do nothing");
 	}
 }
 
@@ -116,6 +116,8 @@ int main() {
 	}
 
 	save_pid();
+
+	catch_signal();
 #endif
 
 #ifdef RELEASE
@@ -136,18 +138,17 @@ int main() {
 
 #if defined(__linux__) && defined(RELEASE)
 		if (WindowShouldClose() && !IsWindowState(FLAG_WINDOW_HIDDEN)) {
-			if (signal(SIGUSR1, handle_signal) == SIG_ERR) {
-				TraceLog(LOG_WARNING, "Unable to catch SIGUSR1 to suspend the execution, just quitting");
-				break;
-			}
-
 			printf("INFO: Window hidden, waiting for SIGUSR1 to show it again...\n");
 			SetWindowState(FLAG_WINDOW_HIDDEN);
 		}
 
 		if (should_restore) {
-			printf("INFO: Window restored due received SIGUSR1\n");
-			ClearWindowState(FLAG_WINDOW_HIDDEN);
+			if (IsWindowState(FLAG_WINDOW_HIDDEN)) {
+				printf("INFO: Window restored due received SIGUSR1\n");
+				ClearWindowState(FLAG_WINDOW_HIDDEN);
+			}
+
+			catch_signal();
 			should_restore = false;
 		}
 #else
@@ -168,6 +169,7 @@ int main() {
 
 		BeginDrawing();
 
+#if defined(__linux__) && defined(RELEASE)
 		// Do not draw the UI if window is hidden
 		if (IsWindowState(FLAG_WINDOW_HIDDEN)) {
 			// It will update every second instead of 60 times per second so we
@@ -179,6 +181,7 @@ int main() {
 			EndDrawing();
 			continue;
 		}
+#endif
 
 		ClearBackground(state.background);
 
