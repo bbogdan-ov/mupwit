@@ -360,11 +360,10 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 			q->is_opened = true;
 
 			// Scroll to the currently playing song
-			// TODO: scroll down a bit more to make song appear at the top
 			if (client->cur_status) {
 				int cur_number = mpd_status_get_song_pos(client->cur_status);
 				if (cur_number >= 0) {
-					int scroll = cur_number * ENTRY_HEIGHT + ENTRY_HEIGHT/2 - GetScreenHeight()/2;
+					int scroll = cur_number * ENTRY_HEIGHT - ENTRY_HEIGHT;
 					q->scrollable.target_scroll = scroll;
 				}
 			}
@@ -391,7 +390,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 
 	scrollable_set_height(
 		&q->scrollable,
-		q->entries.len * ENTRY_HEIGHT - container.height
+		q->entries.len * ENTRY_HEIGHT + ENTRY_HEIGHT - container.height
 	);
 
 	scrollable_update(&q->scrollable);
