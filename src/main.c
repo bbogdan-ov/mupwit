@@ -19,6 +19,8 @@ static const char *PID_FILE = "/tmp/mupwit.pid";
 
 // TODO: add ability to undo actions like queue reordering or song selection
 
+static volatile bool should_restore = false;
+
 // Try to find for /tmp/mupwit.pid and if present, return true and
 // send a custom signal to restore it's visibility state
 // If something went wrong, return false
@@ -100,6 +102,7 @@ defer:
 void handle_signal(int sig) {
 	if (sig == SIGUSR1) {
 		printf("INFO: Received SIGUSR1, restoring the window...\n");
+		should_restore = true;
 	} else {
 		TraceLog(LOG_WARNING, "Received unhandled signal %d", sig);
 	}
@@ -140,11 +143,12 @@ int main() {
 
 			printf("INFO: Window hidden, waiting for SIGUSR1 to show it again...\n");
 			SetWindowState(FLAG_WINDOW_HIDDEN);
+		}
 
-			pause();
-
+		if (should_restore) {
 			printf("INFO: Window restored due received SIGUSR1\n");
 			ClearWindowState(FLAG_WINDOW_HIDDEN);
+			should_restore = false;
 		}
 #else
 		if (WindowShouldClose()) break;
@@ -163,6 +167,19 @@ int main() {
 		queue_page_update(&queue_page, &client);
 
 		BeginDrawing();
+
+		// Do not draw the UI if window is hidden
+		if (IsWindowState(FLAG_WINDOW_HIDDEN)) {
+			// It will update every second instead of 60 times per second so we
+			// don't waste CPU resources
+			sleep(1);
+
+			// NOTE: we still calling BeginDrawing() and EndDrawing() because
+			// it is essential to things like GetFrameTime() to work
+			EndDrawing();
+			continue;
+		}
+
 		ClearBackground(state.background);
 
 		state.container = screen_rect();
