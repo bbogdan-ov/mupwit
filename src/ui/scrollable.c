@@ -36,7 +36,7 @@ void scrollable_scroll_by(Scrollable *s, int movement) {
 
 	s->prev_scroll = s->scroll;
 	s->target_scroll += movement;
-	tween_play(&s->tween);
+	tween_play(&s->tween, 0);
 }
 void scrollable_set_height(Scrollable *s, int height) {
 	s->height = MAX(height, 0);

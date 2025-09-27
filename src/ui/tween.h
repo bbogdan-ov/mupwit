@@ -10,15 +10,16 @@
 #define EASE_IN_OUT_QUAD(x) (x < 0.5 ? 2 * x * x : 1 - pow(-2 * x + 2, 2) / 2)
 
 typedef struct Tween {
-	unsigned duration_ms;
-	unsigned timer_ms;
+	int duration_ms;
+	int delay_ms;
+	int timer_ms;
 } Tween;
 
-Tween tween_new(unsigned duration_ms);
+Tween tween_new(int duration_ms);
 
 void tween_update(Tween *t);
 
-void tween_play(Tween *t);
+void tween_play(Tween *t, int delay_ms);
 
 bool tween_playing(Tween *t);
 float tween_progress(Tween *t);

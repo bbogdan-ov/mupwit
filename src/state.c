@@ -83,7 +83,7 @@ void state_update(State *s) {
 
 void start_background_tween(State *s) {
 	s->prev_background = s->background;
-	tween_play(&s->background_tween);
+	tween_play(&s->background_tween, 0);
 }
 
 void set_prev_artwork(State *s) {
@@ -123,7 +123,7 @@ void set_page(State *s, Page page) {
 	s->page = page;
 
 	s->prev_page_transition = 1.0 - s->page_transition;
-	tween_play(&s->page_tween);
+	tween_play(&s->page_tween, 0);
 }
 
 void state_next_page(State *s) {
