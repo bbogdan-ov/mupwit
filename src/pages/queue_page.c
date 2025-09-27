@@ -438,7 +438,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	if (thumb_height < cont_height)
 		DrawRectangle(
 			state->container.x + state->container.width + 3,
-			state->container.y + state->scroll * (cont_height - thumb_height + PADDING) / scroll_height,
+			state->container.y + state->scroll * (cont_height - thumb_height) / (int)q->scrollable.height,
 			2,
 			thumb_height,
 			state->foreground
