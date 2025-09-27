@@ -5,6 +5,7 @@
 
 #include "../draw.h"
 #include "../theme.h"
+#include "../macros.h"
 #include "player_page.h"
 
 #define BAR_HEIGHT 4

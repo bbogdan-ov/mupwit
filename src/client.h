@@ -6,7 +6,6 @@
 #include <mpd/client.h>
 
 #include "./state.h"
-#include "./dynamic_array.h"
 
 extern const char *UNKNOWN;
 

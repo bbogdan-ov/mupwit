@@ -4,7 +4,7 @@
 #include "../macros.h"
 #include "../draw.h"
 #include "../theme.h"
-#include "../dynamic_array.h"
+#include "../macros.h"
 
 #include <raymath.h>
 
