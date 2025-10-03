@@ -134,6 +134,12 @@ void *do_fetch_cur_artwork(void *client) {
 		return NULL;
 	}
 
+	// FIXME: during the execution of `readpicture` (which can be pretty time
+	// consuming), `status_mutex` is locked and many stuff will wait untill
+	// `status_mutex` is unlocked. (e.g. player page) And while these things
+	// are waiting on the main thread for `status_mutex` to be unlock, MUPWIT
+	// lags for a little which is quite annoying.
+	// I need to do something with this.
 	size_t capacity = 1024 * 256; // 256KB
 	char *buffer = malloc(capacity);
 	char filetype[16] = {0};
