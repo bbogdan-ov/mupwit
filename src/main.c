@@ -17,6 +17,7 @@
 
 static const char *PID_FILE = "/tmp/mupwit.pid";
 
+// TODO: staticaly link with `libmpdclient` and maybe `raylib`
 // TODO: add ability to undo actions like queue reordering or song selection
 
 static volatile bool should_restore = false;
