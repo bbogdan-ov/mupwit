@@ -157,17 +157,23 @@ int main() {
 		if (WindowShouldClose()) break;
 #endif
 
-		bool is_shift = is_shift_down();
-		if (is_key_pressed(KEY_TAB) && is_shift) {
-			state_prev_page(&state);
-		} else if (is_key_pressed(KEY_TAB)) {
-			state_next_page(&state);
+		LOCK(&client.conn_mutex);
+		ClientConnState conn_state = client.conn_state;
+		UNLOCK(&client.conn_mutex);
+
+		if (conn_state == CLIENT_CONN_STATE_READY) {
+			bool is_shift = is_shift_down();
+			if (is_key_pressed(KEY_TAB) && is_shift) {
+				state_prev_page(&state);
+			} else if (is_key_pressed(KEY_TAB)) {
+				state_next_page(&state);
+			}
+
+			client_update(&client, &state);
+			state_update(&state);
+
+			queue_page_update(&queue_page, &client);
 		}
-
-		client_update(&client, &state);
-		state_update(&state);
-
-		queue_page_update(&queue_page, &client);
 
 		BeginDrawing();
 
@@ -189,10 +195,6 @@ int main() {
 
 		state.container = screen_rect();
 		state.cursor = MOUSE_CURSOR_DEFAULT;
-
-		LOCK(&client.conn_mutex);
-		ClientConnState conn_state = client.conn_state;
-		UNLOCK(&client.conn_mutex);
 
 		switch (conn_state) {
 			case CLIENT_CONN_STATE_CONNECTING:
