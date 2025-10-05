@@ -184,7 +184,7 @@ int main() {
 			// don't waste CPU resources
 			sleep(1);
 
-			// NOTE: we still calling BeginDrawing() and EndDrawing() because
+			// NOTE: we are still calling BeginDrawing() and EndDrawing() because
 			// it is essential to things like GetFrameTime() to work
 			EndDrawing();
 			continue;
