@@ -1,12 +1,8 @@
-SRC_DIR := ./src
-BUILD_SRC_DIR := ./build_src
-BUILD_DIR := ./build
-
 FLAGS := -Wall -Wextra -std=c99 -pedantic
 LIBS := -lraylib -lmpdclient -lm
 
-SOURCES := $(shell find $(SRC_DIR) -name '*.c')
-INCLUDES := $(shell find $(SRC_DIR) -name '*.h')
+SOURCES := $(shell find src/ -name '*.c')
+INCLUDES := $(shell find src/ -name '*.h')
 ASSETS := $(shell find assets/ -name '*.ttf' -or -name '*.png')
 
 ifdef DEBUG
@@ -17,35 +13,37 @@ ifdef RELEASE
 CFLAGS := $(CFLAGS) -O3 -DRELEASE
 endif
 
-all: $(BUILD_DIR)/mupwit
+.PHONY: all
+
+all: build build/mupwit
 	@echo "DONE!"
 
+build:
+	mkdir -p build
+
 # Build!!!
-$(BUILD_DIR)/mupwit: $(SOURCES) $(INCLUDES) $(BUILD_DIR)/assets.h $(BUILD_DIR)/assets.o
+build/mupwit: $(SOURCES) $(INCLUDES) build/assets.h build/assets.o
 	@echo "Compiling MUPWIT..."
 	@gcc $(CFLAGS) $(FLAGS) $(LIBS) \
-		$(SOURCES) $(BUILD_DIR)/assets.o -o $(BUILD_DIR)/mupwit
+		$(SOURCES) build/assets.o -o build/mupwit
 
 # Compile 'assets.h' down to an object file so we don't compile it every time we
 # change source files of the projects
-$(BUILD_DIR)/assets.o: $(BUILD_DIR)/assets.h
+build/assets.o: build/assets.h
 	@echo "Precompiling assets object file..."
 	@gcc $(FLAGS) -DASSETS_IMPLEMENTATION -c -x c -O3 \
-		$(BUILD_DIR)/assets.h -o $(BUILD_DIR)/assets.o
+		build/assets.h -o build/assets.o
 
 # Generate 'assets'.h
-$(BUILD_DIR)/assets.h: $(BUILD_DIR)/gen_assets $(ASSETS)
+build/assets.h: build/gen_assets $(ASSETS)
 	@echo "Generating assets..."
-	@$(BUILD_DIR)/gen_assets
+	@build/gen_assets
 
 # Compile 'gen_assets'
-$(BUILD_DIR)/gen_assets: $(BUILD_SRC_DIR)/gen_assets.c | $(BUILD_DIR)
+build/gen_assets: build_src/gen_assets.c
 	@echo "Compiling 'gen_assets.c'..."
 	@gcc $(FLAGS) -lraylib -lm \
-		$(BUILD_SRC_DIR)/gen_assets.c -o $(BUILD_DIR)/gen_assets
-
-$(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
+		build_src/gen_assets.c -o build/gen_assets
 
 clean:
 	rm -r build
