@@ -40,6 +40,7 @@ typedef struct State {
 	Color background;
 	Color prev_background;
 	Tween background_tween;
+	bool background_tween_finished;
 
 	Page page;
 	Page prev_page;

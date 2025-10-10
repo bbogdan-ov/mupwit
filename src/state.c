@@ -54,24 +54,25 @@ void state_update(State *s) {
 	tween_update(&s->background_tween);
 	tween_update(&s->page_tween);
 
-	Color target_color = THEME_BACKGROUND;
-	if (s->cur_artwork.exists) {
-		target_color = calc_background(s->cur_artwork.average);
-	}
+	if (!s->background_tween_finished) {
+		Color target_color = THEME_BACKGROUND;
+		if (s->cur_artwork.exists) {
+			target_color = calc_background(s->cur_artwork.average);
+		}
 
-	// TODO: when something interrupts `background_tween` from being updated
-	// (e.g. closing the window) animation progress will stop at the middle
-	// which is not good
-	if (tween_playing(&s->background_tween)) {
-		float progress = tween_progress(&s->background_tween);
-		s->background = ColorLerp(
-			s->prev_background,
-			target_color,
-			EASE_IN_OUT_SINE(progress)
-		);
-		s->foreground = calc_foreground(s->background);
-	} else {
-		// Leave as it is
+		if (tween_playing(&s->background_tween)) {
+			float progress = tween_progress(&s->background_tween);
+			s->background = ColorLerp(
+				s->prev_background,
+				target_color,
+				EASE_IN_OUT_SINE(progress)
+			);
+			s->foreground = calc_foreground(s->background);
+		} else {
+			s->background = target_color;
+			s->foreground = calc_foreground(s->background);
+			s->background_tween_finished = true;
+		}
 	}
 
 	if (tween_playing(&s->page_tween))
@@ -86,6 +87,7 @@ void state_update(State *s) {
 
 void start_background_tween(State *s) {
 	s->prev_background = s->background;
+	s->background_tween_finished = false;
 	tween_play(&s->background_tween);
 }
 
