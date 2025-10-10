@@ -15,8 +15,8 @@ and learning purposes.
 
 ## Todo
 
-- [x] Currently playing
-- [ ] Queue
+- [x] Currently playing page
+- [ ] Queue page
     - [x] List of all tracks in the queue
     - [x] Tracks reordering
     - [ ] Tracks deletion
@@ -37,6 +37,8 @@ and learning purposes.
 ![2](./screenshots/2.png)
 
 ## Building
+
+TODO: staticaly link with `libmpdclient` and maybe `raylib`?
 
 **Dependencies**:
 - raylib: 5.5
