@@ -7,13 +7,13 @@
 #define __USE_POSIX
 #include <signal.h>
 
-#include "client.h"
-#include "state.h"
-#include "macros.h"
-#include "theme.h"
-#include "draw.h"
-#include "pages/player_page.h"
-#include "pages/queue_page.h"
+#include "./client.h"
+#include "./state.h"
+#include "./macros.h"
+#include "./theme.h"
+#include "./draw.h"
+#include "./pages/player_page.h"
+#include "./pages/queue_page.h"
 
 static const char *PID_FILE = "/tmp/mupwit.pid";
 
@@ -156,11 +156,13 @@ int main() {
 		if (WindowShouldClose()) break;
 #endif
 
-		LOCK(&client.conn_mutex);
-		ClientConnState conn_state = client.conn_state;
-		UNLOCK(&client.conn_mutex);
+		if (is_key_pressed(KEY_SPACE)) {
+			client_push_action_kind(&client, ACTION_TOGGLE);
+		}
 
-		if (conn_state == CLIENT_CONN_STATE_READY) {
+		ClientState client_state = client_get_state(&client);
+
+		if (client_state == CLIENT_STATE_READY) {
 			bool is_shift = is_shift_down();
 			if (is_key_pressed(KEY_TAB) && is_shift) {
 				state_prev_page(&state);
@@ -168,10 +170,10 @@ int main() {
 				state_next_page(&state);
 			}
 
-			client_update(&client, &state);
 			state_update(&state);
-
 			queue_page_update(&queue_page, &client);
+
+			client_update(&client, &state);
 		}
 
 		BeginDrawing();
@@ -195,16 +197,19 @@ int main() {
 		state.container = screen_rect();
 		state.cursor = MOUSE_CURSOR_DEFAULT;
 
-		switch (conn_state) {
-			case CLIENT_CONN_STATE_CONNECTING:
+		switch (client_state) {
+			case CLIENT_STATE_DEAD:
+				// Do nothing
+				break;
+			case CLIENT_STATE_CONNECTING:
 				// TODO: show proper message
 				DrawText("connecting...", 0, 0, 30, BLACK);
 				break;
-			case CLIENT_CONN_STATE_ERROR:
+			case CLIENT_STATE_ERROR:
 				// TODO: show proper message
 				DrawText("error", 0, 0, 30, BLACK);
 				break;
-			case CLIENT_CONN_STATE_READY:
+			case CLIENT_STATE_READY:
 				player_page_draw(&client, &state);
 				queue_page_draw(&queue_page, &client, &state);
 				break;
@@ -213,6 +218,8 @@ int main() {
 #ifdef DEBUG
 		double time = GetTime() * 10;
 		DrawRectangle(cos(time) * 20 + 20, sin(time) * 20 + 20, 20, 20, ColorAlpha(RED, 0.5));
+
+		DrawFPS(10, 10);
 #endif
 
 		SetMouseCursor(state.cursor);

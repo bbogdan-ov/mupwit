@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
-#include <mpd/client.h>
 
+#include "../client.h"
 #include "../draw.h"
 #include "../theme.h"
 #include "../macros.h"
@@ -68,8 +68,6 @@ void player_page_draw(Client *client, State *state) {
 			return;
 		}
 	}
-
-	LOCK(&client->status_mutex);
 
 	const char *title = NULL;
 	const char *album = UNKNOWN;
@@ -177,7 +175,7 @@ void player_page_draw(Client *client, State *state) {
 
 	// Previous button
 	if (draw_icon_button(state, ICON_PREV, text_offset)) {
-		client_run_prev(client);
+		client_push_action_kind(client, ACTION_PREV);
 	}
 	text_offset.x += BUTTON_SIZE;
 
@@ -185,13 +183,13 @@ void player_page_draw(Client *client, State *state) {
 	Icon play_icon = ICON_PLAY;
 	if (playstate == MPD_STATE_PLAY) play_icon = ICON_PAUSE;
 	if (draw_icon_button(state, play_icon, text_offset)) {
-		client_run_toggle(client);
+		client_push_action_kind(client, ACTION_TOGGLE);
 	}
 	text_offset.x += BUTTON_SIZE;
 
 	// Next button
 	if (draw_icon_button(state, ICON_NEXT, text_offset)) {
-		client_run_next(client);
+		client_push_action_kind(client, ACTION_NEXT);
 	}
 	text_offset.x += BUTTON_SIZE;
 
@@ -228,7 +226,10 @@ void player_page_draw(Client *client, State *state) {
 		elapsed_sec = (int)(elapsed_progress * duration_sec);
 
 		if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-			client_run_seek(client, elapsed_sec);
+			client_push_action(client, (Action){
+				ACTION_SEEK_SECONDS,
+				{.seek_seconds = elapsed_sec}
+			});
 			is_seeking = false;
 		}
 	}
@@ -260,10 +261,9 @@ void player_page_draw(Client *client, State *state) {
 	draw_text(text);
 
 	text_offset.y += BUTTON_SIZE + PADDING;
+
 	if (sh > text_offset.y) {
 		// TODO: temporarily
 		SetWindowSize(sw, text_offset.y);
 	}
-
-	UNLOCK(&client->status_mutex);
 }

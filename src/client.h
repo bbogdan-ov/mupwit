@@ -5,52 +5,115 @@
 #include <pthread.h>
 #include <mpd/client.h>
 
+#include "./macros.h"
 #include "./state.h"
+
+#define STATUS_FETCH_INTERVAL_MS 250
+#define ARTWORK_FETCH_DELAY_MS 200
+#define ACTIONS_QUEUE_CAP 16
+#define EVENTS_QUEUE_CAP 16
 
 extern const char *UNKNOWN;
 
-// Fetch the player status every N millis
-#define CLIENT_FETCH_EVERY_MS (1000/20)
-
 // Client connection state
-typedef enum ClientConnState {
-	CLIENT_CONN_STATE_CONNECTING,
-	CLIENT_CONN_STATE_READY,
-	CLIENT_CONN_STATE_ERROR,
-} ClientConnState;
+typedef enum ClientState {
+	CLIENT_STATE_DEAD, // oh no! somebody help him!!
+	CLIENT_STATE_CONNECTING,
+	CLIENT_STATE_READY,
+	CLIENT_STATE_ERROR,
+} ClientState;
+
+typedef enum ActionKind {
+	ACTION_TOGGLE = 1,
+	ACTION_NEXT,
+	ACTION_PREV,
+	// Seek currently playing song
+	// Data: `seek_seconds`
+	ACTION_SEEK_SECONDS,
+
+	// Data: `song_id`
+	ACTION_PLAY_SONG,
+
+	// Data: `reorder`
+	ACTION_REORDER,
+} ActionKind;
+
+typedef struct Action {
+	ActionKind kind;
+	union {
+		unsigned song_id;
+		unsigned seek_seconds;
+
+		struct {
+			unsigned from;
+			unsigned to;
+		} reorder;
+	} data;
+} Action;
+
+typedef struct ActionsQueue {
+	size_t head;
+	size_t tail;
+	size_t cap;
+	Action buffer[ACTIONS_QUEUE_CAP];
+} ActionsQueue;
+
+typedef enum Event {
+	// Playback status chagned (pause, resume, seek, etc...)
+	EVENT_STATUS_CHANGED = 1 << 0,
+	// Currently playing song was changed
+	EVENT_SONG_CHANGED = 1 << 1,
+
+	// Previous `ACTION_REORDER_SONG` failed for some reason
+	EVENT_REORDER_FAILED = 1 << 2
+} Event;
 
 typedef struct Client {
-	pthread_mutex_t status_mutex;
+	ActionsQueue _actions;
+	// Events bit mask
+	// 0 - no events
+	Event events;
+
+	bool _polling_idle;
+	int _status_fetch_timer;
+
 	// Currently playing song
-	// `NULL` means no current song
+	// Can be `NULL`
 	struct mpd_song *cur_song;
+	// File name of the currently playing song with exention
+	// Can be `NULL`
 	const char *cur_song_filename;
 	// Current playback status
-	// `NULL` means no info is available
+	// Can be `NULL`
 	struct mpd_status *cur_status;
 
-	pthread_mutex_t artwork_mutex;
-	// Artwork image (CPU) of the current song
-	Image artwork_image;
-	Color artwork_average_color;
-	bool artwork_exists;
-	bool artwork_just_changed;
+	// Whether `fetch_artwork()` should be tried to be called again
+	bool _fetch_artwork_again;
+	pthread_mutex_t _artwork_mutex;
+	bool _artwork_exists;
+	bool _artwork_changed;
+	Color _artwork_average_color;
+	Image _artwork_image;
+	// Delay timer between each `fetch_artwork()` call
+	int _artwork_fetch_delay;
 
-	pthread_mutex_t conn_mutex;
-	ClientConnState conn_state;
-	struct mpd_connection *conn;
-
-	// Time left untill trying to fetch the player status
-	int fetch_status_timer_ms;
+	pthread_mutex_t _conn_mutex;
+	ClientState _state;
+	struct mpd_connection *_conn;
 } Client;
 
-// Logs an libmpdclient error if any has occured and returns `true`,
-// otherwise `false`
+// Logs connect error if any has occured and returns `true`, otherwise `false`
 bool conn_handle_error(struct mpd_connection *conn, int line);
+// Logs async error if any has occured and returns `true`, otherwise `false`
+bool async_handle_error(struct mpd_async *async, int line);
 
 #define CONN_HANDLE_ERROR(CONN) conn_handle_error(CONN, __LINE__)
+#define ASYNC_HANDLE_ERROR(ASYNC) async_handle_error(ASYNC, __LINE__)
 
 Client client_new(void);
+
+void client_push_action(Client *c, Action action);
+void client_push_action_kind(Client *c, ActionKind action);
 
 // Connect to a MPD server
 void client_connect(Client *c);
@@ -58,17 +121,13 @@ void client_connect(Client *c);
 // Update client every frame
 void client_update(Client *c, State *state);
 
-const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);
-
-void client_run_play_song(Client *c, unsigned id);
-// Move song from position `from` to `to` (0-based)
-bool client_run_reorder(Client *c, unsigned from, unsigned to);
-void client_run_seek(Client *c, int seconds);
-void client_run_toggle(Client *c);
-void client_run_next(Client *c);
-void client_run_prev(Client *c);
-
 // Free memory allocated by `Client`
 void client_free(Client *c);
+
+// Safely get client state
+ClientState client_get_state(Client *c);
+
+bool client_song_is_playing(Client *c, const struct mpd_song *song);
+const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);
 
 #endif

@@ -59,6 +59,9 @@ void state_update(State *s) {
 		target_color = calc_background(s->cur_artwork.average);
 	}
 
+	// TODO: when something interrupts `background_tween` from being updated
+	// (e.g. closing the window) animation progress will stop at the middle
+	// which is not good
 	if (tween_playing(&s->background_tween)) {
 		float progress = tween_progress(&s->background_tween);
 		s->background = ColorLerp(
