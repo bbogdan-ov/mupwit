@@ -15,29 +15,25 @@
 
 // TODO: draw "no song" when no info about current song is available
 
+static int artwork_frame = 0;
+static int artwork_frame_timer = 0;
+
 void draw_artwork(Artwork *artwork, Texture empty_artwork, Rect rect, Color tint) {
-	static int frame = 0;
-	static float frame_timer = 0;
+#define FRAME_WIDTH 296
+#define FRAMES_COUNT 4
+#define FRAME_DELAY_MS (1000/2) // 2 fps
 
 	if (artwork->exists)
 		draw_texture_quad(artwork->texture, rect, tint);
 	else {
-		frame_timer -= GetFrameTime();
-		if (frame_timer <= 0) {
-			frame += 1;
-			if (frame > 3) frame = 0;
-
-			frame_timer = 1.0 / 2.0;
+		artwork_frame_timer -= (int)(GetFrameTime() * 1000);
+		if (artwork_frame_timer <= 0) {
+			artwork_frame = (artwork_frame + 1) % FRAMES_COUNT;
+			artwork_frame_timer = FRAME_DELAY_MS;
 		}
 
-		DrawTexturePro(
-			empty_artwork,
-			(Rect){frame * 296, 0, 296, empty_artwork.height},
-			rect,
-			(Vec){0},
-			0,
-			tint
-		);
+		Rect src = {artwork_frame * FRAME_WIDTH, 0, FRAME_WIDTH, empty_artwork.height};
+		DrawTexturePro(empty_artwork, src, rect, (Vec){0}, 0, tint);
 	}
 }
 
