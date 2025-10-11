@@ -9,6 +9,7 @@
 #include "./state.h"
 
 #define STATUS_FETCH_INTERVAL_MS 250
+#define POLL_IDLE_INTERVAL_MS (1000/30)
 #define ARTWORK_FETCH_DELAY_MS 200
 #define ACTIONS_QUEUE_CAP 16
 #define EVENTS_QUEUE_CAP 16

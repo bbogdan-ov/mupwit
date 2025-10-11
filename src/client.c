@@ -521,18 +521,25 @@ void client_update(Client *c, State *state) {
 
 	c->events = 0;
 
+	static int poll_timer = POLL_IDLE_INTERVAL_MS;
+
 	int ms = (int)(GetFrameTime() * 1000);
 	c->_status_fetch_timer -= ms;
 	c->_artwork_fetch_delay -= ms;
 	c->_artwork_fetch_delay = MAX(c->_artwork_fetch_delay, 0);
+	poll_timer -= ms;
 
 	Action action = pop_action(c);
 	enum mpd_idle idle = 0;
 
-	if (action.kind == 0 && !SHOULD_FETCH)
-		poll_idle(c, &idle);
-	else
+	if (action.kind == 0 && !SHOULD_FETCH) {
+		if (poll_timer <= 0) {
+			poll_idle(c, &idle);
+			poll_timer = POLL_IDLE_INTERVAL_MS;
+		}
+	} else {
 		run_noidle(c, &idle);
+	}
 
 	// Eat all remaining actions
 	while (true) {
