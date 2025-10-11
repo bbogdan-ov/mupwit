@@ -6,31 +6,15 @@
 #include "../draw.h"
 #include "../theme.h"
 #include "../macros.h"
+#include "../ui/button.h"
 #include "player_page.h"
 
 #define BAR_HEIGHT 4
 #define BAR_EXPAND 4
 #define PADDING 32
 #define GAP 16
-#define BUTTON_SIZE 32
 
 // TODO: draw "no song" when no info about current song is available
-
-bool draw_icon_button(State *state, Icon icon, Vec pos) {
-	Rect rec = rect(pos.x, pos.y, BUTTON_SIZE, BUTTON_SIZE);
-	bool hover = CheckCollisionPointRec(get_mouse_pos(), rec);
-
-	if (hover)
-		state->cursor = MOUSE_CURSOR_POINTING_HAND;
-	if (hover && IsMouseButtonDown(MOUSE_BUTTON_LEFT))
-		pos.y += 1;
-
-	pos.x += BUTTON_SIZE/2 - ICON_SIZE/2;
-	pos.y += BUTTON_SIZE/2 - ICON_SIZE/2;
-	draw_icon(state, icon, pos, THEME_BLACK);
-
-	return hover && IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
-}
 
 void draw_artwork(Artwork *artwork, Texture empty_artwork, Rect rect, Color tint) {
 	static int frame = 0;
@@ -169,7 +153,7 @@ void player_page_draw(Client *client, State *state) {
 	draw_box(
 		state,
 		BOX_ROUNDED,
-		rect(text_offset.x, text_offset.y, BUTTON_SIZE * 3, BUTTON_SIZE),
+		rect(text_offset.x, text_offset.y, ICON_BUTTON_SIZE * 3, ICON_BUTTON_SIZE),
 		THEME_BLACK
 	);
 
@@ -177,7 +161,7 @@ void player_page_draw(Client *client, State *state) {
 	if (draw_icon_button(state, ICON_PREV, text_offset)) {
 		client_push_action_kind(client, ACTION_PREV);
 	}
-	text_offset.x += BUTTON_SIZE;
+	text_offset.x += ICON_BUTTON_SIZE;
 
 	// Play button
 	Icon play_icon = ICON_PLAY;
@@ -185,13 +169,13 @@ void player_page_draw(Client *client, State *state) {
 	if (draw_icon_button(state, play_icon, text_offset)) {
 		client_push_action_kind(client, ACTION_TOGGLE);
 	}
-	text_offset.x += BUTTON_SIZE;
+	text_offset.x += ICON_BUTTON_SIZE;
 
 	// Next button
 	if (draw_icon_button(state, ICON_NEXT, text_offset)) {
 		client_push_action_kind(client, ACTION_NEXT);
 	}
-	text_offset.x += BUTTON_SIZE;
+	text_offset.x += ICON_BUTTON_SIZE;
 
 	// Draw progress bar
 	text_offset.x += GAP;
@@ -199,7 +183,7 @@ void player_page_draw(Client *client, State *state) {
 	Rect bar_rect = rect(
 		text_offset.x,
 		text_offset.y,
-		state->container.width - BUTTON_SIZE*3 - GAP,
+		state->container.width - ICON_BUTTON_SIZE*3 - GAP,
 		BAR_HEIGHT
 	);
 	draw_box(state, BOX_NORMAL, bar_rect, THEME_BLACK);
@@ -260,7 +244,7 @@ void player_page_draw(Client *client, State *state) {
 	text.pos = vec(bar_rect.x + bar_rect.width - size.x, bar_rect.y + BAR_EXPAND + BAR_HEIGHT * 2);
 	draw_text(text);
 
-	text_offset.y += BUTTON_SIZE + PADDING;
+	text_offset.y += ICON_BUTTON_SIZE + PADDING;
 
 	if (sh > text_offset.y) {
 		// TODO: temporarily
