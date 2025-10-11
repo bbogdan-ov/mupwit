@@ -194,7 +194,7 @@ void *decode_artwork(void *args_) {
 			float lightness = (max + min) / 2.0 / 255.0;
 			if (max > 0) saturation = (max - min) / max;
 
-			if (saturation >= 0.5 && lightness > 0.5) {
+			if (saturation >= 0.5 && lightness > 0.3) {
 				n += 1.0;
 				cr += r;
 				cg += g;
