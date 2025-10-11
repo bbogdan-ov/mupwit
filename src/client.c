@@ -585,12 +585,21 @@ ClientState client_get_state(Client *c) {
 	return CLIENT_STATE_CONNECTING;
 }
 
-bool client_song_is_playing(Client *c, const struct mpd_song *song) {
+bool song_is_playing(Client *c, const struct mpd_song *song) {
 	if (!c->cur_song) return false;
 	return mpd_song_get_id(c->cur_song) == mpd_song_get_id(song);
 }
-
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag) {
 	const char *t = mpd_song_get_tag(song, tag, 0);
 	return t == NULL ? UNKNOWN : t;
+}
+const char *song_title_or_filename(Client *c, const struct mpd_song *song) {
+	const char *title = mpd_song_get_tag(song, MPD_TAG_TITLE, 0);
+	if (title == NULL) {
+		if (c->cur_song_filename)
+			title = c->cur_song_filename;
+		else
+			title = UNKNOWN;
+	}
+	return title;
 }

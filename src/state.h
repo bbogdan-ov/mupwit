@@ -6,7 +6,7 @@
 #include "./ui/tween.h"
 
 typedef enum Page {
-	PAGE_PLAYER,
+	PAGE_PLAYER = 1,
 	PAGE_QUEUE,
 } Page;
 

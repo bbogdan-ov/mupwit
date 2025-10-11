@@ -10,6 +10,7 @@
 #include "./pages/player_page.h"
 #include "./pages/queue_page.h"
 #include "./ui/draw.h"
+#include "./ui/currently_playing.h"
 
 // TODO: add ability to undo actions like queue reordering or song selection
 
@@ -74,6 +75,8 @@ int main() {
 			case CLIENT_STATE_READY:
 				player_page_draw(&client, &state);
 				queue_page_draw(&queue_page, &client, &state);
+
+				currently_playing_draw(&client, &state);
 				break;
 		}
 

@@ -131,7 +131,8 @@ void client_free(Client *c);
 // Safely get client state
 ClientState client_get_state(Client *c);
 
-bool client_song_is_playing(Client *c, const struct mpd_song *song);
+bool song_is_playing(Client *c, const struct mpd_song *song);
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);
+const char *song_title_or_filename(Client *c, const struct mpd_song *song);
 
 #endif

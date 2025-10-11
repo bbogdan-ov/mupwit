@@ -5,6 +5,7 @@
 #include "../theme.h"
 #include "../macros.h"
 #include "../ui/draw.h"
+#include "../ui/currently_playing.h"
 
 #include <raymath.h>
 
@@ -101,8 +102,10 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 	// Entry events
 	// ==============================
 
-	bool is_playing = client_song_is_playing(client, song);
-	bool is_hovering = CheckCollisionPointRec(get_mouse_pos(), rect);
+	bool is_playing = song_is_playing(client, song);
+	Vec mouse_pos = get_mouse_pos();
+	bool is_hovering = CheckCollisionPointRec(mouse_pos, rect);
+	is_hovering = is_hovering && CheckCollisionPointRec(mouse_pos, state->container);
 
 	// Clicking on entry will start "trying to grab mode"
 	if (is_hovering && queue->reordering_idx < 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
@@ -392,7 +395,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		PADDING + sw * (1.0 - transition),
 		PADDING,
 		sw - PADDING*2,
-		sh - PADDING*2 - STATS_HEIGHT
+		sh - PADDING*2 - (STATS_HEIGHT + CUR_PLAY_HEIGHT)
 	);
 
 	scrollable_set_height(
@@ -457,14 +460,14 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 
 	Rect stats_rect = rect(
 		0,
-		sh - STATS_HEIGHT + STATS_HEIGHT * (1.0 - transition),
+		sh - (STATS_HEIGHT + CUR_PLAY_HEIGHT) * transition,
 		sw,
 		STATS_HEIGHT
 	);
 	DrawRectangleRec(stats_rect, state->background);
 	DrawRectangle(
 		stats_rect.x,
-		stats_rect.y - 1,
+		stats_rect.y,
 		stats_rect.width,
 		1,
 		THEME_GRAY

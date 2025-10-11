@@ -11,8 +11,16 @@ typedef enum ProgressBarEvent {
 	PROGRESS_BAR_STOPPED,
 } ProgressBarEvent;
 
+typedef struct ProgressBar {
+	ProgressBarEvent events;
+	float progress;
+	Rect rect;
+	Color color;
+	bool draw_thumb;
+} ProgressBar;
+
 // Draw progress bar or range input if you like
 // Returns bit mask of the current progress bar events
-ProgressBarEvent progress_bar_draw(State *state, float *progress, Rect rect, Color color);
+void progress_bar_draw(State *state, ProgressBar *bar);
 
 #endif

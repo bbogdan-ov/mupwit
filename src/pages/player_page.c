@@ -48,7 +48,7 @@ void player_page_draw(Client *client, State *state) {
 		}
 	}
 
-	const char *title = NULL;
+	const char *title = UNKNOWN;
 	const char *album = UNKNOWN;
 	const char *artist = UNKNOWN;
 	enum mpd_state playstate = MPD_STATE_UNKNOWN;
@@ -62,14 +62,7 @@ void player_page_draw(Client *client, State *state) {
 	}
 
 	if (client->cur_song) {
-		title = mpd_song_get_tag(client->cur_song, MPD_TAG_TITLE, 0);
-		if (title == NULL) {
-			if (client->cur_song_filename)
-				title = client->cur_song_filename;
-			else
-				title = UNKNOWN;
-		}
-
+		title = song_title_or_filename(client, client->cur_song);
 		album = song_tag_or_unknown(client->cur_song, MPD_TAG_ALBUM);
 		artist = song_tag_or_unknown(client->cur_song, MPD_TAG_ARTIST);
 	}
@@ -79,7 +72,7 @@ void player_page_draw(Client *client, State *state) {
 
 	state->container = rect(-sw * 0.25 * (1.0 - transition), 0, sw, sh);
 	state->container = rect_shrink(state->container, PADDING, PADDING);
-	Vec offset = vec(state->container.x, state->container.y);
+	Vec offset = {state->container.x, state->container.y};
 
 	// Draw artwork
 	Rect artwork_rect = state->container;
@@ -172,23 +165,25 @@ void player_page_draw(Client *client, State *state) {
 	offset.x += ICON_BUTTON_SIZE;
 
 	// Draw progress bar
-	float bar_progress = (float)elapsed_sec / (float)duration_sec;
-
 	offset.x += GAP;
 	offset.y += PROGRESS_BAR_HEIGHT + 1;
-	Rect bar_rect = rect(
+
+	static ProgressBar bar = {.draw_thumb = true};
+	bar.rect = rect(
 		offset.x,
 		offset.y,
 		state->container.width - ICON_BUTTON_SIZE*3 - GAP,
 		PROGRESS_BAR_HEIGHT
 	);
+	bar.progress = (float)elapsed_sec / (float)duration_sec;
+	bar.color = THEME_BLACK;
 
-	ProgressBarEvent bar_action = progress_bar_draw(state, &bar_progress, bar_rect, THEME_BLACK);
+	progress_bar_draw(state, &bar);
 
-	if (bar_action & PROGRESS_BAR_DRAGGING) {
-		elapsed_sec = (int)(bar_progress * duration_sec);
+	if (bar.events & PROGRESS_BAR_DRAGGING) {
+		elapsed_sec = (int)(bar.progress * duration_sec);
 	}
-	if (bar_action & PROGRESS_BAR_STOPPED) {
+	if (bar.events & PROGRESS_BAR_STOPPED) {
 		client_push_action(client, (Action){
 			ACTION_SEEK_SECONDS,
 			{.seek_seconds = elapsed_sec}
@@ -197,12 +192,12 @@ void player_page_draw(Client *client, State *state) {
 
 	// Draw time
 	text.text = format_time(elapsed_sec, false);
-	text.pos = vec(bar_rect.x, bar_rect.y + PROGRESS_BAR_EXPAND + PROGRESS_BAR_HEIGHT * 2);
+	text.pos = vec(bar.rect.x, bar.rect.y + PROGRESS_BAR_EXPAND + PROGRESS_BAR_HEIGHT * 2);
 	draw_text(text);
 
 	text.text = format_time(duration_sec, false);
 	Vec size = measure_text(&text);
-	text.pos = vec(bar_rect.x + bar_rect.width - size.x, bar_rect.y + PROGRESS_BAR_EXPAND + PROGRESS_BAR_HEIGHT * 2);
+	text.pos = vec(bar.rect.x + bar.rect.width - size.x, bar.rect.y + PROGRESS_BAR_EXPAND + PROGRESS_BAR_HEIGHT * 2);
 	draw_text(text);
 
 	offset.y += ICON_BUTTON_SIZE + PADDING;
