@@ -38,7 +38,6 @@ typedef struct QueueEntriesList {
 typedef struct QueuePage {
 	// Array of song UI elements in the current queue
 	QueueEntriesList entries;
-	bool initialized;
 
 	unsigned total_duration;
 
@@ -55,7 +54,7 @@ typedef struct QueuePage {
 	Scrollable scrollable;
 } QueuePage;
 
-QueuePage queue_page_new();
+QueuePage queue_page_new(void);
 
 void queue_page_update(QueuePage *q, Client *client);
 

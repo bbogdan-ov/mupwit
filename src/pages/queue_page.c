@@ -17,7 +17,7 @@
 
 // TODO: draw "no songs" when queue is empty
 
-QueuePage queue_page_new() {
+QueuePage queue_page_new(void) {
 	return (QueuePage){
 		.entries = (QueueEntriesList){0},
 		.trying_to_grab_idx = -1,
@@ -297,18 +297,20 @@ void fetch_queue(QueuePage *q, Client *client) {
 }
 
 void queue_page_update(QueuePage *q, Client *client) {
-	// FIXME!: sometimes queue does not get refetched!
+	static bool initialized = false;
+
+	// FIXME!: sometimes queue does not get updated!
 	if (client->events & EVENT_QUEUE_CHANGED) {
 		// TODO: remove or reoder only those songs that were changed.
 		// Currently the entire queue is being rebuild.
 		fetch_queue(q, client);
 		TraceLog(LOG_INFO, "QUEUE: Updated due outside interference (%d songs)", q->entries.len);
-		q->initialized = true;
+		initialized = true;
 	}
 
-	if (!q->initialized) {
+	if (!initialized) {
 		fetch_queue(q, client);
-		q->initialized = true;
+		initialized = true;
 	}
 }
 
@@ -355,6 +357,10 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 }
 
 void queue_page_draw(QueuePage *q, Client *client, State *state) {
+	static bool queue_changed = false;
+	if (client->events & EVENT_QUEUE_CHANGED)
+		queue_changed = true;
+
 	float transition = state->page_transition;
 	if (state->page == PAGE_QUEUE) {
 		if (!q->is_opened) {
@@ -476,9 +482,10 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	);
 
 	static char count_str[26] = {0};
-	if (count_str[0] == 0 || client->events & EVENT_QUEUE_CHANGED) {
+	if (count_str[0] == 0 || queue_changed) {
 		snprintf(count_str, 25, "♪ %ld", q->entries.len);
 		count_str[25] = 0;
+		queue_changed = false;
 	}
 
 	// Draw number of tracks

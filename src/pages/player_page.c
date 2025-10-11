@@ -38,6 +38,10 @@ void draw_artwork(Artwork *artwork, Texture empty_artwork, Rect rect, Color tint
 }
 
 void player_page_draw(Client *client, State *state) {
+	static bool song_changed = false;
+	if (client->events & EVENT_SONG_CHANGED)
+		song_changed = true;
+
 	float transition = state->page_transition;
 	if (state->page != PAGE_PLAYER) {
 		if (state->prev_page == PAGE_PLAYER) {
@@ -122,9 +126,10 @@ void player_page_draw(Client *client, State *state) {
 	offset.y += text_bounds.y;
 
 	static char artist_str[128] = {0};
-	if (artist_str[0] == 0 || client->events & EVENT_SONG_CHANGED) {
+	if (artist_str[0] == 0 || song_changed) {
 		snprintf(artist_str, 127, "%s - %s", artist, album);
 		artist_str[127] = 0;
+		song_changed = false;
 	}
 
 	// Draw artist and album

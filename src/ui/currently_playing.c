@@ -8,6 +8,10 @@
 #define GAP 8
 
 void currently_playing_draw(Client *client, State *state) {
+	static bool song_changed = false;
+	if (client->events & EVENT_SONG_CHANGED)
+		song_changed = true;
+
 	// Show everywhere except player page
 	float transition = state->page_transition;
 	if (state->prev_page == PAGE_PLAYER) {
@@ -100,9 +104,10 @@ void currently_playing_draw(Client *client, State *state) {
 	if (title_size.x < right_width) {
 		// Draw song artist
 		static char artist_str[128] = {0};
-		if (artist_str[0] == 0 || client->events & EVENT_SONG_CHANGED) {
+		if (artist_str[0] == 0 || song_changed) {
 			snprintf(artist_str, 127, " - %s", artist);
 			artist_str[127] = 0;
+			song_changed = false;
 		}
 
 		text.text = artist_str;
