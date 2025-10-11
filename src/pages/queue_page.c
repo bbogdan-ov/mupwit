@@ -279,6 +279,7 @@ void fetch_queue(QueuePage *q, Client *client) {
 		entry_free(&q->entries.items[i]);
 	}
 	q->entries.len = 0;
+	q->total_duration = 0;
 
 	DA_RESERVE(&q->entries, 512);
 
