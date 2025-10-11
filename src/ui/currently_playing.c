@@ -79,6 +79,13 @@ void currently_playing_draw(Client *client, State *state) {
 	float right_width = container.width - offset.x + GAP;
 
 	// Draw song title
+	BeginScissorMode(
+		offset.x,
+		offset.y,
+		right_width,
+		THEME_NORMAL_TEXT_SIZE
+	);
+
 	offset.y += 2;
 	Text text = {
 		.text = title,
@@ -96,6 +103,8 @@ void currently_playing_draw(Client *client, State *state) {
 		text.color = THEME_GRAY;
 		draw_cropped_text(text, right_width - title_size.x, state->background);
 	}
+
+	EndScissorMode();
 
 	// Draw progress bar
 	offset.y += ICON_BUTTON_SIZE - PROGRESS_BAR_HEIGHT*2 - 1;
