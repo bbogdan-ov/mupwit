@@ -40,9 +40,10 @@ void currently_playing_draw(Client *client, State *state) {
 	int sw = GetScreenWidth();
 	int sh = GetScreenHeight();
 
+	float offset_y = QUEUE_STATS_HEIGHT * (1.0 - transition);
 	Rect outer_rect = {
 		0.0,
-		sh - CUR_PLAY_HEIGHT * transition,
+		sh - CUR_PLAY_HEIGHT * transition + offset_y,
 		sw,
 		CUR_PLAY_HEIGHT
 	};

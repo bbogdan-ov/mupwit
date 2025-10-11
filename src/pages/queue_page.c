@@ -11,9 +11,6 @@
 
 #define PADDING 8
 
-#define STATS_PADDING 4
-#define STATS_HEIGHT (THEME_NORMAL_TEXT_SIZE + STATS_PADDING*2)
-
 #define ARTWORK_SIZE 32
 #define ENTRY_HEIGHT (ARTWORK_SIZE + PADDING*2)
 
@@ -395,7 +392,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		PADDING + sw * (1.0 - transition),
 		PADDING,
 		sw - PADDING*2,
-		sh - PADDING*2 - (STATS_HEIGHT + CUR_PLAY_HEIGHT)
+		sh - PADDING*2 - (QUEUE_STATS_HEIGHT + CUR_PLAY_HEIGHT)
 	);
 
 	float all_entries_height = q->entries.len * ENTRY_HEIGHT;
@@ -471,9 +468,9 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 
 	Rect stats_rect = rect(
 		0,
-		sh - (STATS_HEIGHT + CUR_PLAY_HEIGHT) * transition,
+		sh - (QUEUE_STATS_HEIGHT + CUR_PLAY_HEIGHT) * transition,
 		sw,
-		STATS_HEIGHT
+		QUEUE_STATS_HEIGHT
 	);
 	DrawRectangleRec(stats_rect, state->background);
 	DrawRectangle(
@@ -491,7 +488,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		.size = THEME_NORMAL_TEXT_SIZE,
 		.pos = {
 			stats_rect.x + PADDING*2,
-			stats_rect.y + STATS_PADDING
+			stats_rect.y + QUEUE_STATS_PADDING
 		},
 		.color = THEME_SUBTLE_TEXT,
 	};
