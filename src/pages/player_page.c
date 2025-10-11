@@ -84,7 +84,7 @@ void player_page_draw(Client *client, State *state) {
 
 	state->container = rect(-sw * 0.25 * (1.0 - transition), 0, sw, sh);
 	state->container = rect_shrink(state->container, PADDING, PADDING);
-	float offset_y = state->container.y;
+	Vec offset = vec(state->container.x, state->container.y);
 
 	// Draw artwork
 	Rect artwork_rect = state->container;
@@ -108,7 +108,7 @@ void player_page_draw(Client *client, State *state) {
 	// Artwork border
 	draw_box(state, BOX_3D, rect_shrink(artwork_rect, -1, -1), THEME_BLACK);
 
-	offset_y += artwork_rect.height + GAP;
+	offset.y += artwork_rect.height + GAP;
 
 	BeginScissorMode(
 		state->container.x,
@@ -121,68 +121,67 @@ void player_page_draw(Client *client, State *state) {
 	// Draw info
 	// ==============================
 
-	Vec text_offset = vec(state->container.x, offset_y);
 	Text text = (Text){
 		.text = title,
 		.font = state->title_font,
 		.size = THEME_TITLE_TEXT_SIZE,
-		.pos = text_offset,
+		.pos = offset,
 		.color = THEME_TEXT,
 	};
 
 	// Draw song title
 	Vec text_bounds = draw_cropped_text(text, state->container.width, state->background);
-	text_offset.y += text_bounds.y;
+	offset.y += text_bounds.y;
 
 	// Draw artist and album
 	text = (Text){
 		.text = TextFormat("%s - %s", artist, album),
 		.font = state->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
-		.pos = text_offset,
+		.pos = offset,
 		.color = THEME_SUBTLE_TEXT,
 	};
 	text_bounds = draw_cropped_text(text, state->container.width, state->background);
-	text_offset.y += text_bounds.y;
+	offset.y += text_bounds.y;
 
 	EndScissorMode();
 
 	// Draw control buttons
-	text_offset.y += GAP;
+	offset.y += GAP;
 
 	draw_box(
 		state,
 		BOX_ROUNDED,
-		rect(text_offset.x, text_offset.y, ICON_BUTTON_SIZE * 3, ICON_BUTTON_SIZE),
+		rect(offset.x, offset.y, ICON_BUTTON_SIZE * 3, ICON_BUTTON_SIZE),
 		THEME_BLACK
 	);
 
 	// Previous button
-	if (draw_icon_button(state, ICON_PREV, text_offset)) {
+	if (draw_icon_button(state, ICON_PREV, offset)) {
 		client_push_action_kind(client, ACTION_PREV);
 	}
-	text_offset.x += ICON_BUTTON_SIZE;
+	offset.x += ICON_BUTTON_SIZE;
 
 	// Play button
 	Icon play_icon = ICON_PLAY;
 	if (playstate == MPD_STATE_PLAY) play_icon = ICON_PAUSE;
-	if (draw_icon_button(state, play_icon, text_offset)) {
+	if (draw_icon_button(state, play_icon, offset)) {
 		client_push_action_kind(client, ACTION_TOGGLE);
 	}
-	text_offset.x += ICON_BUTTON_SIZE;
+	offset.x += ICON_BUTTON_SIZE;
 
 	// Next button
-	if (draw_icon_button(state, ICON_NEXT, text_offset)) {
+	if (draw_icon_button(state, ICON_NEXT, offset)) {
 		client_push_action_kind(client, ACTION_NEXT);
 	}
-	text_offset.x += ICON_BUTTON_SIZE;
+	offset.x += ICON_BUTTON_SIZE;
 
 	// Draw progress bar
-	text_offset.x += GAP;
-	text_offset.y += BAR_HEIGHT + 1;
+	offset.x += GAP;
+	offset.y += BAR_HEIGHT + 1;
 	Rect bar_rect = rect(
-		text_offset.x,
-		text_offset.y,
+		offset.x,
+		offset.y,
 		state->container.width - ICON_BUTTON_SIZE*3 - GAP,
 		BAR_HEIGHT
 	);
@@ -244,10 +243,10 @@ void player_page_draw(Client *client, State *state) {
 	text.pos = vec(bar_rect.x + bar_rect.width - size.x, bar_rect.y + BAR_EXPAND + BAR_HEIGHT * 2);
 	draw_text(text);
 
-	text_offset.y += ICON_BUTTON_SIZE + PADDING;
+	offset.y += ICON_BUTTON_SIZE + PADDING;
 
-	if (sh > text_offset.y) {
+	if (sh > offset.y) {
 		// TODO: temporarily
-		SetWindowSize(sw, text_offset.y);
+		SetWindowSize(sw, offset.y);
 	}
 }
