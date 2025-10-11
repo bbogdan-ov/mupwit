@@ -20,8 +20,8 @@ and learning purposes.
     - [x] List of all tracks in the queue
     - [x] Tracks reordering
     - [ ] Tracks deletion
-- [ ] Keyboard controls with VIM bindings
 - [ ] Albums page
+- [ ] Keyboard controls with VIM bindings
 - [ ] Playlists page
 - [ ] Customization
 - [ ] Visualizer?..
