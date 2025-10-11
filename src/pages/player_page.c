@@ -8,9 +8,8 @@
 #include "../macros.h"
 #include "../ui/draw.h"
 #include "../ui/button.h"
+#include "../ui/progress_bar.h"
 
-#define BAR_HEIGHT 4
-#define BAR_EXPAND 4
 #define PADDING 32
 #define GAP 16
 
@@ -177,70 +176,37 @@ void player_page_draw(Client *client, State *state) {
 	offset.x += ICON_BUTTON_SIZE;
 
 	// Draw progress bar
+	float bar_progress = (float)elapsed_sec / (float)duration_sec;
+
 	offset.x += GAP;
-	offset.y += BAR_HEIGHT + 1;
+	offset.y += PROGRESS_BAR_HEIGHT + 1;
 	Rect bar_rect = rect(
 		offset.x,
 		offset.y,
 		state->container.width - ICON_BUTTON_SIZE*3 - GAP,
-		BAR_HEIGHT
+		PROGRESS_BAR_HEIGHT
 	);
-	draw_box(state, BOX_NORMAL, bar_rect, THEME_BLACK);
 
-	static bool is_seeking = false;
+	ProgressBarEvent bar_action = progress_bar_draw(state, &bar_progress, bar_rect, THEME_BLACK);
 
-	bool bar_hover = CheckCollisionPointRec(
-		get_mouse_pos(),
-		rect_shrink(bar_rect, 0, -BAR_EXPAND)
-	);
-	float elapsed_progress = (float)elapsed_sec / (float)duration_sec;
-
-	if (bar_hover)
-		state->cursor = MOUSE_CURSOR_POINTING_HAND;
-	if (!is_seeking && bar_hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-		is_seeking = true;
+	if (bar_action & PROGRESS_BAR_DRAGGING) {
+		elapsed_sec = (int)(bar_progress * duration_sec);
 	}
-	if (is_seeking) {
-		float offset_x = GetMouseX() - bar_rect.x;
-		elapsed_progress = offset_x / bar_rect.width;
-		if (elapsed_progress > 1.0) elapsed_progress = 1.0;
-		else if (elapsed_progress < 0.0) elapsed_progress = 0.0;
-
-		elapsed_sec = (int)(elapsed_progress * duration_sec);
-
-		if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-			client_push_action(client, (Action){
-				ACTION_SEEK_SECONDS,
-				{.seek_seconds = elapsed_sec}
-			});
-			is_seeking = false;
-		}
+	if (bar_action & PROGRESS_BAR_STOPPED) {
+		client_push_action(client, (Action){
+			ACTION_SEEK_SECONDS,
+			{.seek_seconds = elapsed_sec}
+		});
 	}
-
-	// Draw progress bar fill
-	Rect fill_rect = rect_shrink(bar_rect, 1, 1);
-	fill_rect.width = floor(fill_rect.width * elapsed_progress);
-	DrawRectangleRec(fill_rect, THEME_BLACK);
-
-	// Draw progress bar thumb
-	draw_icon(
-		state,
-		ICON_PROGRESS_THUMB,
-		vec(
-			fill_rect.x + fill_rect.width - ICON_SIZE/2,
-			bar_rect.y + bar_rect.height/2 - ICON_SIZE/2
-		),
-		THEME_BLACK
-	);
 
 	// Draw time
 	text.text = format_time(elapsed_sec, false);
-	text.pos = vec(bar_rect.x, bar_rect.y + BAR_EXPAND + BAR_HEIGHT * 2);
+	text.pos = vec(bar_rect.x, bar_rect.y + PROGRESS_BAR_EXPAND + PROGRESS_BAR_HEIGHT * 2);
 	draw_text(text);
 
 	text.text = format_time(duration_sec, false);
 	Vec size = measure_text(&text);
-	text.pos = vec(bar_rect.x + bar_rect.width - size.x, bar_rect.y + BAR_EXPAND + BAR_HEIGHT * 2);
+	text.pos = vec(bar_rect.x + bar_rect.width - size.x, bar_rect.y + PROGRESS_BAR_EXPAND + PROGRESS_BAR_HEIGHT * 2);
 	draw_text(text);
 
 	offset.y += ICON_BUTTON_SIZE + PADDING;
