@@ -54,15 +54,18 @@ void currently_playing_draw(Client *client, State *state) {
 	};
 	Vec offset = {container.x, container.y};
 
-	// Draw background
+	// Draw box
 	DrawRectangleRec(outer_rect, state->background);
-	DrawRectangle(
-		outer_rect.x,
-		outer_rect.y,
-		outer_rect.width,
-		1,
-		THEME_GRAY
-	);
+	if (state->page != PAGE_QUEUE && state->prev_page != PAGE_QUEUE) {
+		// Draw box border
+		DrawRectangle(
+			outer_rect.x,
+			outer_rect.y,
+			outer_rect.width,
+			1,
+			THEME_GRAY
+		);
+	}
 
 	// Draw "play" button
 	Icon play_icon = ICON_PLAY;
