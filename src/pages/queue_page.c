@@ -303,11 +303,18 @@ void fetch_queue(QueuePage *q, Client *client) {
 }
 
 void queue_page_update(QueuePage *q, Client *client) {
-	// TODO!: fetch the queue when 'playlist' idle is received
-	if (q->entries.len > 0) return;
+	if (client->events & EVENT_QUEUE_CHANGED) {
+		// TODO: remove or reoder only those songs that were changed.
+		// Currently the entire queue is rebuild.
+		fetch_queue(q, client);
+		TraceLog(LOG_INFO, "QUEUE: Updated due outside interference (%d songs)", q->entries.len);
+		q->initialized = true;
+	}
 
-	// TODO: fetch queue asynchronously or in a separate thread
-	fetch_queue(q, client);
+	if (!q->initialized) {
+		fetch_queue(q, client);
+		q->initialized = true;
+	}
 }
 
 void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
@@ -339,7 +346,7 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 		client_push_action(
 			client,
 			(Action){
-				ACTION_REORDER,
+				ACTION_REORDER_QUEUE,
 				{ .reorder = {
 					.from = q->reordered_from_number,
 					.to = reordering->number

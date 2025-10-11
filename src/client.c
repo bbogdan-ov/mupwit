@@ -489,9 +489,10 @@ static void handle_action(Client *c, Action action) {
 			if (res) fetch_status(c);
 			break;
 
-		case ACTION_REORDER:
+		case ACTION_REORDER_QUEUE:
 			res = mpd_run_move(c->_conn, action.data.reorder.from, action.data.reorder.to);
-			if (!res) c->events |= EVENT_REORDER_FAILED;
+			if (res) c->_queue_changed = true;
+			else     c->events |= EVENT_REORDER_QUEUE_FAILED;
 			break;
 	}
 }
@@ -503,6 +504,13 @@ static void handle_idle(Client *c, enum mpd_idle idle) {
 		c->events |= EVENT_STATUS_CHANGED;
 		if (song_changed)
 			c->events |= EVENT_SONG_CHANGED;
+	}
+
+	if (idle & MPD_IDLE_QUEUE) {
+		if (c->_queue_changed)
+			c->_queue_changed = false;
+		else
+			c->events |= EVENT_QUEUE_CHANGED;
 	}
 }
 

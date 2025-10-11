@@ -35,7 +35,7 @@ typedef enum ActionKind {
 	ACTION_PLAY_SONG,
 
 	// Data: `reorder`
-	ACTION_REORDER,
+	ACTION_REORDER_QUEUE,
 } ActionKind;
 
 typedef struct Action {
@@ -63,9 +63,11 @@ typedef enum Event {
 	EVENT_STATUS_CHANGED = 1 << 0,
 	// Currently playing song was changed
 	EVENT_SONG_CHANGED = 1 << 1,
+	// Current queue was changed outside MUPWIT (something else made queue change)
+	EVENT_QUEUE_CHANGED = 1 << 2,
 
-	// Previous `ACTION_REORDER_SONG` failed for some reason
-	EVENT_REORDER_FAILED = 1 << 2
+	// Previous `ACTION_REORDER_QUEUE` failed for some reason
+	EVENT_REORDER_QUEUE_FAILED = 1 << 3,
 } Event;
 
 typedef struct Client {
@@ -76,6 +78,8 @@ typedef struct Client {
 
 	bool _polling_idle;
 	int _status_fetch_timer;
+	// Current queue was changed by user inside MUPWIT (queue entry was reordered, deleted, etc...)
+	bool _queue_changed;
 
 	// Currently playing song
 	// Can be `NULL`

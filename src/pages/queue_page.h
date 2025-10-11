@@ -34,6 +34,7 @@ typedef struct QueueEntriesList {
 typedef struct QueuePage {
 	// Array of song UI elements in the current queue
 	QueueEntriesList entries;
+	bool initialized;
 
 	unsigned total_duration;
 
