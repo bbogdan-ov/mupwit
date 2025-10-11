@@ -182,16 +182,41 @@ void *decode_artwork(void *args_) {
 	Color avg_color = {0};
 	if (comps > 0) {
 		unsigned char *data = img.data;
-		int r = 0, g = 0, b = 0;
+		float cr = 0.0, cg = 0.0, cb = 0.0;
+		float n = 1.0;
 		for (int i = 0; i < img.width * img.height * comps; i += comps) {
-			r += data[i + 0];
-			g += data[i + 1];
-			b += data[i + 2];
+			int r = data[i + 0];
+			int g = data[i + 1];
+			int b = data[i + 2];
+			float max = (float)MAX(r, MAX(g, b));
+			float min = (float)MIN(r, MIN(g, b));
+			float saturation = 0.0;
+			float lightness = (max + min) / 2.0 / 255.0;
+			if (max > 0) saturation = (max - min) / max;
+
+			if (saturation >= 0.5 && lightness > 0.5) {
+				n += 1.0;
+				cr += r;
+				cg += g;
+				cb += b;
+			}
+			if (lightness >= 0.6) {
+				n += 0.2;
+				cr += r/5;
+				cg += g/5;
+				cb += b/5;
+			}
 		}
 
-		int n = img.width * img.height;
-		avg_color = (Color){r/n, g/n, b/n, 255};
+		avg_color = (Color){
+			(char)MAX(cr/n, 50.0),
+			(char)MAX(cg/n, 50.0),
+			(char)MAX(cb/n, 50.0),
+			255
+		};
 	}
+
+	avg_color = ColorBrightness(avg_color, 0.4);
 
 	c->_artwork_image = img;
 	c->_artwork_exists = true;

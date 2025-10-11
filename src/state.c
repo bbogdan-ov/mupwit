@@ -24,10 +24,7 @@
 	(Image){NAME ## _DATA, NAME ## _WIDTH,  NAME ## _HEIGHT, 1, NAME ## _PIXEL_FORMAT})
 
 Color calc_foreground(Color bg) {
-	return ColorBrightness(ColorContrast(bg, -0.1), -0.1);
-}
-Color calc_background(Color color) {
-	return ColorBrightness(ColorContrast(color, 0.8), 0.6);
+	return ColorBrightness(bg, -0.15);
 }
 
 State state_new(void) {
@@ -57,7 +54,7 @@ void state_update(State *s) {
 	if (!s->background_tween_finished) {
 		Color target_color = THEME_BACKGROUND;
 		if (s->cur_artwork.exists) {
-			target_color = calc_background(s->cur_artwork.average);
+			target_color = s->cur_artwork.average;
 		}
 
 		if (tween_playing(&s->background_tween)) {
