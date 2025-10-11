@@ -75,7 +75,7 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 #define IS_REORDERING (queue->reordering_idx == idx)
 #define IS_TRYING_TO_GRAB (queue->trying_to_grab_idx == idx)
 
-	Rect rect = (Rect){
+	Rect rect = {
 		state->container.x,
 		state->container.y - state->scroll + entry->pos_y,
 		state->container.width,
@@ -398,9 +398,10 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		sh - PADDING*2 - (STATS_HEIGHT + CUR_PLAY_HEIGHT)
 	);
 
+	float all_entries_height = q->entries.len * ENTRY_HEIGHT;
 	scrollable_set_height(
 		&q->scrollable,
-		q->entries.len * ENTRY_HEIGHT + ENTRY_HEIGHT - container.height
+		all_entries_height + PADDING*2 - container.height
 	);
 
 	scrollable_update(&q->scrollable);
@@ -415,8 +416,18 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		DrawRectangleGradientH(offset_x, 0, sw, sh, ColorAlpha(state->background, 0.0), state->background);
 	}
 
+	// Draw curly thing below all entries
+	Rect curly_rect = {
+		state->container.x + PADDING,
+		state->container.y - state->scroll + all_entries_height,
+		state->container.width - PADDING*2,
+		ENTRY_HEIGHT
+	};
+
+	draw_line(state, LINE_CURLY, vec(curly_rect.x, curly_rect.y), curly_rect.width, THEME_GRAY);
+
 	// ==============================
-	// Draw the entries
+	// Draw entries
 	// ==============================
 
 	unsigned elapsed = mpd_status_get_elapsed_ms(client->cur_status) / (int)1000;

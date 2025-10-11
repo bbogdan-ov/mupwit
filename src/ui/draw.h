@@ -7,6 +7,7 @@
 #include "../state.h"
 
 #define ICON_SIZE 16
+#define LINE_SIZE 16
 
 typedef struct Rectangle Rect;
 typedef struct Vector2 Vec;
@@ -39,6 +40,11 @@ typedef enum Box {
 	BOX_FILLED_ROUNDED,
 } Box;
 
+typedef enum Line {
+	LINE_CURLY = 0,
+} Line;
+
+
 void draw_texture_quad(Texture tex, Rect rect, Color tint);
 
 Vec measure_text(Text *text);
@@ -47,8 +53,8 @@ void draw_text(Text text);
 Vec draw_cropped_text(Text text, float max_width, Color background);
 
 void draw_icon(State *state, Icon icon, Vec pos, Color color);
-
 void draw_box(State *state, Box box, Rect rect, Color color);
+void draw_line(State *state, Line line, Vec pos, float width, Color color);
 
 bool is_key_pressed(KeyboardKey key);
 bool is_shift_down(void);

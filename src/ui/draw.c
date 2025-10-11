@@ -47,10 +47,10 @@ Vec draw_cropped_text(Text text, float max_width, Color background) {
 }
 
 void draw_icon(State *state, Icon icon, Vec pos, Color color) {
-	Rect source = rect(icon * ICON_SIZE, 0, ICON_SIZE, ICON_SIZE);
-	Rect dest = rect(pos.x, pos.y, ICON_SIZE, ICON_SIZE);
+	Rect src = {icon * ICON_SIZE, 0, ICON_SIZE, ICON_SIZE};
+	Rect dest = {pos.x, pos.y, ICON_SIZE, ICON_SIZE};
 
-	DrawTexturePro(state->icons, source, dest, (Vec){0}, 0, color);
+	DrawTexturePro(state->icons, src, dest, (Vec){0}, 0, color);
 }
 
 void draw_box(State *state, Box box, Rect rect, Color color) {
@@ -65,6 +65,12 @@ void draw_box(State *state, Box box, Rect rect, Color color) {
 
 	rect = rect_shrink(rect, -3, -3);
 	DrawTextureNPatch(state->boxes, npatch, rect, (Vec){0}, 0, color);
+}
+
+void draw_line(State *state, Line line, Vec pos, float width, Color color) {
+	Rect src = {0.0, line * LINE_SIZE, width, LINE_SIZE};
+	Rect dest = {pos.x, pos.y, width, LINE_SIZE};
+	DrawTexturePro(state->lines, src, dest, (Vec){0}, 0.0, color);
 }
 
 bool is_key_pressed(KeyboardKey key) {

@@ -138,6 +138,7 @@ int main() {
 	generate_image(output_file, "empty_artwork", "assets/images/empty-artwork.png");
 	generate_image(output_file, "icons", "assets/images/icons.png");
 	generate_image(output_file, "boxes", "assets/images/boxes.png");
+	generate_image(output_file, "lines", "assets/images/lines.png");
 
 	CloseWindow();
 

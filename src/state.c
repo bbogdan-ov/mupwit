@@ -34,6 +34,7 @@ State state_new(void) {
 
 		.icons = TEXTURE(icons),
 		.boxes = TEXTURE(boxes),
+		.lines = TEXTURE(lines),
 
 		.empty_artwork = TEXTURE(empty_artwork),
 
