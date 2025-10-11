@@ -175,7 +175,6 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 		ARTWORK_SIZE,
 		ARTWORK_SIZE
 	};
-	draw_box(state, BOX_NORMAL, artwork_rect, THEME_BLACK);
 	draw_icon(
 		state,
 		ICON_DISK,
@@ -185,6 +184,7 @@ void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, St
 		),
 		THEME_BLACK
 	);
+	draw_box(state, BOX_NORMAL, artwork_rect, THEME_BLACK);
 	inner.x += artwork_rect.width + PADDING;
 	inner.width -= artwork_rect.width + PADDING;
 
