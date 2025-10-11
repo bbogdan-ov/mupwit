@@ -8,7 +8,7 @@
 #include "../ui/tween.h"
 
 #define QUEUE_STATS_PADDING 4
-#define QUEUE_STATS_HEIGHT (THEME_NORMAL_TEXT_SIZE + QUEUE_STATS_PADDING*2)
+#define QUEUE_STATS_HEIGHT THEME_NORMAL_TEXT_SIZE
 
 typedef struct QueueEntry {
 	// Position of the entry in the queue (0-based)
