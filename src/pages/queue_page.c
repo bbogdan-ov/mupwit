@@ -304,9 +304,10 @@ void fetch_queue(QueuePage *q, Client *client) {
 }
 
 void queue_page_update(QueuePage *q, Client *client) {
+	// FIXME!: sometimes queue does not get refetched!
 	if (client->events & EVENT_QUEUE_CHANGED) {
 		// TODO: remove or reoder only those songs that were changed.
-		// Currently the entire queue is rebuild.
+		// Currently the entire queue is being rebuild.
 		fetch_queue(q, client);
 		TraceLog(LOG_INFO, "QUEUE: Updated due outside interference (%d songs)", q->entries.len);
 		q->initialized = true;
