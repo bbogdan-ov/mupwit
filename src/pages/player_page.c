@@ -2,12 +2,12 @@
 #include <math.h>
 #include <string.h>
 
+#include "./player_page.h"
 #include "../client.h"
-#include "../draw.h"
 #include "../theme.h"
 #include "../macros.h"
+#include "../ui/draw.h"
 #include "../ui/button.h"
-#include "player_page.h"
 
 #define BAR_HEIGHT 4
 #define BAR_EXPAND 4

@@ -3,8 +3,8 @@
 
 #include <raylib.h>
 
-#include "./theme.h"
-#include "./state.h"
+#include "../theme.h"
+#include "../state.h"
 
 #define ICON_SIZE 16
 

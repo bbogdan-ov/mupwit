@@ -11,9 +11,9 @@
 #include "./state.h"
 #include "./macros.h"
 #include "./theme.h"
-#include "./draw.h"
 #include "./pages/player_page.h"
 #include "./pages/queue_page.h"
+#include "./ui/draw.h"
 
 static const char *PID_FILE = "/tmp/mupwit.pid";
 

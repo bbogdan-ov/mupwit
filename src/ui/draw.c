@@ -1,7 +1,6 @@
 #include <raylib.h>
 
 #include "./draw.h"
-#include "./state.h"
 
 Rect rect(float x, float y, float width, float height) {
 	return (Rect){x, y, width, height};

@@ -1,8 +1,8 @@
 #ifndef BUTTON_H
 #define BUTTON_H
 
+#include "./draw.h"
 #include "../state.h"
-#include "../draw.h"
 
 #define ICON_BUTTON_SIZE 32
 
