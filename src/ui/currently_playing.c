@@ -79,6 +79,8 @@ void currently_playing_draw(Client *client, State *state) {
 	float right_width = container.width - offset.x + GAP;
 
 	// Draw song title
+	offset.y += 2;
+
 	BeginScissorMode(
 		offset.x,
 		offset.y,
@@ -86,7 +88,6 @@ void currently_playing_draw(Client *client, State *state) {
 		THEME_NORMAL_TEXT_SIZE
 	);
 
-	offset.y += 2;
 	Text text = {
 		.text = title,
 		.font = state->normal_font,
@@ -98,7 +99,13 @@ void currently_playing_draw(Client *client, State *state) {
 
 	if (title_size.x < right_width) {
 		// Draw song artist
-		text.text = TextFormat(" - %s", artist);
+		static char artist_str[128] = {0};
+		if (artist_str[0] == 0 || client->events & EVENT_SONG_CHANGED) {
+			snprintf(artist_str, 127, " - %s", artist);
+			artist_str[127] = 0;
+		}
+
+		text.text = artist_str;
 		text.pos.x += title_size.x;
 		text.color = THEME_GRAY;
 		draw_cropped_text(text, right_width - title_size.x, state->background);

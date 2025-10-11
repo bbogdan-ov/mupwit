@@ -1,6 +1,8 @@
 #include <raylib.h>
+#include <string.h>
 
 #include "./draw.h"
+#include "../macros.h"
 
 Rect rect(float x, float y, float width, float height) {
 	return (Rect){x, y, width, height};
@@ -98,18 +100,86 @@ Rect rect_shrink(Rect rect, float hor, float ver) {
 	};
 }
 
-const char *format_time(unsigned secs, bool minus) {
-#define HOURS "%02d:%02d:%02d", (int)(secs / 60 / 60), (int)(secs / 60) % 60, secs % 60
-#define MINS "%02d:%02d", (int)(secs / 60), secs % 60
-#define SECS "00:%02d", secs
+char *get_temp_buf(void) {
+#define MAX_BUFFERS 4
+#define BUFFER_CAP 256
 
-	if (minus) {
-		if (secs > 60 * 60) return TextFormat("-"HOURS);
-		if (secs > 60) return TextFormat("-"MINS);
-		return TextFormat("-"SECS);
+	static int index = 0;
+	static char buffers[MAX_BUFFERS][BUFFER_CAP];
+
+	char *buf = buffers[index];
+	index = (index + 1) % MAX_BUFFERS;
+	return buf;
+}
+
+int format_time(char *buffer, unsigned secs, bool minus) {
+	int len = 0;
+
+	if (minus) buffer[len++] = '-';
+
+	if (secs > 60 * 60) {
+		len += fast_int_fmt(buffer + len, secs / 60 / 60, 2); // hours
+		buffer[len++] = ':';
+		len += fast_int_fmt(buffer + len, secs / 60 % 60, 2); // mins
+		buffer[len++] = ':';
+		len += fast_int_fmt(buffer + len, secs % 60, 2); // secs
+	} else if (secs > 60) {
+		len += fast_int_fmt(buffer + len, secs / 60, 2); // mins
+		buffer[len++] = ':';
+		len += fast_int_fmt(buffer + len, secs % 60, 2); // secs
+	} else {
+		len += fast_str_fmt(buffer + len, "00:");
+		len += fast_int_fmt(buffer + len, secs, 2); // secs
 	}
 
-	if (secs > 60 * 60) return TextFormat(HOURS);
-	if (secs > 60) return TextFormat(MINS);
-	return TextFormat(SECS);
+	buffer[TIME_BUF_LEN - 1] = 0;
+	return len;
+}
+
+int fast_int_fmt(char *buffer, int num, int pad) {
+#define ASCII(X) (48 + (X)) // Retrieve ASCII code of the number X
+#define OFFSET MAX(pad - len, 0)
+
+	memset(buffer, ASCII(0), pad);
+
+	int len;
+	if (num <= 9) {
+		len = 1;
+		buffer[OFFSET + 0] = ASCII(num);
+	} else if (num <= 99) {
+		len = 2;
+		buffer[OFFSET + 0] = ASCII(num / 10);
+		buffer[OFFSET + 1] = ASCII(num % 10);
+	} else if (num <= 999) {
+		len = 3;
+		buffer[OFFSET + 0] = ASCII(num / 100);
+		buffer[OFFSET + 1] = ASCII(num / 10 % 10);
+		buffer[OFFSET + 2] = ASCII(num % 10);
+	} else if (num <= 9999) {
+		len = 4;
+		buffer[OFFSET + 0] = ASCII(num / 1000);
+		buffer[OFFSET + 1] = ASCII(num / 100 % 10);
+		buffer[OFFSET + 2] = ASCII(num / 10 % 10);
+		buffer[OFFSET + 3] = ASCII(num % 10);
+	} else if (num <= 99999) {
+		len = 5;
+		buffer[OFFSET + 0] = ASCII(num / 10000);
+		buffer[OFFSET + 1] = ASCII(num / 1000 % 10);
+		buffer[OFFSET + 2] = ASCII(num / 100 % 10);
+		buffer[OFFSET + 3] = ASCII(num / 10 % 10);
+		buffer[OFFSET + 4] = ASCII(num % 10);
+	} else {
+		return -1;
+	}
+
+	len = MAX(len, pad);
+	buffer[len] = 0;
+	return len;
+}
+
+int fast_str_fmt(char *buffer, const char *s) {
+	int len = strlen(s);
+	memcpy(buffer, s, len);
+	buffer[len] = 0;
+	return len;
 }

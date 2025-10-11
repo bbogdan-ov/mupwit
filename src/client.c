@@ -551,7 +551,10 @@ void client_update(Client *c, State *state) {
 
 	handle_idle(c, idle);
 
-	if (SHOULD_FETCH) fetch_status(c);
+	if (SHOULD_FETCH) {
+		fetch_status(c);
+		c->events |= EVENT_ELAPSED;
+	}
 
 	if (c->_fetch_artwork_again) {
 		if (TRYLOCK(&c->_artwork_mutex) == 0) {

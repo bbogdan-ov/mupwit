@@ -65,6 +65,21 @@ Rect screen_rect(void);
 
 Rect rect_shrink(Rect rect, float hor, float ver);
 
-const char *format_time(unsigned secs, bool minus);
+char *get_temp_buf(void);
+
+#define TIME_BUF_LEN 12
+
+// Unsafe and fast write text representation of the seconds into the buffer
+// Buffer size must be >= `TIME_BUF_LEN` (12)
+// Returns length of the written text
+int format_time(char *buffer, unsigned secs, bool minus);
+
+// Unsafe and fast write text representation of the number into the buffer
+// Returns length of the written text
+// Returns `-1` if number is too large
+int fast_int_fmt(char *buffer, int num, int pad);
+// Unsafe and fast write null-terminated string into the buffer
+// Returns length of the written text
+int fast_str_fmt(char *buffer, const char *s);
 
 #endif

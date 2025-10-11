@@ -121,9 +121,15 @@ void player_page_draw(Client *client, State *state) {
 	Vec text_bounds = draw_cropped_text(text, state->container.width, state->background);
 	offset.y += text_bounds.y;
 
+	static char artist_str[128] = {0};
+	if (artist_str[0] == 0 || client->events & EVENT_SONG_CHANGED) {
+		snprintf(artist_str, 127, "%s - %s", artist, album);
+		artist_str[127] = 0;
+	}
+
 	// Draw artist and album
 	text = (Text){
-		.text = TextFormat("%s - %s", artist, album),
+		.text = artist_str,
 		.font = state->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
 		.pos = offset,
@@ -191,11 +197,21 @@ void player_page_draw(Client *client, State *state) {
 	}
 
 	// Draw time
-	text.text = format_time(elapsed_sec, false);
+	static char elapsed_str[TIME_BUF_LEN] = {0};
+	static char duration_str[TIME_BUF_LEN] = {0};
+
+	if (elapsed_str[0] == 0 || client->events & EVENT_ELAPSED) {
+		format_time(elapsed_str, elapsed_sec, false);
+	}
+	if (duration_str[0] == 0 || client->events & EVENT_ELAPSED) {
+		format_time(duration_str, duration_sec, false);
+	}
+
+	text.text = elapsed_str;
 	text.pos = vec(bar.rect.x, bar.rect.y + PROGRESS_BAR_EXPAND + PROGRESS_BAR_HEIGHT * 2);
 	draw_text(text);
 
-	text.text = format_time(duration_sec, false);
+	text.text = duration_str;
 	Vec size = measure_text(&text);
 	text.pos = vec(bar.rect.x + bar.rect.width - size.x, bar.rect.y + PROGRESS_BAR_EXPAND + PROGRESS_BAR_HEIGHT * 2);
 	draw_text(text);

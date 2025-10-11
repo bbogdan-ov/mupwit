@@ -4,7 +4,6 @@
 #include "../macros.h"
 #include "../theme.h"
 #include "../macros.h"
-#include "../ui/draw.h"
 #include "../ui/currently_playing.h"
 
 #include <raymath.h>
@@ -31,12 +30,7 @@ QueuePage queue_page_new() {
 QueueEntry entry_new(struct mpd_entity *entity, size_t number) {
 	const struct mpd_song *song = mpd_entity_get_song(entity);
 
-	const char *text = format_time(mpd_song_get_duration(song), false);
-	size_t len = strlen(text) + 1;
-	char *duration_text = malloc(len);
-	memcpy(duration_text, text, len);
-
-	return (QueueEntry){
+	QueueEntry entry = {
 		.number = number,
 
 		.pos_y = number * ENTRY_HEIGHT,
@@ -44,14 +38,13 @@ QueueEntry entry_new(struct mpd_entity *entity, size_t number) {
 		.pos_tween = tween_new(200),
 
 		.entity = entity,
-		.duration_text = duration_text,
 	};
+
+	format_time(entry.duration_text, mpd_song_get_duration(song), false);
+
+	return entry;
 }
 void entry_free(QueueEntry *e) {
-	if (e->duration_text) {
-		free(e->duration_text);
-		e->duration_text = NULL;
-	}
 	if (e->entity) {
 		mpd_entity_free(e->entity);
 		e->entity = NULL;
@@ -482,9 +475,15 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		THEME_GRAY
 	);
 
+	static char count_str[26] = {0};
+	if (count_str[0] == 0 || client->events & EVENT_QUEUE_CHANGED) {
+		snprintf(count_str, 25, "♪ %ld", q->entries.len);
+		count_str[25] = 0;
+	}
+
 	// Draw number of tracks
 	Text text = (Text){
-		.text = TextFormat("♪ %d", q->entries.len),
+		.text = count_str,
 		.font = state->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
 		.pos = {
@@ -500,7 +499,16 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	if (elapsed <= q->total_duration)
 		time_left = q->total_duration - elapsed;
 
-	text.text = format_time(time_left, true);
+	static char time_left_str[TIME_BUF_LEN] = {0};
+	if (
+		time_left_str[0] == 0
+		|| client->events & EVENT_ELAPSED
+		|| client->events & EVENT_QUEUE_CHANGED
+	) {
+		format_time(time_left_str, time_left, true);
+	}
+
+	text.text = time_left_str;
 	Vec dur_size = measure_text(&text);
 	text.pos.x = stats_rect.x + stats_rect.width - dur_size.x - PADDING*2;
 	draw_text(text);

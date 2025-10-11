@@ -3,6 +3,7 @@
 
 #include "../client.h"
 #include "../state.h"
+#include "../ui/draw.h"
 #include "../ui/scrollable.h"
 #include "../ui/tween.h"
 
@@ -25,7 +26,7 @@ typedef struct QueueEntry {
 	// Type is guaranteed to be MPD_ENTITY_TYPE_SONG
 	struct mpd_entity *entity;
 	// Prerendered song duration in human-readable format
-	char *duration_text;
+	char duration_text[TIME_BUF_LEN];
 } QueueEntry;
 
 typedef struct QueueEntriesList {

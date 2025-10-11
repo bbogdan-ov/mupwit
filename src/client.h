@@ -60,15 +60,17 @@ typedef struct ActionsQueue {
 } ActionsQueue;
 
 typedef enum Event {
+	// Half of second has passed
+	EVENT_ELAPSED = 1 << 0,
 	// Playback status chagned (pause, resume, seek, etc...)
-	EVENT_STATUS_CHANGED = 1 << 0,
+	EVENT_STATUS_CHANGED = 1 << 1,
 	// Currently playing song was changed
-	EVENT_SONG_CHANGED = 1 << 1,
+	EVENT_SONG_CHANGED = 1 << 2,
 	// Current queue was changed outside MUPWIT (something else made queue change)
-	EVENT_QUEUE_CHANGED = 1 << 2,
+	EVENT_QUEUE_CHANGED = 1 << 3,
 
 	// Previous `ACTION_REORDER_QUEUE` failed for some reason
-	EVENT_REORDER_QUEUE_FAILED = 1 << 3,
+	EVENT_REORDER_QUEUE_FAILED = 1 << 4,
 } Event;
 
 typedef struct Client {
