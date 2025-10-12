@@ -12,6 +12,7 @@
 #define POLL_IDLE_INTERVAL_MS (1000/30)
 #define ARTWORK_FETCH_DELAY_MS 200
 #define ACTIONS_QUEUE_CAP 16
+#define ARTWORK_REQUESTS_QUEUE_CAP 32
 #define EVENTS_QUEUE_CAP 16
 
 extern const char *UNKNOWN;
@@ -59,6 +60,19 @@ typedef struct ActionsQueue {
 	Action buffer[ACTIONS_QUEUE_CAP];
 } ActionsQueue;
 
+typedef struct ArtworkRequest {
+	void *arg;
+	const char *song_uri;
+	void *(*decode_func)(void *);
+} ArtworkRequest;
+
+typedef struct ArtworkRequestsQueue {
+	size_t head;
+	size_t tail;
+	size_t cap;
+	ArtworkRequest buffer[ARTWORK_REQUESTS_QUEUE_CAP];
+} ArtworkRequestsQueue;
+
 typedef enum Event {
 	// Half of second has passed
 	EVENT_ELAPSED = 1 << 0,
@@ -75,6 +89,7 @@ typedef enum Event {
 
 typedef struct Client {
 	ActionsQueue _actions;
+	ArtworkRequestsQueue artwork_requests;
 	// Events bit mask
 	// 0 - no events
 	Event events;
@@ -110,30 +125,25 @@ typedef struct Client {
 } Client;
 
 typedef struct DecodeArtworkArgs {
-	Client *client;
+	void *arg;
+
 	const char *filetype;
 	unsigned char *buffer;
 	int buffer_size;
 } DecodeArtworkArgs;
 
 // Logs connect error if any has occured and returns `true`, otherwise `false`
-bool conn_handle_error(struct mpd_connection *conn, int line);
+bool conn_handle_error(struct mpd_connection *conn, const char *file, int line);
 // Logs async error if any has occured and returns `true`, otherwise `false`
-bool async_handle_error(struct mpd_async *async, int line);
+bool async_handle_error(struct mpd_async *async, const char *file, int line);
 
-#define CONN_HANDLE_ERROR(CONN) conn_handle_error(CONN, __LINE__)
-#define ASYNC_HANDLE_ERROR(ASYNC) async_handle_error(ASYNC, __LINE__)
+#define CONN_HANDLE_ERROR(CONN) conn_handle_error(CONN, __FILE__, __LINE__)
+#define ASYNC_HANDLE_ERROR(ASYNC) async_handle_error(ASYNC, __FILE__, __LINE__)
 
 Client client_new(void);
 
 void client_push_action(Client *c, Action action);
 void client_push_action_kind(Client *c, ActionKind action);
-
-bool client_fetch_song_artwork(
-	Client *c,
-	const char *uri,
-	void *(*thread_func)(void *)
-);
 
 // Connect to a MPD server
 void client_connect(Client *c);

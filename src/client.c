@@ -13,26 +13,22 @@
 
 // TODO: fetch 'albumart' if 'readpicture' returned nothing
 
-#define LOCK(MUTEX) assert(pthread_mutex_lock(MUTEX) == 0)
-#define TRYLOCK(MUTEX) pthread_mutex_trylock(MUTEX)
-#define UNLOCK(MUTEX) assert(pthread_mutex_unlock(MUTEX) == 0)
-
 const char *UNKNOWN = "<unknown>";
 
-bool conn_handle_error(struct mpd_connection *conn, int line) {
+bool conn_handle_error(struct mpd_connection *conn, const char *file, int line) {
 	enum mpd_error err = mpd_connection_get_error(conn);
 	if (err != MPD_ERROR_SUCCESS) {
 		const char *msg = mpd_connection_get_error_message(conn);
-		TraceLog(LOG_ERROR, "MPD CLIENT (line %d): CONNECTION ERROR: %s (%d)", line, msg, err);
+		TraceLog(LOG_ERROR, "MPD CLIENT (at %s:%d): CONNECTION ERROR: %s (%d)", file, line, msg, err);
 		return true;
 	}
 	return false;
 }
-bool async_handle_error(struct mpd_async *async, int line) {
+bool async_handle_error(struct mpd_async *async, const char *file, int line) {
 	enum mpd_error err = mpd_async_get_error(async);
 	if (err != MPD_ERROR_SUCCESS) {
 		const char *msg = mpd_async_get_error_message(async);
-		TraceLog(LOG_ERROR, "MPD CLIENT (line %d): ASYNC ERROR: %s (%d)", line, msg, err);
+		TraceLog(LOG_ERROR, "MPD CLIENT (at %s:%d): ASYNC ERROR: %s (%d)", file, line, msg, err);
 		return true;
 	}
 	return false;
@@ -48,6 +44,10 @@ Client client_new(void) {
 	return (Client){
 		._actions = (ActionsQueue){
 			.cap = ACTIONS_QUEUE_CAP,
+			.buffer = {{0}},
+		},
+		.artwork_requests = (ArtworkRequestsQueue){
+			.cap = ARTWORK_REQUESTS_QUEUE_CAP,
 			.buffer = {{0}},
 		},
 
@@ -203,10 +203,15 @@ Color image_average_color(Image image) {
 	return ColorBrightness(color, 0.4);
 }
 
-bool client_fetch_song_artwork(
+// Try to fetch song album artwork and call `decode_func` in a separate thread
+// to decode the received image
+// DON'T FORGET TO FREE `args` of your `decode_func` AND BUFFER `args.buffer`
+// Returns `true` on success, `false` otherwise
+bool fetch_song_artwork(
 	Client *c,
 	const char *uri,
-	void *(*thread_func)(void *)
+	void *(*decode_func)(void *),
+	void *arg
 ) {
 	size_t capacity = 1024 * 256; // 256KB
 	unsigned char *buffer = malloc(capacity);
@@ -236,19 +241,19 @@ bool client_fetch_song_artwork(
 	}
 
 	DecodeArtworkArgs *args = malloc(sizeof(DecodeArtworkArgs));
-	args->client = c;
+	args->arg = arg;
 	args->buffer = buffer;
 	args->buffer_size = size;
 	args->filetype = img_filetype;
 
 	pthread_t thread;
-	pthread_create(&thread, NULL, thread_func, args);
+	pthread_create(&thread, NULL, decode_func, args);
 	return true;
 }
 
 void *decode_artwork(void *args_) {
 	DecodeArtworkArgs *args = args_;
-	Client *c = args->client;
+	Client *c = args->arg;
 
 	LOCK(&c->_artwork_mutex);
 
@@ -286,7 +291,13 @@ void fetch_artwork(Client *c) {
 		return;
 	}
 
-	if (!client_fetch_song_artwork(c, mpd_song_get_uri(c->cur_song), decode_artwork)) {
+	bool res = fetch_song_artwork(
+		c,
+		mpd_song_get_uri(c->cur_song),
+		decode_artwork,
+		c
+	);
+	if (res) {
 		c->_artwork_changed = true;
 		c->_artwork_exists = false;
 	}
@@ -464,7 +475,10 @@ void run_noidle(Client *c, enum mpd_idle *idle) {
 }
 
 static void handle_action(Client *c, Action action) {
+	if (action.kind <= 0) return;
+
 	bool res;
+	// TODO: log error when `res` is false
 	switch (action.kind) {
 		case ACTION_TOGGLE:
 			res = run_toggle(c);
@@ -528,10 +542,23 @@ void client_update(Client *c, State *state) {
 	c->_artwork_fetch_delay = MAX(c->_artwork_fetch_delay, 0);
 	poll_timer -= ms;
 
+	static int request_timer = 0;
+	request_timer -= ms;
+
+	bool has_request = false;
+	ArtworkRequest request = (ArtworkRequest){0};
+
+	if (request_timer <= 0) {
+		RINGBUF_POP(&c->artwork_requests, &request, (ArtworkRequest){0});
+		has_request = request.song_uri != NULL;
+
+		request_timer = 100;
+	}
+
 	Action action = pop_action(c);
 	enum mpd_idle idle = 0;
 
-	if (action.kind == 0 && !SHOULD_FETCH) {
+	if (action.kind == 0 && !has_request && !SHOULD_FETCH) {
 		if (poll_timer <= 0) {
 			poll_idle(c, &idle);
 			poll_timer = POLL_IDLE_INTERVAL_MS;
@@ -546,6 +573,15 @@ void client_update(Client *c, State *state) {
 
 		action = pop_action(c);
 		if (action.kind == 0) break;
+	}
+
+	if (has_request) {
+		fetch_song_artwork(
+			c,
+			request.song_uri,
+			request.decode_func,
+			request.arg
+		);
 	}
 
 	handle_idle(c, idle);

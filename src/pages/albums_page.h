@@ -7,9 +7,16 @@
 
 typedef struct AlbumEntry {
 	char *title;
-	// Album artist
-	// Can be `NULL`
-	char *artist;
+	char *artist_nullable;
+	char *first_song_uri_nullable;
+
+	Texture artwork_texture_nullable;
+	bool artwork_texture_loaded;
+
+	pthread_mutex_t artwork_mutex;
+	Image artwork_image_nullable;
+	bool artwork_is_ready;
+	bool waiting_for_artwork;
 } AlbumEntry;
 
 typedef struct AlbumEntriesList {
