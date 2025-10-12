@@ -82,6 +82,8 @@ static void entry_draw(size_t idx, AlbumEntry *e, Client *client, State *state) 
 
 					e->artwork_texture_nullable = tex;
 					UnloadImage(e->artwork_image_nullable);
+
+					tween_play(&e->artwork_tween);
 				}
 				e->artwork_texture_loaded = true;
 			}
@@ -92,6 +94,8 @@ static void entry_draw(size_t idx, AlbumEntry *e, Client *client, State *state) 
 	// ==============================
 	// Draw entry
 	// ==============================
+
+	tween_update(&e->artwork_tween);
 
 	Rect inner = rect_shrink(rect, PADDING, PADDING);
 	Vec offset = {inner.x, inner.y};
@@ -112,12 +116,14 @@ static void entry_draw(size_t idx, AlbumEntry *e, Client *client, State *state) 
 
 	// Draw artwork
 	Rect artwork_rect = {offset.x, offset.y, inner.width, inner.width};
-	if (e->artwork_texture_nullable.id > 0)
+	if (e->artwork_texture_nullable.id > 0) {
+		float alpha = tween_progress(&e->artwork_tween);
 		draw_texture_quad(
 			e->artwork_texture_nullable,
 			artwork_rect,
-			WHITE
+			ColorAlpha(WHITE, alpha)
 		);
+	}
 	draw_box(state, BOX_3D, rect_shrink(artwork_rect, -1, -1), THEME_BLACK);
 	offset.y += artwork_rect.height + GAP;
 
@@ -192,6 +198,8 @@ void fetch_albums(AlbumsPage *a, Client *client) {
 			AlbumEntry entry = {
 				.title = strdup(pair->value),
 				.artist_nullable = cur_artist ? strdup(cur_artist) : NULL,
+
+				.artwork_tween = tween_new(300),
 			};
 			DA_PUSH(&a->entries, entry);
 		}

@@ -10,6 +10,7 @@ typedef struct AlbumEntry {
 	char *artist_nullable;
 	char *first_song_uri_nullable;
 
+	Tween artwork_tween;
 	Texture artwork_texture_nullable;
 	bool artwork_texture_loaded;
 
