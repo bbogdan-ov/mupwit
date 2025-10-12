@@ -212,4 +212,9 @@ void player_page_draw(Client *client, State *state) {
 	draw_text(text);
 
 	offset.y += ICON_BUTTON_SIZE + PADDING;
+
+	if (sh > offset.y) {
+		// TODO: temporarily
+		SetWindowSize(sw, offset.y);
+	}
 }
