@@ -357,10 +357,6 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 }
 
 void queue_page_draw(QueuePage *q, Client *client, State *state) {
-	static bool queue_changed = false;
-	if (client->events & EVENT_QUEUE_CHANGED)
-		queue_changed = true;
-
 	float transition = state->page_transition;
 	if (state->page == PAGE_QUEUE) {
 		if (!q->is_opened) {
@@ -473,11 +469,8 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	);
 
 	static char count_str[26] = {0};
-	if (count_str[0] == 0 || queue_changed) {
-		snprintf(count_str, 25, "♪ %ld", q->entries.len);
-		count_str[25] = 0;
-		queue_changed = false;
-	}
+	snprintf(count_str, 25, "♪ %ld", q->entries.len);
+	count_str[25] = 0;
 
 	// Draw number of tracks
 	Text text = (Text){
@@ -498,13 +491,7 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		time_left = q->total_duration - elapsed;
 
 	static char time_left_str[TIME_BUF_LEN] = {0};
-	if (
-		time_left_str[0] == 0
-		|| client->events & EVENT_ELAPSED
-		|| client->events & EVENT_QUEUE_CHANGED
-	) {
-		format_time(time_left_str, time_left, true);
-	}
+	format_time(time_left_str, time_left, true);
 
 	text.text = time_left_str;
 	Vec dur_size = measure_text(&text);

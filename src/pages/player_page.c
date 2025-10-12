@@ -38,10 +38,6 @@ void draw_artwork(Artwork *artwork, Texture empty_artwork, Rect rect, Color tint
 }
 
 void player_page_draw(Client *client, State *state) {
-	static bool song_changed = false;
-	if (client->events & EVENT_SONG_CHANGED)
-		song_changed = true;
-
 	float transition = state->page_transition;
 	if (state->page == PAGE_PLAYER && state->prev_page == PAGE_QUEUE) {
 		// pass
@@ -128,11 +124,8 @@ void player_page_draw(Client *client, State *state) {
 	offset.y += text_bounds.y;
 
 	static char artist_str[128] = {0};
-	if (artist_str[0] == 0 || song_changed) {
-		snprintf(artist_str, 127, "%s - %s", artist, album);
-		artist_str[127] = 0;
-		song_changed = false;
-	}
+	snprintf(artist_str, 127, "%s - %s", artist, album);
+	artist_str[127] = 0;
 
 	// Draw artist and album
 	text = (Text){
@@ -206,13 +199,8 @@ void player_page_draw(Client *client, State *state) {
 	// Draw time
 	static char elapsed_str[TIME_BUF_LEN] = {0};
 	static char duration_str[TIME_BUF_LEN] = {0};
-
-	if (elapsed_str[0] == 0 || client->events & EVENT_ELAPSED || song_changed) {
-		format_time(elapsed_str, elapsed_sec, false);
-	}
-	if (duration_str[0] == 0 || client->events & EVENT_ELAPSED || song_changed) {
-		format_time(duration_str, duration_sec, false);
-	}
+	format_time(elapsed_str, elapsed_sec, false);
+	format_time(duration_str, duration_sec, false);
 
 	text.text = elapsed_str;
 	text.pos = vec(bar.rect.x, bar.rect.y + PROGRESS_BAR_EXPAND + PROGRESS_BAR_HEIGHT * 2);
