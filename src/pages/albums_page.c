@@ -154,6 +154,7 @@ void fetch_albums(AlbumsPage *a, Client *client) {
 void albums_page_update(AlbumsPage *a, Client *client) {
 	static bool initialized = false;
 
+	// TODO: update albums list when database has been updated
 	if (!initialized) {
 		fetch_albums(a, client);
 		initialized = true;
