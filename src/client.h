@@ -109,6 +109,13 @@ typedef struct Client {
 	struct mpd_connection *_conn;
 } Client;
 
+typedef struct DecodeArtworkArgs {
+	Client *client;
+	const char *filetype;
+	unsigned char *buffer;
+	int buffer_size;
+} DecodeArtworkArgs;
+
 // Logs connect error if any has occured and returns `true`, otherwise `false`
 bool conn_handle_error(struct mpd_connection *conn, int line);
 // Logs async error if any has occured and returns `true`, otherwise `false`
@@ -121,6 +128,12 @@ Client client_new(void);
 
 void client_push_action(Client *c, Action action);
 void client_push_action_kind(Client *c, ActionKind action);
+
+bool client_fetch_song_artwork(
+	Client *c,
+	const char *uri,
+	void *(*thread_func)(void *)
+);
 
 // Connect to a MPD server
 void client_connect(Client *c);

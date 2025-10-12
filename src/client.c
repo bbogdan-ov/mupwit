@@ -155,38 +155,20 @@ static int readpicture(
 	return size;
 }
 
-typedef struct DecodeArtworkArgs {
-	Client *client;
-	const char *filetype;
-	unsigned char *buffer;
-	int buffer_size;
-} DecodeArtworkArgs;
-
-void *decode_artwork(void *args_) {
-	DecodeArtworkArgs *args = args_;
-	Client *c = args->client;
-
-	LOCK(&c->_artwork_mutex);
-
-	Image img = LoadImageFromMemory(
-		args->filetype,
-		args->buffer,
-		args->buffer_size
-	);
-
+Color image_average_color(Image image) {
 	int comps = 0;
-	if (img.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8)
+	if (image.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8)
 		comps = 3;
-	else if (img.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
+	else if (image.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
 		comps = 4;
 
 	// Calculate average color of the artwork
-	Color avg_color = {0};
+	Color color = {0};
 	if (comps > 0) {
-		unsigned char *data = img.data;
+		unsigned char *data = image.data;
 		float cr = 0.0, cg = 0.0, cb = 0.0;
 		float n = 1.0;
-		for (int i = 0; i < img.width * img.height * comps; i += comps) {
+		for (int i = 0; i < image.width * image.height * comps; i += comps) {
 			int r = data[i + 0];
 			int g = data[i + 1];
 			int b = data[i + 2];
@@ -210,7 +192,7 @@ void *decode_artwork(void *args_) {
 			}
 		}
 
-		avg_color = (Color){
+		color = (Color){
 			(char)MAX(cr/n, 50.0),
 			(char)MAX(cg/n, 50.0),
 			(char)MAX(cb/n, 50.0),
@@ -218,12 +200,68 @@ void *decode_artwork(void *args_) {
 		};
 	}
 
-	avg_color = ColorBrightness(avg_color, 0.4);
+	return ColorBrightness(color, 0.4);
+}
+
+bool client_fetch_song_artwork(
+	Client *c,
+	const char *uri,
+	void *(*thread_func)(void *)
+) {
+	size_t capacity = 1024 * 256; // 256KB
+	unsigned char *buffer = malloc(capacity);
+	char filetype[16] = {0};
+	int size = readpicture(c, &buffer, capacity, &filetype, uri);
+
+	// Simply return if there is an error or no artwork
+	if (size <= 0) {
+		free(buffer);
+		return false;
+	}
+
+	const char *img_filetype;
+	if (strcmp(filetype, "image/png") == 0) {
+		img_filetype = ".png";
+	} else if (strcmp(filetype, "image/jpeg") == 0) {
+		img_filetype = ".jpg";
+	} else if (strcmp(filetype, "image/webp") == 0) {
+		img_filetype = ".webp";
+	} else if (strcmp(filetype, "image/bmp") == 0) {
+		img_filetype = ".bmp";
+	} else if (strcmp(filetype, "image/gif") == 0) {
+		img_filetype = ".gif";
+	} else {
+		free(buffer);
+		return false;
+	}
+
+	DecodeArtworkArgs *args = malloc(sizeof(DecodeArtworkArgs));
+	args->client = c;
+	args->buffer = buffer;
+	args->buffer_size = size;
+	args->filetype = img_filetype;
+
+	pthread_t thread;
+	pthread_create(&thread, NULL, thread_func, args);
+	return true;
+}
+
+void *decode_artwork(void *args_) {
+	DecodeArtworkArgs *args = args_;
+	Client *c = args->client;
+
+	LOCK(&c->_artwork_mutex);
+
+	Image img = LoadImageFromMemory(
+		args->filetype,
+		args->buffer,
+		args->buffer_size
+	);
 
 	c->_artwork_image = img;
 	c->_artwork_exists = true;
 	c->_artwork_changed = true;
-	c->_artwork_average_color = avg_color;
+	c->_artwork_average_color = image_average_color(img);
 
 	UNLOCK(&c->_artwork_mutex);
 	free(args->buffer);
@@ -242,57 +280,16 @@ void fetch_artwork(Client *c) {
 		c->_artwork_exists = false;
 	}
 
-	if (c->cur_song == NULL) {
+	if (!c->cur_song) {
 		c->_artwork_changed = true;
 		c->_artwork_exists = false;
 		return;
 	}
 
-	size_t capacity = 1024 * 256; // 256KB
-	unsigned char *buffer = malloc(capacity);
-	char filetype[16] = {0};
-	int size = readpicture(
-		c,
-		&buffer,
-		capacity,
-		&filetype,
-		mpd_song_get_uri(c->cur_song)
-	);
-
-	// Simply return if there is an error or no artwork
-	if (size <= 0) {
+	if (!client_fetch_song_artwork(c, mpd_song_get_uri(c->cur_song), decode_artwork)) {
 		c->_artwork_changed = true;
 		c->_artwork_exists = false;
-		free(buffer);
-		return;
 	}
-
-	const char *img_filetype;
-	if (strcmp(filetype, "image/png") == 0) {
-		img_filetype = ".png";
-	} else if (strcmp(filetype, "image/jpeg") == 0) {
-		img_filetype = ".jpg";
-	} else if (strcmp(filetype, "image/webp") == 0) {
-		img_filetype = ".webp";
-	} else if (strcmp(filetype, "image/bmp") == 0) {
-		img_filetype = ".bmp";
-	} else if (strcmp(filetype, "image/gif") == 0) {
-		img_filetype = ".gif";
-	} else {
-		c->_artwork_changed = true;
-		c->_artwork_exists = false;
-		free(buffer);
-		return;
-	}
-
-	DecodeArtworkArgs *args = malloc(sizeof(DecodeArtworkArgs));
-	args->client = c;
-	args->buffer = buffer;
-	args->buffer_size = size;
-	args->filetype = img_filetype;
-
-	pthread_t thread;
-	pthread_create(&thread, NULL, decode_artwork, args);
 }
 
 struct mpd_status *fetch_status(Client *c) {
