@@ -2,8 +2,7 @@
 #define SCROLLABLE_H
 
 #include "./tween.h"
-
-#define SCROLL_WHEEL_MOVEMENT 64
+#include "../state.h"
 
 typedef struct Scrollable {
 	int scroll;
@@ -13,11 +12,13 @@ typedef struct Scrollable {
 	Tween tween;
 } Scrollable;
 
-Scrollable scrollable_new();
+Scrollable scrollable_new(void);
 
 void scrollable_update(Scrollable *s);
 
 void scrollable_scroll_by(Scrollable *s, int movement);
 void scrollable_set_height(Scrollable *s, int height);
+
+void scrollable_draw_thumb(Scrollable *s, State *state, Color color);
 
 #endif

@@ -8,6 +8,7 @@
 typedef enum Page {
 	PAGE_PLAYER = 1,
 	PAGE_QUEUE,
+	PAGE_ALBUMS,
 } Page;
 
 typedef struct Artwork {

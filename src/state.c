@@ -134,13 +134,15 @@ void set_page(State *s, Page page) {
 void state_next_page(State *s) {
 	switch (s->page) {
 		case PAGE_PLAYER: set_page(s, PAGE_QUEUE); break;
-		case PAGE_QUEUE: set_page(s, PAGE_PLAYER); break;
+		case PAGE_QUEUE: set_page(s, PAGE_ALBUMS); break;
+		case PAGE_ALBUMS: set_page(s, PAGE_PLAYER); break;
 	}
 }
 void state_prev_page(State *s) {
 	switch (s->page) {
-		case PAGE_PLAYER: set_page(s, PAGE_QUEUE); break;
+		case PAGE_PLAYER: set_page(s, PAGE_ALBUMS); break;
 		case PAGE_QUEUE: set_page(s, PAGE_PLAYER); break;
+		case PAGE_ALBUMS: set_page(s, PAGE_QUEUE); break;
 	}
 }
 

@@ -43,13 +43,15 @@ void player_page_draw(Client *client, State *state) {
 		song_changed = true;
 
 	float transition = state->page_transition;
-	if (state->page != PAGE_PLAYER) {
-		if (state->prev_page == PAGE_PLAYER) {
-			if (!tween_playing(&state->page_tween)) return;
-			transition = 1.0 - transition;
-		} else {
-			return;
-		}
+	if (state->page == PAGE_PLAYER && state->prev_page == PAGE_QUEUE) {
+		// pass
+	} else if (state->page == PAGE_PLAYER) {
+		transition = 1.0;
+	} else if (state->page == PAGE_QUEUE && state->prev_page == PAGE_PLAYER) {
+		if (!tween_playing(&state->page_tween)) return;
+		transition = 1.0 - transition;
+	} else {
+		return;
 	}
 
 	const char *title = UNKNOWN;
@@ -205,10 +207,10 @@ void player_page_draw(Client *client, State *state) {
 	static char elapsed_str[TIME_BUF_LEN] = {0};
 	static char duration_str[TIME_BUF_LEN] = {0};
 
-	if (elapsed_str[0] == 0 || client->events & EVENT_ELAPSED) {
+	if (elapsed_str[0] == 0 || client->events & EVENT_ELAPSED || song_changed) {
 		format_time(elapsed_str, elapsed_sec, false);
 	}
-	if (duration_str[0] == 0 || client->events & EVENT_ELAPSED) {
+	if (duration_str[0] == 0 || client->events & EVENT_ELAPSED || song_changed) {
 		format_time(duration_str, duration_sec, false);
 	}
 
@@ -222,9 +224,4 @@ void player_page_draw(Client *client, State *state) {
 	draw_text(text);
 
 	offset.y += ICON_BUTTON_SIZE + PADDING;
-
-	if (sh > offset.y) {
-		// TODO: temporarily
-		SetWindowSize(sw, offset.y);
-	}
 }

@@ -9,6 +9,7 @@
 #include "./restore.h"
 #include "./pages/player_page.h"
 #include "./pages/queue_page.h"
+#include "./pages/albums_page.h"
 #include "./ui/draw.h"
 #include "./ui/currently_playing.h"
 
@@ -30,6 +31,7 @@ int main() {
 	State state = state_new();
 
 	QueuePage queue_page = queue_page_new();
+	AlbumsPage albums_page = albums_page_new();
 
 	while (!should_close()) {
 		ClientState client_state = client_get_state(&client);
@@ -48,6 +50,7 @@ int main() {
 
 			state_update(&state);
 			queue_page_update(&queue_page, &client);
+			albums_page_update(&albums_page, &client);
 
 			client_update(&client, &state);
 		}
@@ -74,6 +77,8 @@ int main() {
 				break;
 			case CLIENT_STATE_READY:
 				player_page_draw(&client, &state);
+				albums_page_draw(&albums_page, &client, &state);
+
 				queue_page_draw(&queue_page, &client, &state);
 
 				currently_playing_draw(&client, &state);
@@ -83,8 +88,6 @@ int main() {
 #ifdef DEBUG
 		double time = GetTime() * 10;
 		DrawRectangle(cos(time) * 20 + 20, sin(time) * 20 + 20, 20, 20, ColorAlpha(RED, 0.5));
-
-		DrawFPS(10, 10);
 #endif
 
 		SetMouseCursor(state.cursor);

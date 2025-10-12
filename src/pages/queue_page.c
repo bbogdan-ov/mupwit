@@ -27,7 +27,7 @@ QueuePage queue_page_new(void) {
 	};
 }
 
-QueueEntry entry_new(struct mpd_entity *entity, size_t number) {
+static QueueEntry entry_new(struct mpd_entity *entity, size_t number) {
 	const struct mpd_song *song = mpd_entity_get_song(entity);
 
 	QueueEntry entry = {
@@ -44,24 +44,24 @@ QueueEntry entry_new(struct mpd_entity *entity, size_t number) {
 
 	return entry;
 }
-void entry_free(QueueEntry *e) {
+static void entry_free(QueueEntry *e) {
 	if (e->entity) {
 		mpd_entity_free(e->entity);
 		e->entity = NULL;
 	}
 }
 
-void entry_tween_to_rest(QueueEntry *e) {
+static void entry_tween_to_rest(QueueEntry *e) {
 	e->prev_pos_y = e->pos_y;
 	e->pos_y = e->number * ENTRY_HEIGHT;
 	tween_play(&e->pos_tween);
 }
 
-int entry_number_from_pos(QueueEntry *e) {
+static int entry_number_from_pos(QueueEntry *e) {
 	return (int)((e->pos_y + ENTRY_HEIGHT / 2) / ENTRY_HEIGHT);
 }
 
-void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, State *state) {
+static void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, State *state) {
 #define IS_REORDERING (queue->reordering_idx == idx)
 #define IS_TRYING_TO_GRAB (queue->trying_to_grab_idx == idx)
 
@@ -420,8 +420,16 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		state->container.width - PADDING*2,
 		ENTRY_HEIGHT
 	};
+	draw_line(
+		state,
+		LINE_CURLY,
+		vec(curly_rect.x, curly_rect.y),
+		curly_rect.width,
+		THEME_GRAY
+	);
 
-	draw_line(state, LINE_CURLY, vec(curly_rect.x, curly_rect.y), curly_rect.width, THEME_GRAY);
+	// Draw scroll thumb
+	scrollable_draw_thumb(&q->scrollable, state, state->foreground);
 
 	// ==============================
 	// Draw entries
@@ -444,23 +452,6 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 
 	// Draw entry that is currently being reordered
 	draw_reordering_entry(q, client, state);
-
-	// ==============================
-	// Draw scroll thumb
-	// ==============================
-
-	// TODO: implement dragging the thumb to scroll
-	int cont_height = (int)state->container.height;
-	int scroll_height = cont_height + (int)q->scrollable.height;
-	int thumb_height = MAX(cont_height * cont_height / scroll_height, 32);
-	if (thumb_height < cont_height)
-		DrawRectangle(
-			state->container.x + state->container.width + 3,
-			state->container.y + state->scroll * (cont_height - thumb_height) / (int)q->scrollable.height,
-			2,
-			thumb_height,
-			state->foreground
-		);
 
 	// ==============================
 	// Draw queue stats

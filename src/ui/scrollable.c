@@ -6,7 +6,10 @@
 
 #include <raymath.h>
 
-Scrollable scrollable_new() {
+#define SCROLL_WHEEL_MOVEMENT 64
+#define THUMB_THICKNESS 2
+
+Scrollable scrollable_new(void) {
 	return (Scrollable){
 		.tween = tween_new(300),
 	};
@@ -40,4 +43,19 @@ void scrollable_scroll_by(Scrollable *s, int movement) {
 }
 void scrollable_set_height(Scrollable *s, int height) {
 	s->height = MAX(height, 0);
+}
+
+void scrollable_draw_thumb(Scrollable *s, State *state, Color color) {
+	// TODO: implement dragging the thumb to scroll
+	int cont_height = (int)state->container.height;
+	int scroll_height = cont_height + (int)s->height;
+	int thumb_height = MAX(cont_height * cont_height / scroll_height, 32);
+	if (thumb_height < cont_height)
+		DrawRectangle(
+			state->container.x + state->container.width + 3,
+			state->container.y + s->scroll * (cont_height - thumb_height) / (int)s->height,
+			THUMB_THICKNESS,
+			thumb_height,
+			color
+		);
 }
