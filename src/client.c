@@ -297,7 +297,7 @@ void fetch_artwork(Client *c) {
 		decode_artwork,
 		c
 	);
-	if (res) {
+	if (!res) {
 		c->_artwork_changed = true;
 		c->_artwork_exists = false;
 	}
