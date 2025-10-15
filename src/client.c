@@ -46,10 +46,6 @@ Client client_new(void) {
 			.cap = ACTIONS_QUEUE_CAP,
 			.buffer = {{0}},
 		},
-		.artwork_requests = (ArtworkRequestsQueue){
-			.cap = ARTWORK_REQUESTS_QUEUE_CAP,
-			.buffer = {{0}},
-		},
 
 		._artwork_mutex = artwork_mutex,
 		._conn_mutex = conn_mutex,
@@ -542,23 +538,10 @@ void client_update(Client *c, State *state) {
 	c->_artwork_fetch_delay = MAX(c->_artwork_fetch_delay, 0);
 	poll_timer -= ms;
 
-	static int request_timer = 0;
-	request_timer -= ms;
-
-	bool has_request = false;
-	ArtworkRequest request = (ArtworkRequest){0};
-
-	if (request_timer <= 0) {
-		RINGBUF_POP(&c->artwork_requests, &request, (ArtworkRequest){0});
-		has_request = request.song_uri != NULL;
-
-		request_timer = 100;
-	}
-
 	Action action = pop_action(c);
 	enum mpd_idle idle = 0;
 
-	if (action.kind == 0 && !has_request && !SHOULD_FETCH) {
+	if (action.kind == 0 && !SHOULD_FETCH) {
 		if (poll_timer <= 0) {
 			poll_idle(c, &idle);
 			poll_timer = POLL_IDLE_INTERVAL_MS;
@@ -573,15 +556,6 @@ void client_update(Client *c, State *state) {
 
 		action = pop_action(c);
 		if (action.kind == 0) break;
-	}
-
-	if (has_request) {
-		fetch_song_artwork(
-			c,
-			request.song_uri,
-			request.decode_func,
-			request.arg
-		);
 	}
 
 	handle_idle(c, idle);

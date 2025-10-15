@@ -77,7 +77,7 @@ int main() {
 				break;
 			case CLIENT_STATE_READY:
 				player_page_draw(&client, &state);
-				albums_page_draw(&albums_page, &client, &state);
+				albums_page_draw(&albums_page, &state);
 
 				queue_page_draw(&queue_page, &client, &state);
 

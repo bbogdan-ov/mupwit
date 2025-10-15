@@ -12,7 +12,6 @@
 #define POLL_IDLE_INTERVAL_MS (1000/30)
 #define ARTWORK_FETCH_DELAY_MS 200
 #define ACTIONS_QUEUE_CAP 16
-#define ARTWORK_REQUESTS_QUEUE_CAP 32
 #define EVENTS_QUEUE_CAP 16
 
 extern const char *UNKNOWN;
@@ -60,19 +59,6 @@ typedef struct ActionsQueue {
 	Action buffer[ACTIONS_QUEUE_CAP];
 } ActionsQueue;
 
-typedef struct ArtworkRequest {
-	void *arg;
-	const char *song_uri;
-	void *(*decode_func)(void *);
-} ArtworkRequest;
-
-typedef struct ArtworkRequestsQueue {
-	size_t head;
-	size_t tail;
-	size_t cap;
-	ArtworkRequest buffer[ARTWORK_REQUESTS_QUEUE_CAP];
-} ArtworkRequestsQueue;
-
 typedef enum Event {
 	// Half of second has passed
 	EVENT_ELAPSED = 1 << 0,
@@ -89,7 +75,6 @@ typedef enum Event {
 
 typedef struct Client {
 	ActionsQueue _actions;
-	ArtworkRequestsQueue artwork_requests;
 	// Events bit mask
 	// 0 - no events
 	Event events;
