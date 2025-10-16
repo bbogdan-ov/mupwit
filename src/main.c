@@ -14,6 +14,7 @@
 #include "./ui/currently_playing.h"
 
 // TODO: add ability to undo actions like queue reordering or song selection
+// TODO: add log file in release file
 
 int main() {
 	if (try_restore()) return 0;
