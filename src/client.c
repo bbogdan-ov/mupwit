@@ -640,10 +640,6 @@ void _client_event_loop(Client *c) {
 		c->_status_fetch_timer -= elapsed;
 		poll_timer -= elapsed;
 
-		// LOCK(&c->_acc_events_mutex);
-		// c->_acc_events = 0;
-		// UNLOCK(&c->_acc_events_mutex);
-
 		Action action = _client_pop_action(c);
 		enum mpd_idle idle = 0;
 
