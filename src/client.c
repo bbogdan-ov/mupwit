@@ -421,8 +421,6 @@ bool _client_fetch_status_and_song(Client *c) {
 		if (song) {
 			// Set new current song
 			_client_set_cur_song(c, song);
-			// TODO!!: fetch and update current song artwork
-
 			return changed;
 		}
 	}
