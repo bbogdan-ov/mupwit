@@ -29,7 +29,7 @@ void currently_playing_draw(Client *client, State *state, Assets *assets) {
 
 	// TODO: refactor, this code is almost the same as in `player_page_draw()`
 	const char *title = UNKNOWN;
-	const char *artist = UNKNOWN;
+	const char *artist_nullable = NULL;
 	enum mpd_state playstate = MPD_STATE_UNKNOWN;
 	unsigned elapsed_sec = 0;
 	unsigned duration_sec = 0;
@@ -41,9 +41,16 @@ void currently_playing_draw(Client *client, State *state, Assets *assets) {
 	}
 
 	if (cur_song_nullable) {
-		// TODO: Set song title of it's filename
-		title = song_tag_or_unknown(cur_song_nullable, MPD_TAG_TITLE);
-		artist = song_tag_or_unknown(cur_song_nullable, MPD_TAG_ARTIST);
+		title = mpd_song_get_tag(cur_song_nullable, MPD_TAG_TITLE, 0);
+		if (!title) {
+			if (client->_cur_song_filename_nullable) {
+				title = client->_cur_song_filename_nullable;
+			} else {
+				title = UNKNOWN;
+			}
+		}
+
+		artist_nullable = mpd_song_get_tag(cur_song_nullable, MPD_TAG_ARTIST, 0);
 	}
 
 	int sw = GetScreenWidth();
@@ -104,10 +111,10 @@ void currently_playing_draw(Client *client, State *state, Assets *assets) {
 	};
 	Vec title_size = draw_cropped_text(text, right_width, state->background);
 
-	if (title_size.x < right_width) {
+	if (artist_nullable && title_size.x < right_width) {
 		// Draw song artist
 		static char artist_str[128] = {0};
-		snprintf(artist_str, 127, " - %s", artist);
+		snprintf(artist_str, 127, " - %s", artist_nullable);
 		artist_str[127] = 0;
 
 		text.text = artist_str;
