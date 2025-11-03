@@ -17,7 +17,7 @@ static QueueItem _queue_item_new(unsigned number, struct mpd_entity *entity) {
 
 		.pos_y = number * QUEUE_ITEM_HEIGHT,
 		.prev_pos_y = number * QUEUE_ITEM_HEIGHT,
-		.pos_tween = tween_new(200),
+		.pos_tween = timer_new(200, false),
 
 		.duration_str = {0},
 	};

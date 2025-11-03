@@ -24,7 +24,7 @@ QueuePage queue_page_new(void) {
 static void _item_tween_to_rest(QueueItem *e) {
 	e->prev_pos_y = e->pos_y;
 	e->pos_y = e->number * QUEUE_ITEM_HEIGHT;
-	tween_play(&e->pos_tween);
+	timer_play(&e->pos_tween);
 }
 
 static int _item_number_from_pos(QueueItem *e) {
@@ -52,11 +52,11 @@ static void _item_draw(
 	// Draw only visible entries
 	if (!CheckCollisionRecs(rect, screen_rect())) return;
 
-	tween_update(&item->pos_tween);
+	timer_update(&item->pos_tween);
 	float pos_y = Lerp(
 		item->prev_pos_y,
 		item->pos_y,
-		EASE_OUT_CUBIC(tween_progress(&item->pos_tween))
+		EASE_OUT_CUBIC(timer_progress(&item->pos_tween))
 	);
 	rect.y = state->container.y - state->scroll + pos_y;
 
@@ -94,7 +94,7 @@ static void _item_draw(
 		if (fabs(diff) > GRAB_THRESHOLD) {
 			// Start reordering
 			item->prev_pos_y = item->pos_y;
-			tween_play(&item->pos_tween);
+			timer_play(&item->pos_tween);
 
 			queue->trying_to_grab_idx = -1;
 			queue->reordering_idx = idx;
@@ -352,7 +352,7 @@ void queue_page_draw(
 		q->is_opened = false;
 
 		if (state->prev_page == PAGE_QUEUE) {
-			if (!tween_playing(&state->page_tween)) goto defer;
+			if (!timer_playing(&state->page_tween)) goto defer;
 			transition = 1.0 - transition;
 		} else {
 			goto defer;
@@ -380,7 +380,7 @@ void queue_page_draw(
 	state->container = container;
 
 	// Draw background gradient
-	if (tween_playing(&state->page_tween)) {
+	if (timer_playing(&state->page_tween)) {
 		float offset_x = sw * (1.0 - transition * 2.0);
 		DrawRectangle(offset_x + sw, 0, sw, sh, state->background);
 		DrawRectangleGradientH(offset_x, 0, sw, sh, ColorAlpha(state->background, 0.0), state->background);

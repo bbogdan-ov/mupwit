@@ -6,7 +6,6 @@
 #include "../assets.h"
 #include "../ui/draw.h"
 #include "../ui/scrollable.h"
-#include "../ui/tween.h"
 
 #define QUEUE_PAGE_PADDING 8
 #define QUEUE_ITEM_ARTWORK_SIZE 32

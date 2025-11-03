@@ -4,7 +4,7 @@
 #include <raylib.h>
 
 #include "./client.h"
-#include "./ui/tween.h"
+#include "./ui/timer.h"
 #include "./ui/artwork_image.h"
 
 typedef enum Page {
@@ -28,12 +28,11 @@ typedef struct State {
 	Color foreground;
 	Color background;
 	Color prev_background;
-	Tween background_tween;
-	bool background_tween_finished;
+	Timer background_tween;
 
 	Page page;
 	Page prev_page;
-	Tween page_tween;
+	Timer page_tween;
 	float page_transition;
 	float prev_page_transition;
 

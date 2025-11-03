@@ -13,7 +13,7 @@ void currently_playing_draw(Client *client, State *state, Assets *assets) {
 	if (state->prev_page == PAGE_PLAYER) {
 		// padd
 	} else if (state->page == PAGE_PLAYER) {
-		if (!tween_playing(&state->page_tween)) return;
+		if (!timer_playing(&state->page_tween)) return;
 		transition = 1.0 - transition;
 	} else {
 		transition = 1.0;

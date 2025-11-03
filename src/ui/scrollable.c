@@ -11,7 +11,7 @@
 
 Scrollable scrollable_new(void) {
 	return (Scrollable){
-		.tween = tween_new(300),
+		.tween = timer_new(300, false),
 	};
 }
 
@@ -21,13 +21,13 @@ void scrollable_update(Scrollable *s) {
 	scrollable_scroll_by(s, (int)wheel.y * -SCROLL_WHEEL_MOVEMENT);
 	s->target_scroll = CLAMP(s->target_scroll, 0, s->height);
 
-	tween_update(&s->tween);
+	timer_update(&s->tween);
 
-	if (tween_playing(&s->tween)) {
+	if (timer_playing(&s->tween)) {
 		s->scroll = (int)Lerp(
 			s->prev_scroll,
 			s->target_scroll,
-			EASE_OUT_CUBIC(tween_progress(&s->tween))
+			EASE_OUT_CUBIC(timer_progress(&s->tween))
 		);
 	} else {
 		s->scroll = (int)s->target_scroll;
@@ -39,7 +39,7 @@ void scrollable_scroll_by(Scrollable *s, int movement) {
 
 	s->prev_scroll = s->scroll;
 	s->target_scroll += movement;
-	tween_play(&s->tween);
+	timer_play(&s->tween);
 }
 void scrollable_set_height(Scrollable *s, int height) {
 	s->height = MAX(height, 0);

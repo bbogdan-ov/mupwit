@@ -207,7 +207,7 @@ void albums_page_draw(AlbumsPage *a, State *state, Assets *assets) {
 	} else if (state->page == PAGE_ALBUMS) {
 		transition = 1.0;
 	} else if (state->page == PAGE_QUEUE && state->prev_page == PAGE_ALBUMS) {
-		if (!tween_playing(&state->page_tween)) return;
+		if (!timer_playing(&state->page_tween)) return;
 		transition = 1.0 - transition;
 	} else {
 		return;

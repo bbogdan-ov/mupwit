@@ -20,19 +20,18 @@ State state_new(void) {
 		.foreground = calc_foreground(THEME_BACKGROUND),
 		.background = THEME_BACKGROUND,
 		.prev_background = THEME_BACKGROUND,
-		.background_tween = tween_new(1000),
+		.background_tween = timer_new(1000, false),
 
 		.page = PAGE_PLAYER,
 		.prev_page = 0,
-		.page_tween = tween_new(200),
+		.page_tween = timer_new(200, false),
 		.page_transition = 1.0,
 	};
 }
 
 static void _state_start_background_tween(State *s) {
 	s->prev_background = s->background;
-	s->background_tween_finished = false;
-	tween_play(&s->background_tween);
+	timer_play(&s->background_tween);
 }
 
 static void _state_set_page(State *s, Page page) {
@@ -40,7 +39,7 @@ static void _state_set_page(State *s, Page page) {
 	s->page = page;
 
 	s->prev_page_transition = 1.0 - s->page_transition;
-	tween_play(&s->page_tween);
+	timer_play(&s->page_tween);
 }
 
 static void _state_set_prev_artwork(State *s) {
@@ -97,21 +96,21 @@ static void _state_update_artwork_fetching(State *s, Client *client) {
 }
 
 void state_update(State *s, Client *client) {
-	tween_update(&s->background_tween);
-	tween_update(&s->page_tween);
+	timer_update(&s->background_tween);
+	timer_update(&s->page_tween);
 
 	_state_update_artworks(s, client);
 	_state_update_artwork_fetching(s, client);
 
 	// Update background animation
-	if (!s->background_tween_finished) {
+	if (!timer_finished(&s->background_tween)) {
 		Color target_color = THEME_BACKGROUND;
 		if (s->cur_artwork.exists) {
 			target_color = s->cur_artwork.color;
 		}
 
-		if (tween_playing(&s->background_tween)) {
-			float progress = tween_progress(&s->background_tween);
+		if (timer_playing(&s->background_tween)) {
+			float progress = timer_progress(&s->background_tween);
 			s->background = ColorLerp(
 				s->prev_background,
 				target_color,
@@ -121,16 +120,15 @@ void state_update(State *s, Client *client) {
 		} else {
 			s->background = target_color;
 			s->foreground = calc_foreground(s->background);
-			s->background_tween_finished = true;
 		}
 	}
 
 	// Update page animation
-	if (tween_playing(&s->page_tween))
+	if (timer_playing(&s->page_tween))
 		s->page_transition = Lerp(
 			s->prev_page_transition,
 			1.0,
-			EASE_IN_OUT_QUAD(tween_progress(&s->page_tween))
+			EASE_IN_OUT_QUAD(timer_progress(&s->page_tween))
 		);
 	else
 		s->page_transition = 1.0;
@@ -152,7 +150,7 @@ void state_prev_page(State *s) {
 }
 
 float state_artwork_alpha(State *s) {
-	return MIN(tween_progress(&s->background_tween) * 6.0, 1.0);
+	return MIN(timer_progress(&s->background_tween) * 6.0, 1.0);
 }
 
 void state_free(State *s) {

@@ -4,7 +4,7 @@
 #include <mpd/client.h>
 
 #include "../ui/draw.h"
-#include "../ui/tween.h"
+#include "../ui/timer.h"
 
 typedef struct QueueItem {
 	// Position of the entry in the queue (0-based)
@@ -23,7 +23,7 @@ typedef struct QueueItem {
 	// Previous drawing position assigned before playing `pos_tween`.
 	// Used to smoothly interpolate between this value and `pos_y`.
 	float prev_pos_y;
-	Tween pos_tween;
+	Timer pos_tween;
 
 	// Prerendered song duration in human-readable format
 	char duration_str[TIME_BUF_LEN];

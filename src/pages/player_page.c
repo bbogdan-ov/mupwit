@@ -44,7 +44,7 @@ void player_page_draw(Client *client, State *state, Assets *assets) {
 	} else if (state->page == PAGE_PLAYER) {
 		transition = 1.0;
 	} else if (state->page == PAGE_QUEUE && state->prev_page == PAGE_PLAYER) {
-		if (!tween_playing(&state->page_tween)) return;
+		if (!timer_playing(&state->page_tween)) return;
 		transition = 1.0 - transition;
 	} else {
 		return;

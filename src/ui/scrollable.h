@@ -1,7 +1,7 @@
 #ifndef SCROLLABLE_H
 #define SCROLLABLE_H
 
-#include "./tween.h"
+#include "./timer.h"
 #include "../state.h"
 
 typedef struct Scrollable {
@@ -9,7 +9,7 @@ typedef struct Scrollable {
 	int prev_scroll;
 	int target_scroll;
 	int height;
-	Tween tween;
+	Timer tween;
 } Scrollable;
 
 Scrollable scrollable_new(void);
