@@ -7,6 +7,7 @@
 
 #include "./macros.h"
 #include "./client/queue.h"
+#include "./client/albums.h"
 #include "./client/requests.h"
 
 #include "../thirdparty/uthash.h"
@@ -73,9 +74,10 @@ typedef enum Event {
 	EVENT_SONG_CHANGED = 1 << 2,
 	// Current queue was changed outside MUPWIT (something else made queue change)
 	EVENT_QUEUE_CHANGED = 1 << 3,
+	EVENT_DATABASE_CHANGED = 1 << 4,
 
 	// Response received
-	EVENT_RESPONSE = 1 << 4,
+	EVENT_RESPONSE = 1 << 5,
 } Event;
 
 typedef struct Client {
@@ -114,6 +116,9 @@ typedef struct Client {
 
 	pthread_mutex_t _queue_mutex;
 	Queue _queue;
+
+	pthread_mutex_t _albums_mutex;
+	Albums _albums;
 
 	pthread_mutex_t _state_mutex;
 	ClientState _state;
@@ -172,6 +177,12 @@ void client_unlock_status(Client *c);
 const Queue *client_lock_queue(Client *c);
 // Unlock queue mutex
 void client_unlock_queue(Client *c);
+
+// Lock and get albums list
+// DON'T FORGET TO `client_unlock_albums` IT BEFORE YOU'RE DONE DOING THINGS
+const Albums *client_lock_albums(Client *c);
+// Unlock albums mutex
+void client_unlock_albums(Client *c);
 
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);
 

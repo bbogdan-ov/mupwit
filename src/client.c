@@ -52,6 +52,7 @@ Client client_new(void) {
 	INIT_MUTEX(actions_mutex);
 	INIT_MUTEX(acc_events_mutex);
 	INIT_MUTEX(queue_mutex);
+	INIT_MUTEX(albums_mutex);
 	INIT_MUTEX(reqs_mutex);
 
 	return (Client){
@@ -68,10 +69,24 @@ Client client_new(void) {
 		._reqs = NULL,
 		._cur_req = NULL,
 
+		._queue_mutex = queue_mutex,
+		._queue = (Queue){
+			.items = NULL,
+			.len = 0,
+			.cap = 0,
+			.total_duration_sec = 0,
+		},
+
+		._albums_mutex = albums_mutex,
+		._albums = (Albums){
+			.items = NULL,
+			.len = 0,
+			.cap = 0,
+		},
+
 		._state_mutex   = state_mutex,
 		._status_mutex  = status_mutex,
 		._actions_mutex = actions_mutex,
-		._queue_mutex   = queue_mutex,
 	};
 }
 
@@ -432,6 +447,12 @@ void _client_fetch_queue(Client *c) {
 	UNLOCK(&c->_queue_mutex);
 }
 
+void _client_fetch_albums(Client *c) {
+	LOCK(&c->_albums_mutex);
+	albums_fetch(&c->_albums, c->_conn);
+	UNLOCK(&c->_albums_mutex);
+}
+
 bool _conn_run_toggle(struct mpd_connection *conn) {
 	bool res = mpd_send_command(conn, "pause", NULL);
 	if (res) {
@@ -574,6 +595,12 @@ static void _client_handle_idle(Client *c, enum mpd_idle idle) {
 			// Fetch queue if it was changed outside MUPWIT
 			_client_fetch_queue(c);
 		}
+	}
+
+	if (idle & MPD_IDLE_DATABASE) {
+		_client_add_event(c, EVENT_DATABASE_CHANGED);
+
+		_client_fetch_albums(c);
 	}
 }
 
@@ -738,6 +765,7 @@ void *do_connect(void *client) {
 
 	_client_fetch_status_and_song(c);
 	_client_fetch_queue(c);
+	_client_fetch_albums(c);
 
 	_client_event_loop(c);
 
@@ -786,6 +814,14 @@ const Queue *client_lock_queue(Client *c) {
 }
 void client_unlock_queue(Client *c) {
 	UNLOCK(&c->_queue_mutex);
+}
+
+const Albums *client_lock_albums(Client *c) {
+	LOCK(&c->_albums_mutex);
+	return &c->_albums;
+}
+void client_unlock_albums(Client *c) {
+	UNLOCK(&c->_albums_mutex);
 }
 
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag) {

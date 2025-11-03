@@ -81,6 +81,8 @@ void queue_free(Queue *q) {
 	for (size_t i = 0; i < q->len; i++) {
 		_queue_item_free(&q->items[i]);
 	}
-	q->len = 0;
 	free(q->items);
+	q->len = 0;
+	q->cap = 0;
+	q->items = NULL;
 }

@@ -10,6 +10,7 @@
 #include "./theme.h"
 #include "./restore.h"
 #include "./pages/player_page.h"
+#include "./pages/albums_page.h"
 #include "./pages/queue_page.h"
 #include "./ui/draw.h"
 #include "./ui/currently_playing.h"
@@ -34,6 +35,7 @@ int main() {
 	Assets assets = assets_new();
 
 	QueuePage queue_page = queue_page_new();
+	AlbumsPage albums_page = albums_page_new();
 
 	while (true) {
 		if (should_close()) {
@@ -93,6 +95,7 @@ int main() {
 				DrawText("error", 0, 0, 30, BLACK);
 				break;
 			case CLIENT_STATE_READY:
+				albums_page_draw(&albums_page, &client, &state, &assets);
 				player_page_draw(&client, &state, &assets);
 
 				queue_page_draw(&queue_page, &client, &state, &assets);

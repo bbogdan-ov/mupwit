@@ -15,32 +15,25 @@
 
 AlbumsPage albums_page_new(void) {
 	return (AlbumsPage){
-		.entries = (AlbumEntriesList){0},
-
 		.scrollable = scrollable_new(),
 	};
 }
 
-static void entry_free(AlbumEntry *entry) {
-	free(entry->title);
-	free(entry->artist_nullable);
-}
+static float item_width = 0;
+static float item_height = 0;
 
-static float entry_width = 0;
-static float entry_height = 0;
-
-static void entry_draw(size_t idx, AlbumEntry *e, State *state, Assets *assets) {
+static void _album_item_draw(size_t idx, AlbumItem *item, State *state, Assets *assets) {
 	Rect rect = {
-		state->container.x + (idx % ROW_COUNT) * entry_width,
-		state->container.y - state->scroll + (idx / ROW_COUNT) * entry_height,
-		entry_width,
-		entry_height
+		state->container.x + (idx % ROW_COUNT) * item_width,
+		state->container.y - state->scroll + (idx / ROW_COUNT) * item_height,
+		item_width,
+		item_height
 	};
 
 	if (!CheckCollisionRecs(rect, screen_rect())) return;
 
 	// ==============================
-	// Draw entry
+	// Draw item
 	// ==============================
 
 	Rect inner = rect_shrink(rect, PADDING, PADDING);
@@ -67,7 +60,7 @@ static void entry_draw(size_t idx, AlbumEntry *e, State *state, Assets *assets) 
 
 	// Draw title and artist
 	Text text = {
-		.text = e->artist_nullable ? e->artist_nullable : UNKNOWN,
+		.text = item->artist_nullable ? item->artist_nullable : UNKNOWN,
 		.font = assets->title_font,
 		.size = THEME_TITLE_FONT_SIZE,
 		.pos = vec(
@@ -90,7 +83,7 @@ static void entry_draw(size_t idx, AlbumEntry *e, State *state, Assets *assets) 
 
 	// Artist
 	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
-	text.text = e->title;
+	text.text = item->title;
 	text.font = assets->normal_font,
 	text.size = THEME_NORMAL_TEXT_SIZE;
 	text.pos = offset;
@@ -98,109 +91,7 @@ static void entry_draw(size_t idx, AlbumEntry *e, State *state, Assets *assets) 
 	EndScissorMode();
 }
 
-int entries_sort_func(const void* a, const void* b) {
-	const AlbumEntry *ae = a;
-	const AlbumEntry *be = b;
-	return strcmp(ae->title, be->title);
-}
-void fetch_albums(AlbumsPage *a, Client *client) {
-	// FIXME!!: refactor this function to NOT use the `mpd_connection` directly
-	// (just like `QueuePage`)
-
-	(void)a;
-	(void)client;
-
-	// struct mpd_connection *conn = client->_conn;
-	//
-	// if (false
-	// 	|| !mpd_search_db_tags(conn, MPD_TAG_ALBUM)
-	// 	|| !mpd_search_add_group_tag(conn, MPD_TAG_ARTIST)
-	// 	|| !mpd_search_commit(conn)
-	// ) {
-	// 	CONN_HANDLE_ERROR(conn);
-	// 	return;
-	// }
-	//
-	// // Free previous entries
-	// for (size_t i = 0; i < a->entries.len; i++) {
-	// 	entry_free(&a->entries.items[i]);
-	// }
-	// a->entries.len = 0;
-	// DA_RESERVE(&a->entries, 64);
-	//
-	// // Collect all albums and their artists
-	// char *cur_artist = NULL;
-	// while (true) {
-	// 	struct mpd_pair *pair = mpd_recv_pair(conn);
-	// 	if (!pair) break;
-	//
-	// 	if (strcmp(pair->name, "Artist") == 0) {
-	// 		cur_artist = strdup(pair->value);
-	// 	}
-	//
-	// 	if (strcmp(pair->name, "Album") == 0 && strlen(pair->value) > 0) {
-	// 		AlbumEntry entry = {
-	// 			.title = strdup(pair->value),
-	// 			.artist_nullable = cur_artist ? strdup(cur_artist) : NULL,
-	// 		};
-	// 		DA_PUSH(&a->entries, entry);
-	// 	}
-	//
-	// 	mpd_return_pair(conn, pair);
-	// }
-	//
-	// qsort(
-	// 	a->entries.items,
-	// 	a->entries.len,
-	// 	sizeof(a->entries.items[0]),
-	// 	entries_sort_func
-	// );
-	//
-	// if (!mpd_response_finish(conn))
-	// 	CONN_HANDLE_ERROR(conn);
-	//
-	// // ==============================
-	// // Fetch first song of each album
-	// // ==============================
-	// for (size_t i = 0; i < a->entries.len; i++) {
-	// 	AlbumEntry *entry = &a->entries.items[i];
-	//
-	// 	if (false
-	// 		|| !mpd_search_db_songs(conn, true)
-	// 		|| !mpd_search_add_tag_constraint(conn, MPD_OPERATOR_DEFAULT, MPD_TAG_ALBUM, entry->title)
-	// 		|| !mpd_search_add_window(conn, 0, 1)
-	// 		|| !mpd_search_commit(conn)
-	// 	) {
-	// 		CONN_HANDLE_ERROR(conn);
-	// 		continue;
-	// 	}
-	//
-	// 	// Receive info for the first song in the album
-	// 	{
-	// 		struct mpd_pair *pair = mpd_recv_pair_named(conn, "file");
-	// 		if (!pair) continue;
-	//
-	// 		entry->first_song_uri_nullable = strdup(pair->value);
-	//
-	// 		mpd_return_pair(conn, pair);
-	// 	}
-	//
-	// 	if (!mpd_response_finish(conn))
-	// 		CONN_HANDLE_ERROR(conn);
-	// }
-}
-
-void albums_page_update(AlbumsPage *a, Client *client) {
-	static bool initialized = false;
-
-	// TODO: update albums list when database has been updated
-	if (!initialized) {
-		fetch_albums(a, client);
-		initialized = true;
-	}
-}
-
-void albums_page_draw(AlbumsPage *a, State *state, Assets *assets) {
+void albums_page_draw(AlbumsPage *a, Client *client, State *state, Assets *assets) {
 	float transition = state->page_transition;
 	if (state->page == PAGE_ALBUMS && state->prev_page == PAGE_QUEUE) {
 		// pass
@@ -213,6 +104,8 @@ void albums_page_draw(AlbumsPage *a, State *state, Assets *assets) {
 		return;
 	}
 
+	const Albums *albums = client_lock_albums(client);
+
 	int sw = GetScreenWidth();
 	int sh = GetScreenHeight();
 
@@ -223,12 +116,12 @@ void albums_page_draw(AlbumsPage *a, State *state, Assets *assets) {
 		sh - PADDING*2 - CUR_PLAY_HEIGHT
 	);
 
-	// Calculate entries size
-	entry_width = container.width / ROW_COUNT;
-	entry_height = entry_width + THEME_NORMAL_TEXT_SIZE + PADDING;
+	// Calculate items size
+	item_width = container.width / ROW_COUNT;
+	item_height = item_width + THEME_NORMAL_TEXT_SIZE + PADDING;
 
 	// Update scrollable
-	float all_entries_height = a->entries.len/ROW_COUNT * entry_height + entry_height;
+	float all_entries_height = albums->len/ROW_COUNT * item_height + item_height;
 	scrollable_set_height(
 		&a->scrollable,
 		all_entries_height - container.height
@@ -242,18 +135,13 @@ void albums_page_draw(AlbumsPage *a, State *state, Assets *assets) {
 	scrollable_draw_thumb(&a->scrollable, state, state->foreground);
 
 	// ==============================
-	// Draw entries
+	// Draw items
 	// ==============================
 
-	for (size_t i = 0; i < a->entries.len; i++) {
-		AlbumEntry *entry = &a->entries.items[i];
-		entry_draw(i, entry, state, assets);
+	for (size_t i = 0; i < albums->len; i++) {
+		AlbumItem *item = &albums->items[i];
+		_album_item_draw(i, item, state, assets);
 	}
-}
 
-void albums_page_free(AlbumsPage *a) {
-	for (size_t i = 0; i < a->entries.len; i++) {
-		entry_free(&a->entries.items[i]);
-	}
-	a->entries.len = 0;
+	client_unlock_albums(client);
 }

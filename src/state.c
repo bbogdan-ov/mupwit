@@ -146,15 +146,15 @@ void state_update(State *s, Client *client) {
 void state_next_page(State *s) {
 	switch (s->page) {
 		case PAGE_PLAYER: _state_set_page(s, PAGE_QUEUE); break;
-		case PAGE_QUEUE: _state_set_page(s, PAGE_PLAYER); break;
-		case PAGE_ALBUMS: TODO("switch to player page"); break;
+		case PAGE_QUEUE: _state_set_page(s, PAGE_ALBUMS); break;
+		case PAGE_ALBUMS: _state_set_page(s, PAGE_PLAYER); break;
 	}
 }
 void state_prev_page(State *s) {
 	switch (s->page) {
-		case PAGE_PLAYER: _state_set_page(s, PAGE_QUEUE); break;
+		case PAGE_PLAYER: _state_set_page(s, PAGE_ALBUMS); break;
 		case PAGE_QUEUE: _state_set_page(s, PAGE_PLAYER); break;
-		case PAGE_ALBUMS: TODO("switch to queue page"); break;
+		case PAGE_ALBUMS: _state_set_page(s, PAGE_QUEUE); break;
 	}
 }
 
