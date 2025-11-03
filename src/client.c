@@ -293,6 +293,15 @@ static int readpicture(
 	return size;
 }
 
+static void _client_set_response(Client *c, Request *req, Image image, Color color) {
+	req->data.image = image;
+	req->data.color = color;
+	req->status = REQ_READY;
+
+	if (!req->canceled)
+		_client_add_event(c, EVENT_RESPONSE);
+}
+
 typedef struct DecodeArtworkArgs {
 	Client *client;
 	const char *filetype;
@@ -313,15 +322,8 @@ static void *_decode_artwork(void *args_) {
 	);
 
 	LOCK(&c->_reqs_mutex);
-
-	args->req->data.image = image;
-	args->req->data.color = image_average_color(image);
-	args->req->status = REQ_READY;
-
+	_client_set_response(c, args->req, image, image_average_color(image));
 	UNLOCK(&c->_reqs_mutex);
-
-	if (!args->req->canceled)
-		_client_add_event(c, EVENT_RESPONSE);
 
 	free(args->buffer);
 	free(args);
@@ -373,13 +375,7 @@ bool _client_fetch_song_artwork(Client *c, Request *req) {
 	return true;
 
 nope:
-	// TODO: refactor this code, it is almost the same as in `_decode_artwork`
-	req->data.image = (Image){0};
-	req->data.color = (Color){0};
-	req->status = REQ_READY;
-
-	if (!req->canceled)
-		_client_add_event(c, EVENT_RESPONSE);
+	_client_set_response(c, req, (Image){0}, (Color){0});
 	return false;
 }
 
