@@ -7,6 +7,8 @@
 
 #include <raymath.h>
 
+#define ARTWORK_FETCH_DELAY_MS 150
+
 static Color calc_foreground(Color bg) {
 	return ColorBrightness(bg, -0.15);
 }
@@ -16,6 +18,7 @@ State state_new(void) {
 		.prev_artwork = artwork_image_new(),
 		.cur_artwork = artwork_image_new(),
 		.cur_artwork_image = (Image){0},
+		.artwork_fetch_timer = timer_new(ARTWORK_FETCH_DELAY_MS, false),
 
 		.foreground = calc_foreground(THEME_BACKGROUND),
 		.background = THEME_BACKGROUND,
@@ -78,19 +81,24 @@ static void _state_update_artworks(State *s, Client *client) {
 }
 
 static void _state_update_artwork_fetching(State *s, Client *client) {
+	if (s->fetch_artwork_on_timer_finish && timer_finished(&s->artwork_fetch_timer)) {
+		const struct mpd_song *cur_song_nullable;
+		client_lock_status_nullable(client, &cur_song_nullable, NULL);
+
+		if (cur_song_nullable) {
+			const char *song_uri = mpd_song_get_uri(cur_song_nullable);
+			artwork_image_fetch(&s->cur_artwork, client, song_uri);
+		}
+
+		client_unlock_status(client);
+		s->fetch_artwork_on_timer_finish = false;
+	}
+
 	static bool first = true;
 	if (!first && (client->events & EVENT_SONG_CHANGED) == 0) return;
 
-	// TODO!!: add delay between artwork requests, a.k.a ✨"debounce"✨ if you are a web dev
-	const struct mpd_song *cur_song_nullable;
-	client_lock_status_nullable(client, &cur_song_nullable, NULL);
-
-	if (cur_song_nullable) {
-		const char *song_uri = mpd_song_get_uri(cur_song_nullable);
-		artwork_image_fetch(&s->cur_artwork, client, song_uri);
-	}
-
-	client_unlock_status(client);
+	timer_play(&s->artwork_fetch_timer);
+	s->fetch_artwork_on_timer_finish = true;
 
 	first = false;
 }
@@ -98,6 +106,7 @@ static void _state_update_artwork_fetching(State *s, Client *client) {
 void state_update(State *s, Client *client) {
 	timer_update(&s->background_tween);
 	timer_update(&s->page_tween);
+	timer_update(&s->artwork_fetch_timer);
 
 	_state_update_artworks(s, client);
 	_state_update_artwork_fetching(s, client);

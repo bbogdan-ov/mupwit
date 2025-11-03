@@ -22,6 +22,8 @@ typedef struct State {
 	ArtworkImage cur_artwork;
 	// Image data of the current artwork image
 	Image cur_artwork_image;
+	Timer artwork_fetch_timer;
+	bool fetch_artwork_on_timer_finish;
 
 	MouseCursor cursor;
 
