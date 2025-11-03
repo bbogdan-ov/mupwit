@@ -614,6 +614,17 @@ static void _client_fetch_requests(Client *c, enum mpd_idle *idle) {
 	UNLOCK(&c->_reqs_mutex);
 }
 
+void _client_free(Client *c) {
+	// Free allocated memory by the client
+	mpd_connection_free(c->_conn);
+	_client_free_cur_status(c);
+	_client_free_cur_song(c);
+
+	LOCK(&c->_queue_mutex);
+	queue_free(&c->_queue);
+	UNLOCK(&c->_queue_mutex);
+}
+
 // Client event loop
 // Runs 30 times per second in a separate thread
 void _client_event_loop(Client *c) {
@@ -680,14 +691,7 @@ void _client_event_loop(Client *c) {
 		SLEEP_MS(INTERVAL_MS);
 	}
 
-	// Free allocated memory by the client
-	mpd_connection_free(c->_conn);
-	_client_free_cur_status(c);
-	_client_free_cur_song(c);
-
-	LOCK(&c->_queue_mutex);
-	queue_free(&c->_queue);
-	UNLOCK(&c->_queue_mutex);
+	_client_free(c);
 
 	TraceLog(LOG_INFO, "MPD CLIENT: Connection was successfully closed");
 }
