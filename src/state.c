@@ -43,54 +43,65 @@ static void _state_set_page(State *s, Page page) {
 	tween_play(&s->page_tween);
 }
 
+static void _state_set_prev_artwork(State *s) {
+	if (!s->cur_artwork.exists) {
+		if (s->cur_artwork_image.data != NULL) {
+			UnloadImage(s->cur_artwork_image);
+			s->cur_artwork_image = (Image){0};
+		}
+
+		s->prev_artwork.exists = false;
+		return;
+	}
+
+	if (s->cur_artwork_image.data != NULL) {
+		update_texture_from_image(&s->prev_artwork.texture, s->cur_artwork_image);
+		UnloadImage(s->cur_artwork_image);
+		s->cur_artwork_image = (Image){0};
+	}
+
+	s->prev_artwork.color = s->cur_artwork.color;
+	s->prev_artwork.exists = true;
+}
+
+static void _state_update_artworks(State *s, Client *client) {
+	Image image = {0};
+	Color color = {0};
+	bool artwork_received = artwork_image_poll(&s->cur_artwork, client, &image, &color);
+	if (!artwork_received) return;
+
+	_state_set_prev_artwork(s);
+	_state_start_background_tween(s);
+
+	artwork_image_update(&s->cur_artwork, image, color);
+
+	s->cur_artwork_image = image;
+}
+
+static void _state_update_artwork_fetching(State *s, Client *client) {
+	static bool first = true;
+	if (!first && (client->events & EVENT_SONG_CHANGED) == 0) return;
+
+	// TODO!!: add delay between artwork requests, a.k.a ✨"debounce"✨ if you are a web dev
+	const struct mpd_song *cur_song_nullable;
+	client_lock_status_nullable(client, &cur_song_nullable, NULL);
+
+	if (cur_song_nullable) {
+		const char *song_uri = mpd_song_get_uri(cur_song_nullable);
+		artwork_image_fetch(&s->cur_artwork, client, song_uri);
+	}
+
+	client_unlock_status(client);
+
+	first = false;
+}
+
 void state_update(State *s, Client *client) {
 	tween_update(&s->background_tween);
 	tween_update(&s->page_tween);
 
-	// TODO: refactor this code
-	Image image = {0};
-	Color cur_color = s->cur_artwork.color;
-	bool cur_exists = s->cur_artwork.exists;
-	bool artwork_updated = artwork_image_update(&s->cur_artwork, client, &image);
-	if (artwork_updated) {
-		if (cur_exists) {
-			if (s->cur_artwork_image.data != NULL) {
-				update_texture_from_image(&s->prev_artwork.texture, s->cur_artwork_image);
-				UnloadImage(s->cur_artwork_image);
-				s->cur_artwork_image = (Image){0};
-			}
-
-			s->prev_artwork.color = cur_color;
-			s->prev_artwork.exists = true;
-		} else {
-			if (s->cur_artwork_image.data != NULL) {
-				UnloadImage(s->cur_artwork_image);
-				s->cur_artwork_image = (Image){0};
-			}
-
-			s->prev_artwork.exists = false;
-		}
-
-		s->cur_artwork_image = image;
-		_state_start_background_tween(s);
-	}
-
-	// Request artwork of the currently playing song
-	static bool initialized = false;
-	if (!initialized || client->events & EVENT_SONG_CHANGED) {
-		// TODO!!: add delay between artwork requests, a.k.a ✨"debounce"✨ if you are a web dev
-
-		const struct mpd_song *cur_song_nullable;
-		client_lock_status_nullable(client, &cur_song_nullable, NULL);
-
-		if (cur_song_nullable) {
-			const char *song_uri = mpd_song_get_uri(cur_song_nullable);
-			artwork_image_fetch(&s->cur_artwork, client, song_uri);
-		}
-
-		client_unlock_status(client);
-		initialized = true;
-	}
+	_state_update_artworks(s, client);
+	_state_update_artwork_fetching(s, client);
 
 	// Update background animation
 	if (!s->background_tween_finished) {

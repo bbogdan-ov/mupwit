@@ -148,8 +148,8 @@ void client_clear_events(Client *c);
 int client_request(Client *c, const char *song_uri);
 // Get the requested artwork from `client_request()` if any
 // Returns whether your artwork is ready and assigns `image` and `color`
-// Assigned `image` and `color` may be zeroed which means there is no artwork
-bool client_request_get_artwork(Client *c, int id, Image *image, Color *color);
+// Assigned `image` and `color` may be zeroed which means there is no artwork image
+bool client_request_poll_artwork(Client *c, int id, Image *image, Color *color);
 void client_cancel_request(Client *c, int id);
 
 // Connect to a MPD server

@@ -21,11 +21,11 @@ ArtworkImage artwork_image_new(void);
 
 void artwork_image_fetch(ArtworkImage *a, Client *client, const char *song_uri);
 
-// Update `ArtworkImage` 60 per second
-// Sets received `image`, pass NULL if you don't care
-// It may set zeroed `image` which means there is no artwork
-//
-// Returns whether the texture was changed
-bool artwork_image_update(ArtworkImage *a, Client *client, Image *image);
+// Poll requested image
+// Returns whether the artwork is ready and assigns `image` and `color`
+// Assigned `image` and `color` may be zeroed which means there is no artwork image
+bool artwork_image_poll(ArtworkImage *a, Client *client, Image *image, Color *color);
+
+void artwork_image_update(ArtworkImage *a, Image image, Color color);
 
 #endif

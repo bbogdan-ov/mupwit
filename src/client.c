@@ -159,7 +159,7 @@ int client_request(Client *c, const char *song_uri) {
 	return req->id;
 }
 
-bool client_request_get_artwork(Client *c, int id, Image *image, Color *color) {
+bool client_request_poll_artwork(Client *c, int id, Image *image, Color *color) {
 	assert(id > 0);
 	assert(image != NULL);
 	assert(color != NULL);

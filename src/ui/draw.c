@@ -188,6 +188,8 @@ int fast_str_fmt(char *buffer, const char *s) {
 }
 
 void update_texture_from_image(Texture *tex, Image image) {
+	assert(image.data != NULL);
+
 	if (tex->id <= 0) {
 		*tex = LoadTextureFromImage(image);
 		SetTextureFilter(*tex, TEXTURE_FILTER_BILINEAR);
