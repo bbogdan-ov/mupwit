@@ -217,7 +217,10 @@ void _client_set_cur_song(Client *c, struct mpd_song *song) {
 	LOCK(&c->_status_mutex);
 	if (c->_cur_song_nullable)
 		mpd_song_free(c->_cur_song_nullable);
+
 	c->_cur_song_nullable = song;
+	c->_cur_song_filename_nullable = path_basename(mpd_song_get_uri(song));
+
 	UNLOCK(&c->_status_mutex);
 }
 

@@ -1,15 +1,19 @@
 #include "./queue.h"
 #include "../client.h"
 #include "../macros.h"
+#include "../utils.h"
 #include "../pages/queue_page.h"
 
 static QueueItem _queue_item_new(unsigned number, struct mpd_entity *entity) {
 	assert(mpd_entity_get_type(entity) == MPD_ENTITY_TYPE_SONG);
 	const struct mpd_song *song = mpd_entity_get_song(entity);
 
+	const char *filename = path_basename(mpd_song_get_uri(song));
+
 	QueueItem item = {
 		.number = number,
 		.entity = entity,
+		.filename = filename,
 
 		.pos_y = number * QUEUE_ITEM_HEIGHT,
 		.prev_pos_y = number * QUEUE_ITEM_HEIGHT,

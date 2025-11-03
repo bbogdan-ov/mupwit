@@ -12,6 +12,7 @@ typedef struct QueueItem {
 	// MPD queue entity/song
 	// Type is guaranteed to be `MPD_ENTITY_TYPE_SONG`
 	struct mpd_entity *entity;
+	const char *filename;
 
 	// ==============================
 	// UI related stuff

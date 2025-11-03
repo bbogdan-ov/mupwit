@@ -184,20 +184,34 @@ static void _item_draw(
 
 	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
 
+	const char *title = mpd_song_get_tag(song, MPD_TAG_TITLE, 0);
+	const char *artist_nullable = mpd_song_get_tag(song, MPD_TAG_ARTIST, 0);
+	if (!title) {
+		title = item->filename;
+	}
+
 	// Draw song title
-	text.text = song_tag_or_unknown(song, MPD_TAG_TITLE);
+	text.text = title;
 	text.color = THEME_TEXT;
 	text.pos = vec(
 		inner.x,
 		inner.y + QUEUE_ITEM_HEIGHT/2 - THEME_NORMAL_TEXT_SIZE
 	);
+
+	if (!artist_nullable) {
+		// Center title if artist is unknown
+		text.pos.y += THEME_NORMAL_TEXT_SIZE/2;
+	}
+
 	draw_cropped_text(text, inner.width, background);
 	text.pos.y += THEME_NORMAL_TEXT_SIZE;
 
 	// Draw song artist
-	text.text = song_tag_or_unknown(song, MPD_TAG_ARTIST);
-	text.color = THEME_SUBTLE_TEXT;
-	draw_cropped_text(text, inner.width, background);
+	if (artist_nullable) {
+		text.text = artist_nullable;
+		text.color = THEME_SUBTLE_TEXT;
+		draw_cropped_text(text, inner.width, background);
+	}
 
 	EndScissorMode();
 }

@@ -1,5 +1,16 @@
+#include <string.h>
+
 #include "./utils.h"
 #include "./macros.h"
+
+const char *path_basename(const char *path) {
+	if (!path) return NULL;
+	const char *basename = strrchr(path, '/');
+	if (basename)
+		return basename + 1; // +1 to exclude '/'
+	else
+		return path;
+}
 
 Color image_average_color(Image image) {
 	int comps = 0;

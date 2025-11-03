@@ -72,8 +72,15 @@ void player_page_draw(Client *client, State *state, Assets *assets) {
 	}
 
 	if (cur_song_nullable) {
-		// TODO: Set song title of it's filename
-		title = song_tag_or_unknown(cur_song_nullable, MPD_TAG_TITLE);
+		title = mpd_song_get_tag(cur_song_nullable, MPD_TAG_TITLE, 0);
+		if (!title) {
+			if (client->_cur_song_filename_nullable) {
+				title = client->_cur_song_filename_nullable;
+			} else {
+				title = UNKNOWN;
+			}
+		}
+
 		album = song_tag_or_unknown(cur_song_nullable, MPD_TAG_ALBUM);
 		artist = song_tag_or_unknown(cur_song_nullable, MPD_TAG_ARTIST);
 	}
