@@ -647,6 +647,10 @@ void _client_free(Client *c) {
 	LOCK(&c->_queue_mutex);
 	queue_free(&c->_queue);
 	UNLOCK(&c->_queue_mutex);
+
+	LOCK(&c->_albums_mutex);
+	albums_free(&c->_albums);
+	UNLOCK(&c->_albums_mutex);
 }
 
 // Client event loop

@@ -44,6 +44,7 @@ void albums_fetch(Albums *a, struct mpd_connection *conn) {
 		if (!pair) break;
 
 		if (strcmp(pair->name, "Artist") == 0) {
+			free(cur_artist);
 			cur_artist = strdup(pair->value);
 		}
 
@@ -58,6 +59,7 @@ void albums_fetch(Albums *a, struct mpd_connection *conn) {
 
 		mpd_return_pair(conn, pair);
 	}
+	free(cur_artist);
 
 	qsort(a->items, a->len, sizeof(a->items[0]), _items_sort_func);
 
