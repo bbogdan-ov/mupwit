@@ -5,6 +5,8 @@
 #include <pthread.h>
 #include <mpd/client.h>
 
+typedef struct Client Client;
+
 #include "./macros.h"
 #include "./client/queue.h"
 #include "./client/albums.h"
@@ -80,7 +82,7 @@ typedef enum Event {
 	EVENT_RESPONSE = 1 << 5,
 } Event;
 
-typedef struct Client {
+struct Client {
 	pthread_mutex_t _actions_mutex;
 	ActionsQueue _actions;
 
@@ -125,7 +127,7 @@ typedef struct Client {
 	struct mpd_connection *_conn;
 
 	pthread_t _thread;
-} Client;
+};
 
 // Logs connect error if any has occured and returns `true`, otherwise `false`
 bool conn_handle_error(struct mpd_connection *conn, const char *file, int line);

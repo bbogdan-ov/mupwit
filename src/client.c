@@ -605,7 +605,7 @@ static void _client_handle_idle(Client *c, enum mpd_idle idle) {
 }
 
 static void _client_fetch_requests(Client *c, enum mpd_idle *idle) {
-#define BATCH 4
+#define BATCH 1
 
 	if (TRYLOCK(&c->_reqs_mutex) != 0) return;
 

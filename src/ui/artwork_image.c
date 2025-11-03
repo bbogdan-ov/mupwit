@@ -12,8 +12,7 @@ ArtworkImage artwork_image_new(void) {
 }
 
 void artwork_image_fetch(ArtworkImage *a, Client *client, const char *song_uri) {
-	if (a->req_id_nullable > 0)
-		client_cancel_request(client, a->req_id_nullable);
+	artwork_image_cancel(a, client);
 
 	int id = client_request(client, song_uri);
 	a->req_id_nullable = id;
@@ -22,8 +21,15 @@ void artwork_image_fetch(ArtworkImage *a, Client *client, const char *song_uri) 
 	a->received = false;
 }
 
+void artwork_image_cancel(ArtworkImage *a, Client *client) {
+	if (a->req_id_nullable > 0) {
+		client_cancel_request(client, a->req_id_nullable);
+		a->req_id_nullable = -1;
+	}
+}
+
 bool artwork_image_poll(ArtworkImage *a, Client *client, Image *image, Color *color) {
-	if (a->req_id_nullable <= 0 || a->received) return false;
+	if (!artwork_image_is_fetching(a) || a->received) return false;
 
 	if ((client->events & EVENT_RESPONSE) == 0)
 		return false;
@@ -34,6 +40,7 @@ bool artwork_image_poll(ArtworkImage *a, Client *client, Image *image, Color *co
 		image,
 		color
 	);
+	if (a->received) a->req_id_nullable = -1;
 	return a->received;
 }
 
@@ -45,4 +52,8 @@ void artwork_image_update(ArtworkImage *a, Image image, Color color) {
 	} else {
 		a->exists = false;
 	}
+}
+
+bool artwork_image_is_fetching(const ArtworkImage *a) {
+	return a->req_id_nullable > 0;
 }

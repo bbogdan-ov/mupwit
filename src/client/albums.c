@@ -2,9 +2,22 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "./albums.h"
+// NOTE: 'albums.h' must be included after 'client.h' because of
+// stupid ass C preprocessing (absolutely not my fault)
 #include "../client.h"
+#include "./albums.h"
 #include "../macros.h"
+
+static AlbumItem _album_item_new(char *title, char *artist) {
+	return (AlbumItem){
+		.title = title,
+		.artist_nullable = artist,
+		.first_song_uri_nullable = NULL,
+
+		.artwork = artwork_image_new(),
+		.artwork_tween = timer_new(300, false),
+	};
+}
 
 static void _album_item_free(AlbumItem *item) {
 	free(item->title);
@@ -49,11 +62,10 @@ void albums_fetch(Albums *a, struct mpd_connection *conn) {
 		}
 
 		if (strcmp(pair->name, "Album") == 0 && strlen(pair->value) > 0) {
-			AlbumItem item = {
-				.title = strdup(pair->value),
-				.artist_nullable = cur_artist ? strdup(cur_artist) : NULL,
-				.first_song_uri_nullable = NULL,
-			};
+			AlbumItem item = _album_item_new(
+				strdup(pair->value),
+				cur_artist ? strdup(cur_artist) : NULL
+			);
 			DA_PUSH(a, item);
 		}
 

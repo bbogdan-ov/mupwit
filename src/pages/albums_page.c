@@ -22,7 +22,36 @@ AlbumsPage albums_page_new(void) {
 static float item_width = 0;
 static float item_height = 0;
 
-static void _album_item_draw(size_t idx, AlbumItem *item, State *state, Assets *assets) {
+static void _album_item_update_artwork(AlbumItem *item, Client *client, bool in_view) {
+	if (item->artwork.received) return;
+
+	if (artwork_image_is_fetching(&item->artwork)) {
+		if (in_view) {
+			Image image;
+			Color color;
+			bool received = artwork_image_poll(&item->artwork, client, &image, &color);
+
+			if (received) {
+				artwork_image_update(&item->artwork, image, color);
+				UnloadImage(image);
+
+				timer_play(&item->artwork_tween);
+			}
+		} else {
+			artwork_image_cancel(&item->artwork, client);
+		}
+	} else if (in_view) {
+		artwork_image_fetch(&item->artwork, client, item->first_song_uri_nullable);
+	}
+}
+
+static void _album_item_draw(
+	size_t idx,
+	AlbumItem *item,
+	Client *client,
+	State *state,
+	Assets *assets
+) {
 	Rect rect = {
 		state->container.x + (idx % ROW_COUNT) * item_width,
 		state->container.y - state->scroll + (idx / ROW_COUNT) * item_height,
@@ -30,7 +59,12 @@ static void _album_item_draw(size_t idx, AlbumItem *item, State *state, Assets *
 		item_height
 	};
 
-	if (!CheckCollisionRecs(rect, screen_rect())) return;
+	bool in_view = CheckCollisionRecs(rect, screen_rect());
+	_album_item_update_artwork(item, client, in_view);
+
+	if (!in_view) return;
+
+	timer_update(&item->artwork_tween);
 
 	// ==============================
 	// Draw item
@@ -53,8 +87,12 @@ static void _album_item_draw(size_t idx, AlbumItem *item, State *state, Assets *
 		state->cursor = MOUSE_CURSOR_POINTING_HAND;
 	}
 
-	// Draw artwork placeholder
+	// Draw artwork
 	Rect artwork_rect = {offset.x, offset.y, inner.width, inner.width};
+	if (item->artwork.exists) {
+		float alpha = timer_progress(&item->artwork_tween);
+		draw_texture_quad(item->artwork.texture, artwork_rect, ColorAlpha(WHITE, alpha));
+	}
 	draw_box(assets, BOX_3D, rect_shrink(artwork_rect, -1, -1), THEME_BLACK);
 	offset.y += artwork_rect.height + GAP;
 
@@ -140,7 +178,7 @@ void albums_page_draw(AlbumsPage *a, Client *client, State *state, Assets *asset
 
 	for (size_t i = 0; i < albums->len; i++) {
 		AlbumItem *item = &albums->items[i];
-		_album_item_draw(i, item, state, assets);
+		_album_item_draw(i, item, client, state, assets);
 	}
 
 	client_unlock_albums(client);

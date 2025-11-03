@@ -3,8 +3,6 @@
 
 #include <raylib.h>
 
-#include "../client.h"
-
 typedef struct ArtworkImage {
 	// ID of the request
 	// Can be -1
@@ -17,9 +15,14 @@ typedef struct ArtworkImage {
 	bool received;
 } ArtworkImage;
 
+// NOTE: this must be included right here because of
+// C preprocessing quirks (absolutely not my fault)
+#include "../client.h"
+
 ArtworkImage artwork_image_new(void);
 
 void artwork_image_fetch(ArtworkImage *a, Client *client, const char *song_uri);
+void artwork_image_cancel(ArtworkImage *a, Client *client);
 
 // Poll requested image
 // Returns whether the artwork is ready and assigns `image` and `color`
@@ -27,5 +30,7 @@ void artwork_image_fetch(ArtworkImage *a, Client *client, const char *song_uri);
 bool artwork_image_poll(ArtworkImage *a, Client *client, Image *image, Color *color);
 
 void artwork_image_update(ArtworkImage *a, Image image, Color color);
+
+bool artwork_image_is_fetching(const ArtworkImage *a);
 
 #endif
