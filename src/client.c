@@ -179,7 +179,7 @@ bool client_request_poll_artwork(Client *c, int id, Image *image, Color *color) 
 	assert(image != NULL);
 	assert(color != NULL);
 
-	LOCK(&c->_reqs_mutex);
+	if (TRYLOCK(&c->_reqs_mutex) != 0) return false;
 
 	Request *req = NULL;
 	HASH_FIND_INT(c->_reqs, &id, req);

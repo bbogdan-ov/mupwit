@@ -48,7 +48,6 @@ int main() {
 		ClientState client_state = client_get_state(&client);
 
 		if (client_state == CLIENT_STATE_READY) {
-
 			bool is_shift = is_shift_down();
 			if (is_key_pressed(KEY_TAB)) {
 				if (is_shift)
