@@ -544,10 +544,7 @@ static void _client_handle_action(Client *c, Action action) {
 
 		case ACTION_REORDER_QUEUE:
 			res = mpd_run_move(conn, action.data.reorder.from, action.data.reorder.to);
-			if (res)
-				c->_queue_changed = true;
-			else
-				_client_add_event(c, EVENT_REORDER_QUEUE_FAILED);
+			if (res) c->_queue_changed = true;
 			break;
 
 		case ACTION_CLOSE:

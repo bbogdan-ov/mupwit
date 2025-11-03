@@ -74,11 +74,8 @@ typedef enum Event {
 	// Current queue was changed outside MUPWIT (something else made queue change)
 	EVENT_QUEUE_CHANGED = 1 << 3,
 
-	// Previous `ACTION_REORDER_QUEUE` failed for some reason
-	EVENT_REORDER_QUEUE_FAILED = 1 << 4,
-
 	// Response received
-	EVENT_RESPONSE = 1 << 5,
+	EVENT_RESPONSE = 1 << 4,
 } Event;
 
 typedef struct Client {
