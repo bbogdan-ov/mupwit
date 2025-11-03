@@ -25,6 +25,8 @@ static float item_height = 0;
 static void _album_item_update_artwork(AlbumItem *item, Client *client, bool in_view) {
 	if (item->artwork.received) return;
 
+	// FIXME!!!!: artwork loading is annoyingly laggy! Needs to be fixed ASAP!
+
 	if (artwork_image_is_fetching(&item->artwork)) {
 		if (in_view) {
 			Image image;
