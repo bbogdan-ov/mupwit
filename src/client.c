@@ -22,6 +22,7 @@ bool conn_handle_error(struct mpd_connection *conn, const char *file, int line) 
 	if (err != MPD_ERROR_SUCCESS) {
 		const char *msg = mpd_connection_get_error_message(conn);
 		TraceLog(LOG_ERROR, "MPD CLIENT (at %s:%d): CONNECTION ERROR: %s (%d)", file, line, msg, err);
+		mpd_connection_clear_error(conn); // ignore return error because we don't care
 		return true;
 	}
 	return false;
