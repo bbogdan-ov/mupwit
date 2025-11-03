@@ -120,6 +120,7 @@ static void _client_free_canceled_request(Client *c, Request *req) {
 		TraceLog(LOG_INFO, "MPD CLIENT: Request %d was freed due being canceled", req->id);
 
 	HASH_DEL(c->_reqs, req);
+	free(req->song_uri);
 	free(req);
 }
 

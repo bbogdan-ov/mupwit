@@ -113,6 +113,8 @@ int main() {
 
 	CloseWindow();
 
+	state_free(&state);
+
 	// Wait untill the connection is closed
 	client_wait_for_thread(&client);
 

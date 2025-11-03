@@ -52,4 +52,6 @@ void state_prev_page(State *s);
 
 float state_artwork_alpha(State *s);
 
+void state_free(State *s);
+
 #endif

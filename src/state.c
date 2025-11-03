@@ -15,6 +15,7 @@ State state_new(void) {
 	return (State){
 		.prev_artwork = artwork_image_new(),
 		.cur_artwork = artwork_image_new(),
+		.cur_artwork_image = (Image){0},
 
 		.foreground = calc_foreground(THEME_BACKGROUND),
 		.background = THEME_BACKGROUND,
@@ -141,4 +142,9 @@ void state_prev_page(State *s) {
 
 float state_artwork_alpha(State *s) {
 	return MIN(tween_progress(&s->background_tween) * 6.0, 1.0);
+}
+
+void state_free(State *s) {
+	if (s->cur_artwork_image.data)
+		UnloadImage(s->cur_artwork_image);
 }
