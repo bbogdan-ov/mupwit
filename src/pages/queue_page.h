@@ -3,44 +3,19 @@
 
 #include "../client.h"
 #include "../state.h"
+#include "../assets.h"
 #include "../ui/draw.h"
 #include "../ui/scrollable.h"
 #include "../ui/tween.h"
 
+#define QUEUE_PAGE_PADDING 8
+#define QUEUE_ITEM_ARTWORK_SIZE 32
+#define QUEUE_ITEM_HEIGHT (QUEUE_ITEM_ARTWORK_SIZE + QUEUE_PAGE_PADDING*2)
+
 #define QUEUE_STATS_PADDING 4
 #define QUEUE_STATS_HEIGHT (THEME_NORMAL_TEXT_SIZE + QUEUE_STATS_PADDING*2)
 
-typedef struct QueueEntry {
-	// Position of the entry in the queue (0-based)
-	int number;
-
-	// Current drawing position of the entry UI element
-	float pos_y;
-	// Previous drawing position of the entry UI element assigned before
-	// playing `pos_tween`.
-	// Used to smoothly interpolate between this value and `target_pos_y`.
-	float prev_pos_y;
-	Tween pos_tween;
-
-	// MPD queue entity/song
-	// Type is guaranteed to be MPD_ENTITY_TYPE_SONG
-	struct mpd_entity *entity;
-	// Prerendered song duration in human-readable format
-	char duration_text[TIME_BUF_LEN];
-} QueueEntry;
-
-typedef struct QueueEntriesList {
-	QueueEntry *items;
-	size_t len;
-	size_t cap;
-} QueueEntriesList;
-
 typedef struct QueuePage {
-	// Array of song UI elements in the current queue
-	QueueEntriesList entries;
-
-	unsigned total_duration;
-
 	int trying_to_grab_idx;
 	// Currently reordering entry index
 	// -1 - nothing is being dragged
@@ -58,8 +33,11 @@ QueuePage queue_page_new(void);
 
 void queue_page_update(QueuePage *q, Client *client);
 
-void queue_page_draw(QueuePage *q, Client *client, State *state);
-
-void queue_page_free(QueuePage *q);
+void queue_page_draw(
+	QueuePage *q,
+	Client *client,
+	State *state,
+	Assets *assets
+);
 
 #endif

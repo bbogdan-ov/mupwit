@@ -3,7 +3,8 @@
 
 #include "../state.h"
 #include "../client.h"
+#include "../assets.h"
 
-void player_page_draw(Client *client, State *state);
+void player_page_draw(Client *client, State *state, Assets *assets);
 
 #endif

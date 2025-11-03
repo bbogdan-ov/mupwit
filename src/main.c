@@ -1,15 +1,16 @@
 #include <stdio.h>
 #include <raylib.h>
 #include <assert.h>
+#include <unistd.h>
 
-#include "./client.h"
+#include "./assets.h"
 #include "./state.h"
+#include "./client.h"
 #include "./macros.h"
 #include "./theme.h"
 #include "./restore.h"
 #include "./pages/player_page.h"
 #include "./pages/queue_page.h"
-#include "./pages/albums_page.h"
 #include "./ui/draw.h"
 #include "./ui/currently_playing.h"
 
@@ -30,14 +31,22 @@ int main() {
 	client_connect(&client);
 
 	State state = state_new();
+	Assets assets = assets_new();
 
 	QueuePage queue_page = queue_page_new();
-	AlbumsPage albums_page = albums_page_new();
 
-	while (!should_close()) {
+	while (true) {
+		if (should_close()) {
+			client_push_action_kind(&client, ACTION_CLOSE);
+			break;
+		}
+
+		client_clear_events(&client);
+
 		ClientState client_state = client_get_state(&client);
 
 		if (client_state == CLIENT_STATE_READY) {
+
 			bool is_shift = is_shift_down();
 			if (is_key_pressed(KEY_TAB)) {
 				if (is_shift)
@@ -49,15 +58,22 @@ int main() {
 				client_push_action_kind(&client, ACTION_TOGGLE);
 			}
 
-			state_update(&state);
+			state_update(&state, &client);
 			queue_page_update(&queue_page, &client);
-			albums_page_update(&albums_page, &client);
-
-			client_update(&client, &state);
 		}
 
 		BeginDrawing();
-		if (should_skip_drawing()) continue;
+
+		if (should_skip_drawing()) {
+			// It will update every second instead of 60 times per second so we
+			// don't waste CPU resources
+			sleep(1);
+
+			// NOTE: we are still calling BeginDrawing() and EndDrawing() because
+			// it is essential to things like GetFrameTime() to work
+			EndDrawing();
+			continue;
+		}
 
 		ClearBackground(state.background);
 
@@ -77,12 +93,11 @@ int main() {
 				DrawText("error", 0, 0, 30, BLACK);
 				break;
 			case CLIENT_STATE_READY:
-				player_page_draw(&client, &state);
-				albums_page_draw(&albums_page, &state);
+				player_page_draw(&client, &state, &assets);
 
-				queue_page_draw(&queue_page, &client, &state);
+				queue_page_draw(&queue_page, &client, &state, &assets);
 
-				currently_playing_draw(&client, &state);
+				currently_playing_draw(&client, &state, &assets);
 				break;
 		}
 
@@ -98,8 +113,10 @@ int main() {
 
 	CloseWindow();
 
-	client_free(&client);
-	queue_page_free(&queue_page);
+	// Wait untill the connection is closed
+	client_wait_for_thread(&client);
+
+	TraceLog(LOG_INFO, "MUPWIT: Bye");
 
 	return 0;
 }

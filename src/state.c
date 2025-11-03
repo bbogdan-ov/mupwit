@@ -7,36 +7,14 @@
 
 #include <raymath.h>
 
-#include "../build/assets.h"
-
-#define FONT(NAME) (Font){ \
-		.baseSize = NAME ## _BASE_SIZE, \
-		.glyphCount = NAME ## _GLYPH_COUNT, \
-		.glyphPadding = NAME ## _GLYPH_PADDING, \
-		.texture = LoadTextureFromImage( \
-			(Image){NAME ## _IMAGE_DATA, NAME ## _IMAGE_WIDTH, NAME ## _IMAGE_HEIGHT, 1, NAME ## _PIXEL_FORMAT} \
-		), \
-		.recs = NAME ## _RECTS, \
-		.glyphs = NAME ## _GLYPHS, \
-	}
-
-#define TEXTURE(NAME) LoadTextureFromImage( \
-	(Image){NAME ## _DATA, NAME ## _WIDTH,  NAME ## _HEIGHT, 1, NAME ## _PIXEL_FORMAT})
-
-Color calc_foreground(Color bg) {
+static Color calc_foreground(Color bg) {
 	return ColorBrightness(bg, -0.15);
 }
 
 State state_new(void) {
 	return (State){
-		.normal_font = FONT(code9x7),
-		.title_font = FONT(comicoro),
-
-		.icons = TEXTURE(icons),
-		.boxes = TEXTURE(boxes),
-		.lines = TEXTURE(lines),
-
-		.empty_artwork = TEXTURE(empty_artwork),
+		.prev_artwork = artwork_image_new(),
+		.cur_artwork = artwork_image_new(),
 
 		.foreground = calc_foreground(THEME_BACKGROUND),
 		.background = THEME_BACKGROUND,
@@ -50,14 +28,74 @@ State state_new(void) {
 	};
 }
 
-void state_update(State *s) {
+static void _state_start_background_tween(State *s) {
+	s->prev_background = s->background;
+	s->background_tween_finished = false;
+	tween_play(&s->background_tween);
+}
+
+static void _state_set_page(State *s, Page page) {
+	s->prev_page = s->page;
+	s->page = page;
+
+	s->prev_page_transition = 1.0 - s->page_transition;
+	tween_play(&s->page_tween);
+}
+
+void state_update(State *s, Client *client) {
 	tween_update(&s->background_tween);
 	tween_update(&s->page_tween);
 
+	// TODO: refactor this code
+	Image image = {0};
+	Color cur_color = s->cur_artwork.color;
+	bool cur_exists = s->cur_artwork.exists;
+	bool artwork_updated = artwork_image_update(&s->cur_artwork, client, &image);
+	if (artwork_updated) {
+		if (cur_exists) {
+			if (s->cur_artwork_image.data != NULL) {
+				update_texture_from_image(&s->prev_artwork.texture, s->cur_artwork_image);
+				UnloadImage(s->cur_artwork_image);
+				s->cur_artwork_image = (Image){0};
+			}
+
+			s->prev_artwork.color = cur_color;
+			s->prev_artwork.exists = true;
+		} else {
+			if (s->cur_artwork_image.data != NULL) {
+				UnloadImage(s->cur_artwork_image);
+				s->cur_artwork_image = (Image){0};
+			}
+
+			s->prev_artwork.exists = false;
+		}
+
+		s->cur_artwork_image = image;
+		_state_start_background_tween(s);
+	}
+
+	// Request artwork of the currently playing song
+	static bool initialized = false;
+	if (!initialized || client->events & EVENT_SONG_CHANGED) {
+		// TODO!!: add delay between artwork requests, a.k.a ✨"debounce"✨ if you are a web dev
+
+		const struct mpd_song *cur_song_nullable;
+		client_lock_status_nullable(client, &cur_song_nullable, NULL);
+
+		if (cur_song_nullable) {
+			const char *song_uri = mpd_song_get_uri(cur_song_nullable);
+			artwork_image_fetch(&s->cur_artwork, client, song_uri);
+		}
+
+		client_unlock_status(client);
+		initialized = true;
+	}
+
+	// Update background animation
 	if (!s->background_tween_finished) {
 		Color target_color = THEME_BACKGROUND;
 		if (s->cur_artwork.exists) {
-			target_color = s->cur_artwork.average;
+			target_color = s->cur_artwork.color;
 		}
 
 		if (tween_playing(&s->background_tween)) {
@@ -75,6 +113,7 @@ void state_update(State *s) {
 		}
 	}
 
+	// Update page animation
 	if (tween_playing(&s->page_tween))
 		s->page_transition = Lerp(
 			s->prev_page_transition,
@@ -85,64 +124,18 @@ void state_update(State *s) {
 		s->page_transition = 1.0;
 }
 
-void start_background_tween(State *s) {
-	s->prev_background = s->background;
-	s->background_tween_finished = false;
-	tween_play(&s->background_tween);
-}
-
-void set_prev_artwork(State *s) {
-	// FIXME: raylib won't allow me to update the texture size, so
-	// i have to delete the previous texture and create a new one. Or does it?..
-	if (s->prev_artwork.exists)
-		UnloadTexture(s->prev_artwork.texture);
-
-	if (!s->cur_artwork.exists || s->cur_artwork.texture.id == 0) {
-		s->prev_artwork.exists = false;
-		return;
-	}
-
-	s->prev_artwork = s->cur_artwork;
-	s->prev_artwork.exists = true;
-}
-
-void state_set_artwork(State *s, Image image, Color average) {
-	set_prev_artwork(s);
-
-	// Update current artwork texture
-	s->cur_artwork.texture = LoadTextureFromImage(image);
-	SetTextureFilter(s->cur_artwork.texture, TEXTURE_FILTER_BILINEAR);
-	s->cur_artwork.average = average;
-	s->cur_artwork.exists = true;
-
-	start_background_tween(s);
-}
-void state_clear_artwork(State *s) {
-	set_prev_artwork(s);
-	s->cur_artwork.exists = false;
-	start_background_tween(s);
-}
-
-void set_page(State *s, Page page) {
-	s->prev_page = s->page;
-	s->page = page;
-
-	s->prev_page_transition = 1.0 - s->page_transition;
-	tween_play(&s->page_tween);
-}
-
 void state_next_page(State *s) {
 	switch (s->page) {
-		case PAGE_PLAYER: set_page(s, PAGE_QUEUE); break;
-		case PAGE_QUEUE: set_page(s, PAGE_ALBUMS); break;
-		case PAGE_ALBUMS: set_page(s, PAGE_PLAYER); break;
+		case PAGE_PLAYER: _state_set_page(s, PAGE_QUEUE); break;
+		case PAGE_QUEUE: _state_set_page(s, PAGE_PLAYER); break;
+		case PAGE_ALBUMS: TODO("switch to player page"); break;
 	}
 }
 void state_prev_page(State *s) {
 	switch (s->page) {
-		case PAGE_PLAYER: set_page(s, PAGE_ALBUMS); break;
-		case PAGE_QUEUE: set_page(s, PAGE_PLAYER); break;
-		case PAGE_ALBUMS: set_page(s, PAGE_QUEUE); break;
+		case PAGE_PLAYER: _state_set_page(s, PAGE_QUEUE); break;
+		case PAGE_QUEUE: _state_set_page(s, PAGE_PLAYER); break;
+		case PAGE_ALBUMS: TODO("switch to queue page"); break;
 	}
 }
 

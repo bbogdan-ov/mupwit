@@ -29,7 +29,7 @@ static void entry_free(AlbumEntry *entry) {
 static float entry_width = 0;
 static float entry_height = 0;
 
-static void entry_draw(size_t idx, AlbumEntry *e, State *state) {
+static void entry_draw(size_t idx, AlbumEntry *e, State *state, Assets *assets) {
 	Rect rect = {
 		state->container.x + (idx % ROW_COUNT) * entry_width,
 		state->container.y - state->scroll + (idx / ROW_COUNT) * entry_height,
@@ -55,20 +55,20 @@ static void entry_draw(size_t idx, AlbumEntry *e, State *state) {
 	if (is_hovering) {
 		// Draw background
 		background = state->foreground;
-		draw_box(state, BOX_FILLED_ROUNDED, rect, background);
+		draw_box(assets, BOX_FILLED_ROUNDED, rect, background);
 
 		state->cursor = MOUSE_CURSOR_POINTING_HAND;
 	}
 
 	// Draw artwork placeholder
 	Rect artwork_rect = {offset.x, offset.y, inner.width, inner.width};
-	draw_box(state, BOX_3D, rect_shrink(artwork_rect, -1, -1), THEME_BLACK);
+	draw_box(assets, BOX_3D, rect_shrink(artwork_rect, -1, -1), THEME_BLACK);
 	offset.y += artwork_rect.height + GAP;
 
 	// Draw title and artist
 	Text text = {
 		.text = e->artist_nullable ? e->artist_nullable : UNKNOWN,
-		.font = state->title_font,
+		.font = assets->title_font,
 		.size = THEME_TITLE_FONT_SIZE,
 		.pos = vec(
 			artwork_rect.x + PADDING,
@@ -91,7 +91,7 @@ static void entry_draw(size_t idx, AlbumEntry *e, State *state) {
 	// Artist
 	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
 	text.text = e->title;
-	text.font = state->normal_font,
+	text.font = assets->normal_font,
 	text.size = THEME_NORMAL_TEXT_SIZE;
 	text.pos = offset;
 	draw_cropped_text(text, inner.width, background);
@@ -104,84 +104,90 @@ int entries_sort_func(const void* a, const void* b) {
 	return strcmp(ae->title, be->title);
 }
 void fetch_albums(AlbumsPage *a, Client *client) {
-	struct mpd_connection *conn = client->_conn;
+	// FIXME!!: refactor this function to NOT use the `mpd_connection` directly
+	// (just like `QueuePage`)
 
-	if (false
-		|| !mpd_search_db_tags(conn, MPD_TAG_ALBUM)
-		|| !mpd_search_add_group_tag(conn, MPD_TAG_ARTIST)
-		|| !mpd_search_commit(conn)
-	) {
-		CONN_HANDLE_ERROR(conn);
-		return;
-	}
+	(void)a;
+	(void)client;
 
-	// Free previous entries
-	for (size_t i = 0; i < a->entries.len; i++) {
-		entry_free(&a->entries.items[i]);
-	}
-	a->entries.len = 0;
-	DA_RESERVE(&a->entries, 64);
-
-	// Collect all albums and their artists
-	char *cur_artist = NULL;
-	while (true) {
-		struct mpd_pair *pair = mpd_recv_pair(conn);
-		if (!pair) break;
-
-		if (strcmp(pair->name, "Artist") == 0) {
-			cur_artist = strdup(pair->value);
-		}
-
-		if (strcmp(pair->name, "Album") == 0 && strlen(pair->value) > 0) {
-			AlbumEntry entry = {
-				.title = strdup(pair->value),
-				.artist_nullable = cur_artist ? strdup(cur_artist) : NULL,
-			};
-			DA_PUSH(&a->entries, entry);
-		}
-
-		mpd_return_pair(conn, pair);
-	}
-
-	qsort(
-		a->entries.items,
-		a->entries.len,
-		sizeof(a->entries.items[0]),
-		entries_sort_func
-	);
-
-	if (!mpd_response_finish(conn))
-		CONN_HANDLE_ERROR(conn);
-
-	// ==============================
-	// Fetch first song of each album
-	// ==============================
-	for (size_t i = 0; i < a->entries.len; i++) {
-		AlbumEntry *entry = &a->entries.items[i];
-
-		if (false
-			|| !mpd_search_db_songs(conn, true)
-			|| !mpd_search_add_tag_constraint(conn, MPD_OPERATOR_DEFAULT, MPD_TAG_ALBUM, entry->title)
-			|| !mpd_search_add_window(conn, 0, 1)
-			|| !mpd_search_commit(conn)
-		) {
-			CONN_HANDLE_ERROR(conn);
-			continue;
-		}
-
-		// Receive info for the first song in the album
-		{
-			struct mpd_pair *pair = mpd_recv_pair_named(conn, "file");
-			if (!pair) continue;
-
-			entry->first_song_uri_nullable = strdup(pair->value);
-
-			mpd_return_pair(conn, pair);
-		}
-
-		if (!mpd_response_finish(conn))
-			CONN_HANDLE_ERROR(conn);
-	}
+	// struct mpd_connection *conn = client->_conn;
+	//
+	// if (false
+	// 	|| !mpd_search_db_tags(conn, MPD_TAG_ALBUM)
+	// 	|| !mpd_search_add_group_tag(conn, MPD_TAG_ARTIST)
+	// 	|| !mpd_search_commit(conn)
+	// ) {
+	// 	CONN_HANDLE_ERROR(conn);
+	// 	return;
+	// }
+	//
+	// // Free previous entries
+	// for (size_t i = 0; i < a->entries.len; i++) {
+	// 	entry_free(&a->entries.items[i]);
+	// }
+	// a->entries.len = 0;
+	// DA_RESERVE(&a->entries, 64);
+	//
+	// // Collect all albums and their artists
+	// char *cur_artist = NULL;
+	// while (true) {
+	// 	struct mpd_pair *pair = mpd_recv_pair(conn);
+	// 	if (!pair) break;
+	//
+	// 	if (strcmp(pair->name, "Artist") == 0) {
+	// 		cur_artist = strdup(pair->value);
+	// 	}
+	//
+	// 	if (strcmp(pair->name, "Album") == 0 && strlen(pair->value) > 0) {
+	// 		AlbumEntry entry = {
+	// 			.title = strdup(pair->value),
+	// 			.artist_nullable = cur_artist ? strdup(cur_artist) : NULL,
+	// 		};
+	// 		DA_PUSH(&a->entries, entry);
+	// 	}
+	//
+	// 	mpd_return_pair(conn, pair);
+	// }
+	//
+	// qsort(
+	// 	a->entries.items,
+	// 	a->entries.len,
+	// 	sizeof(a->entries.items[0]),
+	// 	entries_sort_func
+	// );
+	//
+	// if (!mpd_response_finish(conn))
+	// 	CONN_HANDLE_ERROR(conn);
+	//
+	// // ==============================
+	// // Fetch first song of each album
+	// // ==============================
+	// for (size_t i = 0; i < a->entries.len; i++) {
+	// 	AlbumEntry *entry = &a->entries.items[i];
+	//
+	// 	if (false
+	// 		|| !mpd_search_db_songs(conn, true)
+	// 		|| !mpd_search_add_tag_constraint(conn, MPD_OPERATOR_DEFAULT, MPD_TAG_ALBUM, entry->title)
+	// 		|| !mpd_search_add_window(conn, 0, 1)
+	// 		|| !mpd_search_commit(conn)
+	// 	) {
+	// 		CONN_HANDLE_ERROR(conn);
+	// 		continue;
+	// 	}
+	//
+	// 	// Receive info for the first song in the album
+	// 	{
+	// 		struct mpd_pair *pair = mpd_recv_pair_named(conn, "file");
+	// 		if (!pair) continue;
+	//
+	// 		entry->first_song_uri_nullable = strdup(pair->value);
+	//
+	// 		mpd_return_pair(conn, pair);
+	// 	}
+	//
+	// 	if (!mpd_response_finish(conn))
+	// 		CONN_HANDLE_ERROR(conn);
+	// }
 }
 
 void albums_page_update(AlbumsPage *a, Client *client) {
@@ -194,7 +200,7 @@ void albums_page_update(AlbumsPage *a, Client *client) {
 	}
 }
 
-void albums_page_draw(AlbumsPage *a, State *state) {
+void albums_page_draw(AlbumsPage *a, State *state, Assets *assets) {
 	float transition = state->page_transition;
 	if (state->page == PAGE_ALBUMS && state->prev_page == PAGE_QUEUE) {
 		// pass
@@ -241,7 +247,7 @@ void albums_page_draw(AlbumsPage *a, State *state) {
 
 	for (size_t i = 0; i < a->entries.len; i++) {
 		AlbumEntry *entry = &a->entries.items[i];
-		entry_draw(i, entry, state);
+		entry_draw(i, entry, state, assets);
 	}
 }
 

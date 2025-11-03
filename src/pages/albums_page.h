@@ -3,6 +3,7 @@
 
 #include "../client.h"
 #include "../state.h"
+#include "../assets.h"
 #include "../ui/scrollable.h"
 
 typedef struct AlbumEntry {
@@ -27,7 +28,7 @@ AlbumsPage albums_page_new(void);
 
 void albums_page_update(AlbumsPage *a, Client *client);
 
-void albums_page_draw(AlbumsPage *a, State *state);
+void albums_page_draw(AlbumsPage *a, State *state, Assets *assets);
 
 void albums_page_free(AlbumsPage *a);
 

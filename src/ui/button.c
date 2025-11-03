@@ -1,6 +1,6 @@
 #include "./button.h"
 
-bool draw_icon_button(State *state, Icon icon, Vec pos) {
+bool draw_icon_button(State *state, Assets *assets, Icon icon, Vec pos) {
 	Rect rec = rect(pos.x, pos.y, ICON_BUTTON_SIZE, ICON_BUTTON_SIZE);
 	bool is_hovering = CheckCollisionPointRec(get_mouse_pos(), rec);
 
@@ -11,7 +11,7 @@ bool draw_icon_button(State *state, Icon icon, Vec pos) {
 
 	pos.x += ICON_BUTTON_SIZE/2 - ICON_SIZE/2;
 	pos.y += ICON_BUTTON_SIZE/2 - ICON_SIZE/2;
-	draw_icon(state, icon, pos, THEME_BLACK);
+	draw_icon(assets, icon, pos, THEME_BLACK);
 
 	return is_hovering && IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
 }

@@ -18,7 +18,7 @@
 static int artwork_frame = 0;
 static int artwork_frame_timer = 0;
 
-void draw_artwork(Artwork *artwork, Texture empty_artwork, Rect rect, Color tint) {
+void draw_artwork(ArtworkImage *artwork, Texture empty_artwork, Rect rect, Color tint) {
 #define FRAME_WIDTH 296
 #define FRAMES_COUNT 4
 #define FRAME_DELAY_MS (1000/2) // 2 fps
@@ -37,7 +37,7 @@ void draw_artwork(Artwork *artwork, Texture empty_artwork, Rect rect, Color tint
 	}
 }
 
-void player_page_draw(Client *client, State *state) {
+void player_page_draw(Client *client, State *state, Assets *assets) {
 	float transition = state->page_transition;
 	if (state->page == PAGE_PLAYER && state->prev_page == PAGE_QUEUE) {
 		// pass
@@ -50,6 +50,14 @@ void player_page_draw(Client *client, State *state) {
 		return;
 	}
 
+	const struct mpd_song   *cur_song_nullable;
+	const struct mpd_status *cur_status_nullable;
+	client_lock_status_nullable(
+		client,
+		&cur_song_nullable,
+		&cur_status_nullable
+	);
+
 	const char *title = UNKNOWN;
 	const char *album = UNKNOWN;
 	const char *artist = UNKNOWN;
@@ -57,16 +65,17 @@ void player_page_draw(Client *client, State *state) {
 	unsigned elapsed_sec = 0;
 	unsigned duration_sec = 0;
 
-	if (client->cur_status) {
-		playstate = mpd_status_get_state(client->cur_status);
-		elapsed_sec = (unsigned)(mpd_status_get_elapsed_ms(client->cur_status) / 1000);
-		duration_sec = mpd_status_get_total_time(client->cur_status);
+	if (cur_status_nullable) {
+		playstate = mpd_status_get_state(cur_status_nullable);
+		elapsed_sec = (unsigned)(mpd_status_get_elapsed_ms(cur_status_nullable) / 1000);
+		duration_sec = mpd_status_get_total_time(cur_status_nullable);
 	}
 
-	if (client->cur_song) {
-		title = song_title_or_filename(client, client->cur_song);
-		album = song_tag_or_unknown(client->cur_song, MPD_TAG_ALBUM);
-		artist = song_tag_or_unknown(client->cur_song, MPD_TAG_ARTIST);
+	if (cur_song_nullable) {
+		// TODO: Set song title of it's filename
+		title = song_tag_or_unknown(cur_song_nullable, MPD_TAG_TITLE);
+		album = song_tag_or_unknown(cur_song_nullable, MPD_TAG_ALBUM);
+		artist = song_tag_or_unknown(cur_song_nullable, MPD_TAG_ARTIST);
 	}
 
 	int sw = GetScreenWidth();
@@ -83,20 +92,20 @@ void player_page_draw(Client *client, State *state) {
 	// Previous artwork
 	draw_artwork(
 		&state->prev_artwork,
-		state->empty_artwork,
+		assets->empty_artwork,
 		artwork_rect,
 		WHITE
 	);
 	// Current artwork
 	draw_artwork(
 		&state->cur_artwork,
-		state->empty_artwork,
+		assets->empty_artwork,
 		artwork_rect,
 		ColorAlpha(WHITE, state_artwork_alpha(state))
 	);
 
 	// Artwork border
-	draw_box(state, BOX_3D, rect_shrink(artwork_rect, -1, -1), THEME_BLACK);
+	draw_box(assets, BOX_3D, rect_shrink(artwork_rect, -1, -1), THEME_BLACK);
 
 	offset.y += artwork_rect.height + GAP;
 
@@ -113,7 +122,7 @@ void player_page_draw(Client *client, State *state) {
 
 	Text text = (Text){
 		.text = title,
-		.font = state->title_font,
+		.font = assets->title_font,
 		.size = THEME_TITLE_TEXT_SIZE,
 		.pos = offset,
 		.color = THEME_TEXT,
@@ -130,7 +139,7 @@ void player_page_draw(Client *client, State *state) {
 	// Draw artist and album
 	text = (Text){
 		.text = artist_str,
-		.font = state->normal_font,
+		.font = assets->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
 		.pos = offset,
 		.color = THEME_SUBTLE_TEXT,
@@ -144,14 +153,14 @@ void player_page_draw(Client *client, State *state) {
 	offset.y += GAP;
 
 	draw_box(
-		state,
+		assets,
 		BOX_ROUNDED,
 		rect(offset.x, offset.y, ICON_BUTTON_SIZE * 3, ICON_BUTTON_SIZE),
 		THEME_BLACK
 	);
 
 	// Previous button
-	if (draw_icon_button(state, ICON_PREV, offset)) {
+	if (draw_icon_button(state, assets, ICON_PREV, offset)) {
 		client_push_action_kind(client, ACTION_PREV);
 	}
 	offset.x += ICON_BUTTON_SIZE;
@@ -159,13 +168,13 @@ void player_page_draw(Client *client, State *state) {
 	// Play button
 	Icon play_icon = ICON_PLAY;
 	if (playstate == MPD_STATE_PLAY) play_icon = ICON_PAUSE;
-	if (draw_icon_button(state, play_icon, offset)) {
+	if (draw_icon_button(state, assets, play_icon, offset)) {
 		client_push_action_kind(client, ACTION_TOGGLE);
 	}
 	offset.x += ICON_BUTTON_SIZE;
 
 	// Next button
-	if (draw_icon_button(state, ICON_NEXT, offset)) {
+	if (draw_icon_button(state, assets, ICON_NEXT, offset)) {
 		client_push_action_kind(client, ACTION_NEXT);
 	}
 	offset.x += ICON_BUTTON_SIZE;
@@ -184,7 +193,7 @@ void player_page_draw(Client *client, State *state) {
 	bar.progress = (float)elapsed_sec / (float)duration_sec;
 	bar.color = THEME_BLACK;
 
-	progress_bar_draw(state, &bar);
+	progress_bar_draw(&bar, state, assets);
 
 	if (bar.events & PROGRESS_BAR_DRAGGING) {
 		elapsed_sec = (int)(bar.progress * duration_sec);
@@ -217,4 +226,6 @@ void player_page_draw(Client *client, State *state) {
 		// TODO: temporarily
 		SetWindowSize(sw, offset.y);
 	}
+
+	client_unlock_status(client);
 }

@@ -7,7 +7,7 @@
 #define PADDING_RIGHT 16
 #define GAP 8
 
-void currently_playing_draw(Client *client, State *state) {
+void currently_playing_draw(Client *client, State *state, Assets *assets) {
 	// Show everywhere except player page
 	float transition = state->page_transition;
 	if (state->prev_page == PAGE_PLAYER) {
@@ -19,6 +19,14 @@ void currently_playing_draw(Client *client, State *state) {
 		transition = 1.0;
 	}
 
+	const struct mpd_song   *cur_song_nullable;
+	const struct mpd_status *cur_status_nullable;
+	client_lock_status_nullable(
+		client,
+		&cur_song_nullable,
+		&cur_status_nullable
+	);
+
 	// TODO: refactor, this code is almost the same as in `player_page_draw()`
 	const char *title = UNKNOWN;
 	const char *artist = UNKNOWN;
@@ -26,15 +34,16 @@ void currently_playing_draw(Client *client, State *state) {
 	unsigned elapsed_sec = 0;
 	unsigned duration_sec = 0;
 
-	if (client->cur_status) {
-		playstate = mpd_status_get_state(client->cur_status);
-		elapsed_sec = (unsigned)(mpd_status_get_elapsed_ms(client->cur_status) / 1000);
-		duration_sec = mpd_status_get_total_time(client->cur_status);
+	if (cur_status_nullable) {
+		playstate = mpd_status_get_state(cur_status_nullable);
+		elapsed_sec = (unsigned)(mpd_status_get_elapsed_ms(cur_status_nullable) / 1000);
+		duration_sec = mpd_status_get_total_time(cur_status_nullable);
 	}
 
-	if (client->cur_song) {
-		title = song_title_or_filename(client, client->cur_song);
-		artist = song_tag_or_unknown(client->cur_song, MPD_TAG_ARTIST);
+	if (cur_song_nullable) {
+		// TODO: Set song title of it's filename
+		title = song_tag_or_unknown(cur_song_nullable, MPD_TAG_TITLE);
+		artist = song_tag_or_unknown(cur_song_nullable, MPD_TAG_ARTIST);
 	}
 
 	int sw = GetScreenWidth();
@@ -69,7 +78,7 @@ void currently_playing_draw(Client *client, State *state) {
 	// Draw "play" button
 	Icon play_icon = ICON_PLAY;
 	if (playstate == MPD_STATE_PLAY) play_icon = ICON_PAUSE;
-	if (draw_icon_button(state, play_icon, offset)) {
+	if (draw_icon_button(state, assets, play_icon, offset)) {
 		client_push_action_kind(client, ACTION_TOGGLE);
 	}
 	offset.x += ICON_BUTTON_SIZE + GAP;
@@ -88,7 +97,7 @@ void currently_playing_draw(Client *client, State *state) {
 
 	Text text = {
 		.text = title,
-		.font = state->normal_font,
+		.font = assets->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
 		.pos = offset,
 		.color = THEME_BLACK,
@@ -117,7 +126,7 @@ void currently_playing_draw(Client *client, State *state) {
 	bar.progress = (float)elapsed_sec / (float)duration_sec,
 	bar.color = THEME_BLACK,
 
-	progress_bar_draw(state, &bar);
+	progress_bar_draw(&bar, state, assets);
 
 	if (bar.events & PROGRESS_BAR_DRAGGING) {
 		elapsed_sec = (int)(bar.progress * duration_sec);
@@ -128,4 +137,6 @@ void currently_playing_draw(Client *client, State *state) {
 			{.seek_seconds = elapsed_sec}
 		});
 	}
+
+	client_unlock_status(client);
 }

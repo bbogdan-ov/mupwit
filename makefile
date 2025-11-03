@@ -1,5 +1,5 @@
 FLAGS := -Wall -Wextra -std=c99 -pedantic
-LIBS := -lraylib -lmpdclient -lm
+LIBS := -lraylib -lmpdclient -lm -lGL
 
 SOURCES := $(shell find src/ -name '*.c')
 INCLUDES := $(shell find src/ -name '*.h')
@@ -29,10 +29,10 @@ build/mupwit: $(SOURCES) $(INCLUDES) build/assets.h build/assets.o
 
 # Compile 'assets.h' down to an object file so we don't compile it every time we
 # change source files of the projects
-build/assets.o: build/assets.h
+build/assets.o: build/assets.c build/assets.h
 	@echo "Precompiling assets object file..."
-	@gcc $(FLAGS) -DASSETS_IMPLEMENTATION -c -x c -O3 \
-		build/assets.h -o build/assets.o
+	@gcc $(FLAGS) -c -x c -O3 \
+		build/assets.c -o build/assets.o
 
 # Generate 'assets'.h
 build/assets.h: build/gen_assets $(ASSETS)

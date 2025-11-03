@@ -8,18 +8,12 @@
 
 #include <raymath.h>
 
-#define PADDING 8
-
-#define ARTWORK_SIZE 32
-#define ENTRY_HEIGHT (ARTWORK_SIZE + PADDING*2)
-
 #define GRAB_THRESHOLD 8
 
 // TODO: draw "no songs" when queue is empty
 
 QueuePage queue_page_new(void) {
 	return (QueuePage){
-		.entries = (QueueEntriesList){0},
 		.trying_to_grab_idx = -1,
 		.reordering_idx = -1,
 
@@ -27,77 +21,67 @@ QueuePage queue_page_new(void) {
 	};
 }
 
-static QueueEntry entry_new(struct mpd_entity *entity, size_t number) {
-	const struct mpd_song *song = mpd_entity_get_song(entity);
-
-	QueueEntry entry = {
-		.number = number,
-
-		.pos_y = number * ENTRY_HEIGHT,
-		.prev_pos_y = number * ENTRY_HEIGHT,
-		.pos_tween = tween_new(200),
-
-		.entity = entity,
-	};
-
-	format_time(entry.duration_text, mpd_song_get_duration(song), false);
-
-	return entry;
-}
-static void entry_free(QueueEntry *e) {
-	if (e->entity) {
-		mpd_entity_free(e->entity);
-		e->entity = NULL;
-	}
-}
-
-static void entry_tween_to_rest(QueueEntry *e) {
+static void _item_tween_to_rest(QueueItem *e) {
 	e->prev_pos_y = e->pos_y;
-	e->pos_y = e->number * ENTRY_HEIGHT;
+	e->pos_y = e->number * QUEUE_ITEM_HEIGHT;
 	tween_play(&e->pos_tween);
 }
 
-static int entry_number_from_pos(QueueEntry *e) {
-	return (int)((e->pos_y + ENTRY_HEIGHT / 2) / ENTRY_HEIGHT);
+static int _item_number_from_pos(QueueItem *e) {
+	return (int)((e->pos_y + QUEUE_ITEM_HEIGHT / 2) / QUEUE_ITEM_HEIGHT);
 }
 
-static void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *client, State *state) {
+static void _item_draw(
+	int idx,
+	QueueItem *item,
+	QueuePage *queue,
+	Client *client,
+	State *state,
+	Assets *assets
+) {
 #define IS_REORDERING (queue->reordering_idx == idx)
 #define IS_TRYING_TO_GRAB (queue->trying_to_grab_idx == idx)
 
 	Rect rect = {
 		state->container.x,
-		state->container.y - state->scroll + entry->pos_y,
+		state->container.y - state->scroll + item->pos_y,
 		state->container.width,
-		ENTRY_HEIGHT
+		QUEUE_ITEM_HEIGHT
 	};
 
 	// Draw only visible entries
 	if (!CheckCollisionRecs(rect, screen_rect())) return;
 
-	tween_update(&entry->pos_tween);
+	tween_update(&item->pos_tween);
 	float pos_y = Lerp(
-		entry->prev_pos_y,
-		entry->pos_y,
-		EASE_OUT_CUBIC(tween_progress(&entry->pos_tween))
+		item->prev_pos_y,
+		item->pos_y,
+		EASE_OUT_CUBIC(tween_progress(&item->pos_tween))
 	);
 	rect.y = state->container.y - state->scroll + pos_y;
 
-	const struct mpd_song *song = mpd_entity_get_song(entry->entity);
+	const struct mpd_song *song = mpd_entity_get_song(item->entity);
+	unsigned song_id = mpd_song_get_id(song);
 
-	Rect inner = rect_shrink(rect, PADDING, 0);
+	Rect inner = rect_shrink(rect, QUEUE_PAGE_PADDING, 0);
 	Color background = state->background;
 
 	// ==============================
 	// Entry events
 	// ==============================
 
-	bool is_playing = song_is_playing(client, song);
+	// NOTE: status mutex is locked in the `queue_page_draw()` so it is safe to
+	// use `_cur_song_nullable` directly
+	bool is_playing = false;
+	if (client->_cur_song_nullable) {
+		is_playing = mpd_song_get_id(client->_cur_song_nullable) == song_id;
+	}
+
 	Vec mouse_pos = get_mouse_pos();
 	bool is_hovering = CheckCollisionPointRec(mouse_pos, rect);
 	is_hovering = is_hovering && CheckCollisionPointRec(mouse_pos, state->container);
 
-	// Clicking on entry will start "trying to grab mode"
+	// Clicking on item will start "trying to grab mode"
 	if (is_hovering && queue->reordering_idx < 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
 		queue->trying_to_grab_idx = idx;
 		queue->reorder_click_offset_y = GetMouseY() - rect.y;
@@ -109,12 +93,12 @@ static void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *cli
 		float diff = queue->reorder_click_offset_y + rect.y - GetMouseY();
 		if (fabs(diff) > GRAB_THRESHOLD) {
 			// Start reordering
-			entry->prev_pos_y = entry->pos_y;
-			tween_play(&entry->pos_tween);
+			item->prev_pos_y = item->pos_y;
+			tween_play(&item->pos_tween);
 
 			queue->trying_to_grab_idx = -1;
 			queue->reordering_idx = idx;
-			queue->reordered_from_number = entry->number;
+			queue->reordered_from_number = item->number;
 		}
 
 		// Stop "trying to grab mode"
@@ -130,15 +114,14 @@ static void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *cli
 		&& queue->reordering_idx < 0
 		&& IsMouseButtonReleased(MOUSE_BUTTON_LEFT)
 	) {
-		unsigned song_id = mpd_song_get_id(song);
 		client_push_action(client, (Action){ACTION_PLAY_SONG, {.song_id = song_id}});
 	}
 
 	// ==============================
-	// Draw entry
+	// Draw item
 	// ==============================
 
-	// Draw background when hovering over or reordering the entry
+	// Draw background when hovering over or reordering the item
 	if (
 		(is_hovering && queue->reordering_idx < 0 && queue->trying_to_grab_idx < 0)
 		|| IS_REORDERING
@@ -146,13 +129,13 @@ static void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *cli
 	) {
 		background = state->foreground;
 		state->cursor = MOUSE_CURSOR_POINTING_HAND;
-		draw_box(state, BOX_FILLED_ROUNDED, rect, background);
+		draw_box(assets, BOX_FILLED_ROUNDED, rect, background);
 	}
 
 	// Show "currently playing" marker
 	if (is_playing) {
 		draw_icon(
-			state,
+			assets,
 			ICON_SMALL_ARROW,
 			vec(rect.x - ICON_SIZE/2, rect.y + rect.height/2 - ICON_SIZE/2),
 			THEME_BLACK
@@ -164,12 +147,12 @@ static void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *cli
 	// implement artwork caching
 	Rect artwork_rect = {
 		inner.x,
-		inner.y + ENTRY_HEIGHT/2 - ARTWORK_SIZE/2,
-		ARTWORK_SIZE,
-		ARTWORK_SIZE
+		inner.y + QUEUE_ITEM_HEIGHT/2 - QUEUE_ITEM_ARTWORK_SIZE/2,
+		QUEUE_ITEM_ARTWORK_SIZE,
+		QUEUE_ITEM_ARTWORK_SIZE
 	};
 	draw_icon(
-		state,
+		assets,
 		ICON_DISK,
 		vec(
 			artwork_rect.x + artwork_rect.width/2 - ICON_SIZE/2,
@@ -177,27 +160,27 @@ static void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *cli
 		),
 		THEME_BLACK
 	);
-	draw_box(state, BOX_NORMAL, artwork_rect, THEME_BLACK);
-	inner.x += artwork_rect.width + PADDING;
-	inner.width -= artwork_rect.width + PADDING;
+	draw_box(assets, BOX_NORMAL, artwork_rect, THEME_BLACK);
+	inner.x += artwork_rect.width + QUEUE_PAGE_PADDING;
+	inner.width -= artwork_rect.width + QUEUE_PAGE_PADDING;
 
 	Text text = {
 		.text = "",
-		.font = state->normal_font,
+		.font = assets->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
 		.pos = {0},
 		.color = THEME_SUBTLE_TEXT,
 	};
 
 	// Draw song duration
-	text.text = entry->duration_text;
+	text.text = item->duration_str;
 	Vec dur_size = measure_text(&text);
 	text.pos = vec(
 		inner.x + inner.width - dur_size.x,
-		inner.y + ENTRY_HEIGHT/2 - dur_size.y/2
+		inner.y + QUEUE_ITEM_HEIGHT/2 - dur_size.y/2
 	);
 	draw_text(text);
-	inner.width -= dur_size.x + PADDING;
+	inner.width -= dur_size.x + QUEUE_PAGE_PADDING;
 
 	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
 
@@ -206,7 +189,7 @@ static void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *cli
 	text.color = THEME_TEXT;
 	text.pos = vec(
 		inner.x,
-		inner.y + ENTRY_HEIGHT/2 - THEME_NORMAL_TEXT_SIZE
+		inner.y + QUEUE_ITEM_HEIGHT/2 - THEME_NORMAL_TEXT_SIZE
 	);
 	draw_cropped_text(text, inner.width, background);
 	text.pos.y += THEME_NORMAL_TEXT_SIZE;
@@ -219,120 +202,85 @@ static void entry_draw(int idx, QueueEntry *entry, QueuePage *queue, Client *cli
 	EndScissorMode();
 }
 
-// Reorder entry UI element, does NOT affect an actual queue.
-// Any entry reordering also does NOT affect the order of items in the array (`entries`)
-void queue_reorder_entry(QueuePage *q, QueueEntry *entry, int to_number) {
-	to_number = CLAMP(to_number, 0, q->entries.len - 1);
+// Reorder item UI element, does NOT affect the actual queue.
+// Any item reordering also does NOT affect the order of items in the array (`client->_queue`)
+void _page_reorder_entry(QueuePage *q, Client *client, QueueItem *item, int to_number) {
+	// NOTE: queue mutex is locked in `queue_page_draw()` so it is safe to use
+	// `client->_queue` directly
+	Queue *queue = &client->_queue;
+
+	to_number = CLAMP(to_number, 0, queue->len - 1);
 
 	int range_from = 0;
 	int range_to = 0;
 	int move_by = 0;
 
-	if (to_number > entry->number) {
+	if (to_number > item->number) {
 		// Entry was moved down
-		range_from = entry->number;
+		range_from = item->number;
 		range_to = to_number;
 		move_by = -1;
-	} else if (to_number < entry->number) {
+	} else if (to_number < item->number) {
 		// Entry was moved up
 		range_from = to_number;
-		range_to = entry->number;
+		range_to = item->number;
 		move_by = 1;
 	}
 
 	if (move_by == 0) return;
 
 	// Reorder all entries inside range `range_from`-`range_to`
-	for (size_t i = 0; i < q->entries.len; i++) {
+	for (size_t i = 0; i < queue->len; i++) {
 		if ((int)i == q->reordering_idx) continue;
 
-		QueueEntry *another = &q->entries.items[i];
+		QueueItem *another = &queue->items[i];
 
 		if (another->number >= range_from && another->number <= range_to) {
 			int moved_number = another->number + move_by;
-			if (moved_number >= 0 && moved_number < (int)q->entries.len) {
+			if (moved_number >= 0 && moved_number < (int)queue->len) {
 				another->number = moved_number;
-				entry_tween_to_rest(another);
+				_item_tween_to_rest(another);
 			}
 		}
 	}
 
-	entry->number = to_number;
-}
-
-void fetch_queue(QueuePage *q, Client *client) {
-	bool res = mpd_send_list_queue_meta(client->_conn);
-	if (!res) {
-		CONN_HANDLE_ERROR(client->_conn);
-		return;
-	}
-
-	// Free previous entries
-	for (size_t i = 0; i < q->entries.len; i++) {
-		entry_free(&q->entries.items[i]);
-	}
-	q->entries.len = 0;
-	q->total_duration = 0;
-
-	DA_RESERVE(&q->entries, 512);
-
-	// Receive queue entities/songs from the server
-	while (true) {
-		struct mpd_entity *entity = mpd_recv_entity(client->_conn);
-		if (entity == NULL) {
-			CONN_HANDLE_ERROR(client->_conn);
-			break;
-		}
-
-		enum mpd_entity_type typ = mpd_entity_get_type(entity);
-		if (typ == MPD_ENTITY_TYPE_SONG) {
-			// Push the received song entity into the queue dynamic array
-			size_t idx = q->entries.len;
-			DA_PUSH(&q->entries, entry_new(entity, idx));
-
-			const struct mpd_song *song = mpd_entity_get_song(entity);
-			q->total_duration += mpd_song_get_duration(song);
-		}
-	}
+	item->number = to_number;
 }
 
 void queue_page_update(QueuePage *q, Client *client) {
-	static bool initialized = false;
-
-	// FIXME!: sometimes queue does not get updated!
 	if (client->events & EVENT_QUEUE_CHANGED) {
-		// TODO: remove or reoder only those songs that were changed.
-		// Currently the entire queue is being rebuild.
-		fetch_queue(q, client);
-		TraceLog(LOG_INFO, "QUEUE: Updated due outside interference (%d songs)", q->entries.len);
-		initialized = true;
-	}
-
-	if (!initialized) {
-		fetch_queue(q, client);
-		initialized = true;
+		q->trying_to_grab_idx = -1;
+		q->reordering_idx = -1;
+		q->reorder_click_offset_y = 0;
 	}
 }
 
-void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
+static void _page_draw_reordering_item(
+	QueuePage *q,
+	Client *client,
+	State *state,
+	Assets *assets
+) {
 	if (q->reordering_idx < 0) return;
 
-	QueueEntry *reordering = &q->entries.items[q->reordering_idx];
+	// NOTE: queue mutex is locked in `queue_page_draw()` so it is safe to use
+	// `client->_queue` directly
+	QueueItem *reordering = &client->_queue.items[q->reordering_idx];
 
-	// Move currently reordering entry to mouse position
+	// Move currently reordering item to mouse position
 	reordering->pos_y = GetMouseY()
 		- q->reorder_click_offset_y
 		- state->container.y
 		+ state->scroll;
 
-	// Reorder and draw currently reordering entry
-	queue_reorder_entry(q, reordering, entry_number_from_pos(reordering));
-	entry_draw(q->reordering_idx, reordering, q, client, state);
+	// Reorder and draw currently reordering item
+	_page_reorder_entry(q, client, reordering, _item_number_from_pos(reordering));
+	_item_draw(q->reordering_idx, reordering, q, client, state, assets);
 
 	// Scroll following
 	float relative_pos_y = reordering->pos_y - state->scroll;
 	float top = (relative_pos_y + 0) - 0;
-	float bottom = (relative_pos_y + ENTRY_HEIGHT) - state->container.height;
+	float bottom = (relative_pos_y + QUEUE_ITEM_HEIGHT) - state->container.height;
 	if (top < 0.0)    q->scrollable.target_scroll += top / 3.0;
 	if (bottom > 0.0) q->scrollable.target_scroll += bottom / 3.0;
 
@@ -351,22 +299,37 @@ void draw_reordering_entry(QueuePage *q, Client *client, State *state) {
 			}
 		);
 
-		entry_tween_to_rest(reordering);
+		_item_tween_to_rest(reordering);
 		q->reordering_idx = -1;
 	}
 }
 
-void queue_page_draw(QueuePage *q, Client *client, State *state) {
+void queue_page_draw(
+	QueuePage *q,
+	Client *client,
+	State *state,
+	Assets *assets
+) {
+	const struct mpd_song   *cur_song_nullable;
+	const struct mpd_status *cur_status_nullable;
+	client_lock_status_nullable(
+		client,
+		&cur_song_nullable,
+		&cur_status_nullable
+	);
+
+	const Queue *queue = client_lock_queue(client);
+
 	float transition = state->page_transition;
 	if (state->page == PAGE_QUEUE) {
 		if (!q->is_opened) {
 			q->is_opened = true;
 
 			// Scroll to the currently playing song
-			if (client->cur_status) {
-				int cur_number = mpd_status_get_song_pos(client->cur_status);
+			if (cur_status_nullable) {
+				int cur_number = mpd_status_get_song_pos(cur_status_nullable);
 				if (cur_number >= 0) {
-					int scroll = cur_number * ENTRY_HEIGHT - ENTRY_HEIGHT;
+					int scroll = cur_number * QUEUE_ITEM_HEIGHT - QUEUE_ITEM_HEIGHT;
 					q->scrollable.target_scroll = scroll;
 				}
 			}
@@ -375,26 +338,26 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 		q->is_opened = false;
 
 		if (state->prev_page == PAGE_QUEUE) {
-			if (!tween_playing(&state->page_tween)) return;
+			if (!tween_playing(&state->page_tween)) goto defer;
 			transition = 1.0 - transition;
 		} else {
-			return;
+			goto defer;
 		}
 	}
 
 	int sw = GetScreenWidth();
 	int sh = GetScreenHeight();
 	Rect container = rect(
-		PADDING + sw * (1.0 - transition),
-		PADDING,
-		sw - PADDING*2,
-		sh - PADDING*2 - (QUEUE_STATS_HEIGHT + CUR_PLAY_HEIGHT)
+		QUEUE_PAGE_PADDING + sw * (1.0 - transition),
+		QUEUE_PAGE_PADDING,
+		sw - QUEUE_PAGE_PADDING*2,
+		sh - QUEUE_PAGE_PADDING*2 - (QUEUE_STATS_HEIGHT + CUR_PLAY_HEIGHT)
 	);
 
-	float all_entries_height = q->entries.len * ENTRY_HEIGHT;
+	float all_entries_height = queue->len * QUEUE_ITEM_HEIGHT;
 	scrollable_set_height(
 		&q->scrollable,
-		all_entries_height + PADDING*2 - container.height
+		all_entries_height + QUEUE_PAGE_PADDING*2 - container.height
 	);
 
 	scrollable_update(&q->scrollable);
@@ -411,13 +374,13 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 
 	// Draw curly thing below all entries
 	Rect curly_rect = {
-		state->container.x + PADDING,
+		state->container.x + QUEUE_PAGE_PADDING,
 		state->container.y - state->scroll + all_entries_height,
-		state->container.width - PADDING*2,
-		ENTRY_HEIGHT
+		state->container.width - QUEUE_PAGE_PADDING*2,
+		QUEUE_ITEM_HEIGHT
 	};
 	draw_line(
-		state,
+		assets,
 		LINE_CURLY,
 		vec(curly_rect.x, curly_rect.y),
 		curly_rect.width,
@@ -431,23 +394,27 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	// Draw entries
 	// ==============================
 
-	unsigned elapsed = mpd_status_get_elapsed_ms(client->cur_status) / (int)1000;
+	unsigned elapsed_sec = 0;
+	if (cur_status_nullable)
+		elapsed_sec = mpd_status_get_elapsed_ms(cur_status_nullable) / (int)1000;
 
-	for (size_t i = 0; i < q->entries.len; i++) {
-		QueueEntry *entry = &q->entries.items[i];
+	for (size_t i = 0; i < queue->len; i++) {
+		QueueItem *item = &queue->items[i];
 
 		// TODO: it would be better to cache the total elapsed time
-		if (entry->number < mpd_status_get_song_pos(client->cur_status)) {
-			elapsed += mpd_song_get_duration(mpd_entity_get_song(entry->entity));
+		if (cur_status_nullable) {
+			if (item->number < mpd_status_get_song_pos(cur_status_nullable)) {
+				elapsed_sec += mpd_song_get_duration(mpd_entity_get_song(item->entity));
+			}
 		}
 
 		if ((int)i == q->reordering_idx) continue;
 
-		entry_draw((int)i, entry, q, client, state);
+		_item_draw((int)i, item, q, client, state, assets);
 	}
 
-	// Draw entry that is currently being reordered
-	draw_reordering_entry(q, client, state);
+	// Draw item that is currently being reordered
+	_page_draw_reordering_item(q, client, state, assets);
 
 	// ==============================
 	// Draw queue stats
@@ -469,16 +436,16 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 	);
 
 	static char count_str[26] = {0};
-	snprintf(count_str, 25, "♪ %ld", q->entries.len);
+	snprintf(count_str, 25, "♪ %ld", queue->len);
 	count_str[25] = 0;
 
 	// Draw number of tracks
 	Text text = (Text){
 		.text = count_str,
-		.font = state->normal_font,
+		.font = assets->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
 		.pos = {
-			stats_rect.x + PADDING*2,
+			stats_rect.x + QUEUE_PAGE_PADDING*2,
 			stats_rect.y + QUEUE_STATS_PADDING
 		},
 		.color = THEME_SUBTLE_TEXT,
@@ -487,22 +454,18 @@ void queue_page_draw(QueuePage *q, Client *client, State *state) {
 
 	// Draw queue elapsed time
 	unsigned time_left = 0;
-	if (elapsed <= q->total_duration)
-		time_left = q->total_duration - elapsed;
+	if (elapsed_sec <= queue->total_duration_sec)
+		time_left = queue->total_duration_sec - elapsed_sec;
 
 	static char time_left_str[TIME_BUF_LEN] = {0};
 	format_time(time_left_str, time_left, true);
 
 	text.text = time_left_str;
 	Vec dur_size = measure_text(&text);
-	text.pos.x = stats_rect.x + stats_rect.width - dur_size.x - PADDING*2;
+	text.pos.x = stats_rect.x + stats_rect.width - dur_size.x - QUEUE_PAGE_PADDING*2;
 	draw_text(text);
-}
 
-void queue_page_free(QueuePage *q) {
-	for (size_t i = 0; i < q->entries.len; i++) {
-		entry_free(&q->entries.items[i]);
-	}
-	q->entries.len = 0;
-	free(q->entries.items);
+defer:
+	client_unlock_status(client);
+	client_unlock_queue(client);
 }

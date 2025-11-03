@@ -4,6 +4,9 @@
 #include "./draw.h"
 #include "../macros.h"
 
+#include <GLES3/gl3.h>
+#include <rlgl.h>
+
 Rect rect(float x, float y, float width, float height) {
 	return (Rect){x, y, width, height};
 }
@@ -48,14 +51,14 @@ Vec draw_cropped_text(Text text, float max_width, Color background) {
 	return bounds;
 }
 
-void draw_icon(State *state, Icon icon, Vec pos, Color color) {
+void draw_icon(Assets *assets, Icon icon, Vec pos, Color color) {
 	Rect src = {icon * ICON_SIZE, 0, ICON_SIZE, ICON_SIZE};
 	Rect dest = {pos.x, pos.y, ICON_SIZE, ICON_SIZE};
 
-	DrawTexturePro(state->icons, src, dest, (Vec){0}, 0, color);
+	DrawTexturePro(assets->icons, src, dest, (Vec){0}, 0, color);
 }
 
-void draw_box(State *state, Box box, Rect rect, Color color) {
+void draw_box(Assets *assets, Box box, Rect rect, Color color) {
 	NPatchInfo npatch = (NPatchInfo){
 		.source = {box * 18, 0, 18, 18},
 		.left   = 6,
@@ -66,13 +69,13 @@ void draw_box(State *state, Box box, Rect rect, Color color) {
 	};
 
 	rect = rect_shrink(rect, -3, -3);
-	DrawTextureNPatch(state->boxes, npatch, rect, (Vec){0}, 0, color);
+	DrawTextureNPatch(assets->boxes, npatch, rect, (Vec){0}, 0, color);
 }
 
-void draw_line(State *state, Line line, Vec pos, float width, Color color) {
+void draw_line(Assets *assets, Line line, Vec pos, float width, Color color) {
 	Rect src = {0.0, line * LINE_SIZE, width, LINE_SIZE};
 	Rect dest = {pos.x, pos.y, width, LINE_SIZE};
-	DrawTexturePro(state->lines, src, dest, (Vec){0}, 0.0, color);
+	DrawTexturePro(assets->lines, src, dest, (Vec){0}, 0.0, color);
 }
 
 bool is_key_pressed(KeyboardKey key) {
@@ -183,3 +186,44 @@ int fast_str_fmt(char *buffer, const char *s) {
 	buffer[len] = 0;
 	return len;
 }
+
+void update_texture_from_image(Texture *tex, Image image) {
+	if (tex->id <= 0) {
+		*tex = LoadTextureFromImage(image);
+		SetTextureFilter(*tex, TEXTURE_FILTER_BILINEAR);
+		return;
+	}
+
+	tex->width = image.width;
+	tex->height = image.height;
+	tex->format = image.format;
+
+	// Dirty raw OPENGL hack to change texture and resize pixel data
+	// because raylib doesn't have such feature out of the box
+
+	unsigned int glInternalFormat, glFormat, glType;
+	rlGetGlTextureFormats(tex->format, &glInternalFormat, &glFormat, &glType);
+
+	glBindTexture(GL_TEXTURE_2D, tex->id);
+	if ((glInternalFormat != 0) && (tex->format < PIXELFORMAT_COMPRESSED_DXT1_RGB)) {
+		glTexImage2D(
+			GL_TEXTURE_2D,
+			0,
+			glInternalFormat,
+			tex->width,
+			tex->height,
+			0,
+			glFormat,
+			glType,
+			image.data
+		);
+	} else {
+		TraceLog(
+			LOG_WARNING,
+			"TEXTURE: [ID %i] Failed to update for current texture format (%i)",
+			tex->id,
+			tex->format
+		);
+	}
+}
+

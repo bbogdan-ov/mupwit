@@ -1,9 +1,9 @@
 #include "./progress_bar.h"
 
-void progress_bar_draw(State *state, ProgressBar *bar) {
+void progress_bar_draw(ProgressBar *bar, State *state, Assets *assets) {
 	Rect rect = {bar->rect.x, bar->rect.y, bar->rect.width, PROGRESS_BAR_HEIGHT};
 
-	draw_box(state, BOX_NORMAL, rect, bar->color);
+	draw_box(assets, BOX_NORMAL, rect, bar->color);
 
 	bool is_hovering = CheckCollisionPointRec(
 		get_mouse_pos(),
@@ -42,6 +42,6 @@ void progress_bar_draw(State *state, ProgressBar *bar) {
 			fill_rect.x + fill_rect.width - ICON_SIZE/2,
 			rect.y + rect.height/2 - ICON_SIZE/2
 		};
-		draw_icon(state, ICON_PROGRESS_THUMB, thumb_pos, bar->color);
+		draw_icon(assets, ICON_PROGRESS_THUMB, thumb_pos, bar->color);
 	}
 }

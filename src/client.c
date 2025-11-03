@@ -4,12 +4,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <errno.h>
 #include <string.h>
 #include <mpd/client.h>
 #include <mpd/async.h>
 
 #include "./client.h"
 #include "./macros.h"
+#include "./utils.h"
 
 // TODO: fetch 'albumart' if 'readpicture' returned nothing
 
@@ -34,12 +36,22 @@ bool async_handle_error(struct mpd_async *async, const char *file, int line) {
 	return false;
 }
 
-Client client_new(void) {
-	pthread_mutex_t conn_mutex;
-	pthread_mutex_init(&conn_mutex, NULL);
+#define INIT_MUTEX(NAME) \
+	pthread_mutex_t NAME; \
+	pthread_mutex_init(&NAME, &attr);
 
-	pthread_mutex_t artwork_mutex;
-	pthread_mutex_init(&artwork_mutex, NULL);
+Client client_new(void) {
+	pthread_mutexattr_t attr;
+	assert(pthread_mutexattr_init(&attr) == 0);
+	assert(pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK) == 0);
+
+	INIT_MUTEX(state_mutex);
+	INIT_MUTEX(artwork_mutex);
+	INIT_MUTEX(status_mutex);
+	INIT_MUTEX(actions_mutex);
+	INIT_MUTEX(acc_events_mutex);
+	INIT_MUTEX(queue_mutex);
+	INIT_MUTEX(reqs_mutex);
 
 	return (Client){
 		._actions = (ActionsQueue){
@@ -47,43 +59,165 @@ Client client_new(void) {
 			.buffer = {{0}},
 		},
 
-		._artwork_mutex = artwork_mutex,
-		._conn_mutex = conn_mutex,
+		._acc_events_mutex = acc_events_mutex,
+		._acc_events = 0,
+		.events = 0,
+
+		._reqs_mutex = reqs_mutex,
+		._reqs = NULL,
+		._cur_req = NULL,
+
+		._state_mutex   = state_mutex,
+		._status_mutex  = status_mutex,
+		._actions_mutex = actions_mutex,
+		._queue_mutex   = queue_mutex,
 	};
 }
 
 void client_push_action(Client *c, Action action) {
+	LOCK(&c->_actions_mutex);
 	RINGBUF_PUSH(&c->_actions, action);
+	UNLOCK(&c->_actions_mutex);
 }
 void client_push_action_kind(Client *c, ActionKind action) {
 	client_push_action(c, (Action){action, {0}});
 }
-Action pop_action(Client *c) {
+Action _client_pop_action(Client *c) {
 	Action action = {0};
+	LOCK(&c->_actions_mutex);
 	RINGBUF_POP(&c->_actions, &action, (Action){0});
+	UNLOCK(&c->_actions_mutex);
 	return action;
 }
 
-void free_cur_status(Client *c) {
-	if (c->cur_status) {
-		mpd_status_free(c->cur_status);
-		c->cur_status = NULL;
+void _client_add_event(Client *c, Event events) {
+	LOCK(&c->_acc_events_mutex);
+	c->_acc_events |= events;
+	UNLOCK(&c->_acc_events_mutex);
+}
+
+void client_clear_events(Client *c) {
+	if (TRYLOCK(&c->_acc_events_mutex) == 0) {
+		c->events = c->_acc_events;
+		c->_acc_events = 0;
+		UNLOCK(&c->_acc_events_mutex);
+	} else {
+		c->events = 0;
 	}
 }
-void free_cur_song(Client *c) {
-	if (c->cur_song) {
-		mpd_song_free(c->cur_song);
-		c->cur_song = NULL;
-		c->cur_song_filename = NULL;
+
+static void _client_free_canceled_request(Client *c, Request *req) {
+	assert(req->id > 0);
+	assert(req->canceled || req->status == REQ_DONE);
+	assert(req != NULL);
+
+	if (req->status == REQ_READY) {
+		if (req->data.image.data != NULL)
+			UnloadImage(req->data.image);
 	}
+
+	if (req->canceled)
+		TraceLog(LOG_INFO, "MPD CLIENT: Request %d was freed due being canceled", req->id);
+
+	HASH_DEL(c->_reqs, req);
+	free(req);
 }
-void set_cur_status(Client *c, struct mpd_status *status) {
-	if (c->cur_status) mpd_status_free(c->cur_status);
-	c->cur_status = status;
+
+void client_cancel_request(Client *c, int id) {
+	assert(id > 0);
+
+	LOCK(&c->_reqs_mutex);
+
+	Request *req = NULL;
+	HASH_FIND_INT(c->_reqs, &id, req);
+	if (!req) goto defer;
+
+	req->canceled = true;
+	TraceLog(LOG_INFO, "MPD CLIENT: Request %d canceled with %d status", req->status);
+
+defer:
+	UNLOCK(&c->_reqs_mutex);
 }
-void set_cur_song(Client *c, struct mpd_song *song) {
-	if (c->cur_song) mpd_song_free(c->cur_song);
-	c->cur_song = song;
+
+int client_request(Client *c, const char *song_uri) {
+	LOCK(&c->_reqs_mutex);
+
+	Request *req = calloc(1, sizeof(Request));
+	req->id = ++ c->_last_req_id; // post-increment so id is always > 0
+	req->song_uri = strdup(song_uri);
+	req->canceled = false;
+	req->status = REQ_PENDING;
+	req->data.image = (Image){0};
+	req->data.color = (Color){0};
+
+	HASH_ADD_INT(c->_reqs, id, req);
+	TraceLog(LOG_INFO, "MPD CLIENT: Request %d has been made...", req->id);
+
+	UNLOCK(&c->_reqs_mutex);
+	return req->id;
+}
+
+bool client_request_get_artwork(Client *c, int id, Image *image, Color *color) {
+	assert(id > 0);
+	assert(image != NULL);
+	assert(color != NULL);
+
+	LOCK(&c->_reqs_mutex);
+
+	Request *req = NULL;
+	HASH_FIND_INT(c->_reqs, &id, req);
+	if (!req) goto nope;
+	if (req->status != REQ_READY) goto nope;
+
+	assert(!req->canceled);
+
+	// NOTE: `data.image` and `data.color` may be zeroed which is fine
+	*image = req->data.image;
+	*color = req->data.color;
+
+	req->data.image = (Image){0};
+	req->data.color = (Color){0};
+	req->status = REQ_DONE;
+	TraceLog(LOG_INFO, "MPD CLIENT: Request %d has been acquired", id);
+
+	UNLOCK(&c->_reqs_mutex);
+	return true;
+
+nope:
+	UNLOCK(&c->_reqs_mutex);
+	return false;
+}
+
+void _client_free_cur_status(Client *c) {
+	LOCK(&c->_status_mutex);
+	if (c->_cur_status_nullable) {
+		mpd_status_free(c->_cur_status_nullable);
+		c->_cur_status_nullable = NULL;
+	}
+	UNLOCK(&c->_status_mutex);
+}
+void _client_free_cur_song(Client *c) {
+	LOCK(&c->_status_mutex);
+	if (c->_cur_song_nullable) {
+		mpd_song_free(c->_cur_song_nullable);
+		c->_cur_song_nullable = NULL;
+		c->_cur_song_filename_nullable = NULL;
+	}
+	UNLOCK(&c->_status_mutex);
+}
+void _client_set_cur_status(Client *c, struct mpd_status *status) {
+	LOCK(&c->_status_mutex);
+	if (c->_cur_status_nullable)
+		mpd_status_free(c->_cur_status_nullable);
+	c->_cur_status_nullable = status;
+	UNLOCK(&c->_status_mutex);
+}
+void _client_set_cur_song(Client *c, struct mpd_song *song) {
+	LOCK(&c->_status_mutex);
+	if (c->_cur_song_nullable)
+		mpd_song_free(c->_cur_song_nullable);
+	c->_cur_song_nullable = song;
+	UNLOCK(&c->_status_mutex);
 }
 
 // Read song album artwork into the specified buffer
@@ -117,9 +251,12 @@ static int readpicture(
 			// Clear the previous error because `recv_pair` will set an error
 			// if there is no more fields
 			if (!mpd_connection_clear_error(c->_conn)) {
-				TraceLog(LOG_ERROR, "MPD CLIENT: readpicture(): Unexpected error!");
+				TraceLog(
+					LOG_ERROR,
+					"MPD CLIENT: readpicture(): Unexpected error occured when trying to receive 'binary' pair!"
+				);
 				CONN_HANDLE_ERROR(c->_conn);
-				exit(1);
+				abort();
 			}
 			return 0; // no binary field => no artwork
 		}
@@ -151,73 +288,54 @@ static int readpicture(
 	return size;
 }
 
-Color image_average_color(Image image) {
-	int comps = 0;
-	if (image.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8)
-		comps = 3;
-	else if (image.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8)
-		comps = 4;
+typedef struct DecodeArtworkArgs {
+	Client *client;
+	const char *filetype;
+	unsigned char *buffer;
+	int buffer_size;
 
-	// Calculate average color of the artwork
-	Color color = {0};
-	if (comps > 0) {
-		unsigned char *data = image.data;
-		float cr = 0.0, cg = 0.0, cb = 0.0;
-		float n = 1.0;
-		for (int i = 0; i < image.width * image.height * comps; i += comps) {
-			int r = data[i + 0];
-			int g = data[i + 1];
-			int b = data[i + 2];
-			float max = (float)MAX(r, MAX(g, b));
-			float min = (float)MIN(r, MIN(g, b));
-			float saturation = 0.0;
-			float lightness = (max + min) / 2.0 / 255.0;
-			if (max > 0) saturation = (max - min) / max;
+	Request *req;
+} DecodeArtworkArgs;
 
-			if (saturation >= 0.5 && lightness > 0.3) {
-				n += 1.0;
-				cr += r;
-				cg += g;
-				cb += b;
-			}
-			if (lightness >= 0.6) {
-				n += 0.2;
-				cr += r/5;
-				cg += g/5;
-				cb += b/5;
-			}
-		}
+static void *_decode_artwork(void *args_) {
+	DecodeArtworkArgs *args = args_;
+	Client *c = args->client;
 
-		color = (Color){
-			(char)MAX(cr/n, 50.0),
-			(char)MAX(cg/n, 50.0),
-			(char)MAX(cb/n, 50.0),
-			255
-		};
-	}
+	Image image = LoadImageFromMemory(
+		args->filetype,
+		args->buffer,
+		args->buffer_size
+	);
 
-	return ColorBrightness(color, 0.4);
+	LOCK(&c->_reqs_mutex);
+
+	args->req->data.image = image;
+	args->req->data.color = image_average_color(image);
+	args->req->status = REQ_READY;
+
+	UNLOCK(&c->_reqs_mutex);
+
+	if (!args->req->canceled)
+		_client_add_event(c, EVENT_RESPONSE);
+
+	free(args->buffer);
+	free(args);
+	return NULL;
 }
 
-// Try to fetch song album artwork and call `decode_func` in a separate thread
-// to decode the received image
-// DON'T FORGET TO FREE `args` of your `decode_func` AND BUFFER `args.buffer`
-// Returns `true` on success, `false` otherwise
-bool fetch_song_artwork(
-	Client *c,
-	const char *uri,
-	void *(*decode_func)(void *),
-	void *arg
-) {
+// Returns whether artwork was successfully fetched
+bool _client_fetch_song_artwork(Client *c, Request *req) {
+	assert(req->status == REQ_PENDING);
+
 	size_t capacity = 1024 * 256; // 256KB
 	unsigned char *buffer = malloc(capacity);
 	char filetype[16] = {0};
-	int size = readpicture(c, &buffer, capacity, &filetype, uri);
+	int size = readpicture(c, &buffer, capacity, &filetype, req->song_uri);
 
 	// Simply return if there is an error or no artwork
 	if (size <= 0) {
 		free(buffer);
-		return false;
+		goto nope;
 	}
 
 	const char *img_filetype;
@@ -233,179 +351,99 @@ bool fetch_song_artwork(
 		img_filetype = ".gif";
 	} else {
 		free(buffer);
-		return false;
+		goto nope;
 	}
 
+	req->status = REQ_PROCESSING;
+
 	DecodeArtworkArgs *args = malloc(sizeof(DecodeArtworkArgs));
-	args->arg = arg;
+	args->client = c;
 	args->buffer = buffer;
 	args->buffer_size = size;
 	args->filetype = img_filetype;
+	args->req = req;
 
 	pthread_t thread;
-	pthread_create(&thread, NULL, decode_func, args);
+	pthread_create(&thread, NULL, _decode_artwork, args);
 	return true;
+
+nope:
+	// TODO: refactor this code, it is almost the same as in `_decode_artwork`
+	req->data.image = (Image){0};
+	req->data.color = (Color){0};
+	req->status = REQ_READY;
+
+	if (!req->canceled)
+		_client_add_event(c, EVENT_RESPONSE);
+	return false;
 }
 
-void *decode_artwork(void *args_) {
-	DecodeArtworkArgs *args = args_;
-	Client *c = args->arg;
-
-	LOCK(&c->_artwork_mutex);
-
-	Image img = LoadImageFromMemory(
-		args->filetype,
-		args->buffer,
-		args->buffer_size
-	);
-
-	c->_artwork_image = img;
-	c->_artwork_exists = true;
-	c->_artwork_changed = true;
-	c->_artwork_average_color = image_average_color(img);
-
-	UNLOCK(&c->_artwork_mutex);
-	free(args->buffer);
-	free(args);
-	return NULL;
-}
-
-// Fetch album artwork of the currently playing song
-void fetch_artwork(Client *c) {
-	c->_fetch_artwork_again = false;
-	c->_artwork_fetch_delay = ARTWORK_FETCH_DELAY_MS;
-
-	// Free previous artwork image
-	if (c->_artwork_exists) {
-		UnloadImage(c->_artwork_image);
-		c->_artwork_exists = false;
-	}
-
-	if (!c->cur_song) {
-		c->_artwork_changed = true;
-		c->_artwork_exists = false;
-		return;
-	}
-
-	bool res = fetch_song_artwork(
-		c,
-		mpd_song_get_uri(c->cur_song),
-		decode_artwork,
-		c
-	);
-	if (!res) {
-		c->_artwork_changed = true;
-		c->_artwork_exists = false;
-	}
-}
-
-struct mpd_status *fetch_status(Client *c) {
+struct mpd_status *_client_fetch_status(Client *c) {
 	struct mpd_status *status = mpd_run_status(c->_conn);
 	if (!status) {
-		free_cur_status(c);
+		_client_free_cur_status(c);
 		return NULL;
 	}
 
-	set_cur_status(c, status);
+	_client_set_cur_status(c, status);
+	// Reset fetch timer so we don't fetch status twice if timer is finished
 	c->_status_fetch_timer = STATUS_FETCH_INTERVAL_MS;
 	return status;
 }
 // Fetch playback status and currently playing song
 // Returns `true` if song was changed, otherwise `false`
-bool fetch_status_and_song(Client *c) {
-	struct mpd_status *status = fetch_status(c);
+bool _client_fetch_status_and_song(Client *c) {
+	struct mpd_status *status = _client_fetch_status(c);
 	if (!status) return false;
 
-	int cur_song_id = mpd_status_get_song_id(status);
+	int new_song_id = mpd_status_get_song_id(status);
 
 	bool changed;
-	if (c->cur_song) changed = cur_song_id != (int)mpd_song_get_id(c->cur_song);
-	else             changed = cur_song_id >= 0;
+	const struct mpd_song *cur_song_nullable;
+	client_lock_status_nullable(c, &cur_song_nullable, NULL);
+	{
+		if (cur_song_nullable)
+			changed = new_song_id != (int)mpd_song_get_id(cur_song_nullable);
+		else
+			changed = new_song_id >= 0;
+	}
+	client_unlock_status(c);
 
 	if (!changed) return changed;
 
-	if (cur_song_id >= 0) {
-		struct mpd_song *song = mpd_run_get_queue_song_id(c->_conn, cur_song_id);
+	if (new_song_id >= 0) {
+		struct mpd_song *song = mpd_run_get_queue_song_id(c->_conn, new_song_id);
 		if (song) {
 			// Set new current song
-			set_cur_song(c, song);
-
-			if (TRYLOCK(&c->_artwork_mutex) == 0) {
-				if (c->_artwork_fetch_delay <= 0) {
-					fetch_artwork(c);
-				} else {
-					c->_fetch_artwork_again = true;
-					c->_artwork_fetch_delay = ARTWORK_FETCH_DELAY_MS;
-				}
-				UNLOCK(&c->_artwork_mutex);
-			} else {
-				c->_fetch_artwork_again = true;
-			}
+			_client_set_cur_song(c, song);
+			// TODO!!: fetch and update current song artwork
 
 			return changed;
 		}
 	}
 
 	// No info about current song
-	free_cur_song(c);
-	c->_artwork_changed = true;
-	c->_artwork_exists = false;
+	_client_free_cur_song(c);
 	return changed;
 }
 
-void *do_connect(void *client) {
-	TraceLog(LOG_INFO, "MPD CLIENT: CONNECTION: Connecting to a MPD server...");
-
-	// TODO: allow users to pass custom host and port via cli args
-	struct mpd_connection *conn = mpd_connection_new(NULL, 0, 0);
-
-	// Check for errors
-	if (conn == NULL) {
-		TraceLog(LOG_ERROR, "MPD CLIENT: CONNECTION: Out of memory!");
-		exit(1);
-	}
-
-	Client *c = (Client*)client;
-
-	// TODO!: show "no server" message when connection was refused by the server
-	if (CONN_HANDLE_ERROR(conn)) {
-		mpd_connection_free(conn);
-
-		// TODO: set error message somewhere
-		LOCK(&c->_conn_mutex);
-		c->_state = CLIENT_STATE_ERROR;
-		UNLOCK(&c->_conn_mutex);
-		return NULL;
-	}
-
-	TraceLog(LOG_INFO, "MPD CLIENT: CONNECTION: Successfully connected to a MPD server");
-
-	LOCK(&c->_conn_mutex);
-	c->_conn = conn;
-	c->_state = CLIENT_STATE_READY;
-	fetch_status_and_song(c);
-	UNLOCK(&c->_conn_mutex);
-
-	return NULL;
-}
-void client_connect(Client *c) {
-	assert(c->_state == CLIENT_STATE_DEAD);
-
-	pthread_t thread;
-	pthread_create(&thread, NULL, do_connect, c);
+void _client_fetch_queue(Client *c) {
+	LOCK(&c->_queue_mutex);
+	queue_fetch(&c->_queue, c->_conn);
+	UNLOCK(&c->_queue_mutex);
 }
 
-bool run_toggle(Client *c) {
-	bool res = mpd_send_command(c->_conn, "pause", NULL);
+bool _conn_run_toggle(struct mpd_connection *conn) {
+	bool res = mpd_send_command(conn, "pause", NULL);
 	if (res) {
-		return mpd_response_finish(c->_conn);
+		return mpd_response_finish(conn);
 	} else {
-		CONN_HANDLE_ERROR(c->_conn);
+		CONN_HANDLE_ERROR(conn);
 		return false;
 	}
 }
 
-bool recv_idle(Client *c, enum mpd_idle *idle) {
+bool _client_recv_idle(Client *c, enum mpd_idle *idle) {
 	struct mpd_async *async = mpd_connection_get_async(c->_conn);
 
 	// Check whether there is something to receive/read
@@ -436,11 +474,11 @@ bool recv_idle(Client *c, enum mpd_idle *idle) {
 	return true;
 }
 
-void poll_idle(Client *c, enum mpd_idle *idle) {
+void _client_poll_idle(Client *c, enum mpd_idle *idle) {
 	struct mpd_async *async = mpd_connection_get_async(c->_conn);
 
 	if (c->_polling_idle) {
-		if (recv_idle(c, idle))
+		if (_client_recv_idle(c, idle))
 			c->_polling_idle = false;
 	} else {
 		if (!mpd_async_send_command(async, "idle", NULL)) {
@@ -452,7 +490,7 @@ void poll_idle(Client *c, enum mpd_idle *idle) {
 		c->_polling_idle = true;
 	}
 }
-void run_noidle(Client *c, enum mpd_idle *idle) {
+void _client_noidle(Client *c, enum mpd_idle *idle) {
 	if (!c->_polling_idle) return;
 
 	struct mpd_async *async = mpd_connection_get_async(c->_conn);
@@ -466,159 +504,295 @@ void run_noidle(Client *c, enum mpd_idle *idle) {
 	assert(mpd_async_io(async, MPD_ASYNC_EVENT_WRITE));
 
 	// Sleep untill we receive all data from `noidle`
-	while (!recv_idle(c, idle));
+	while (!_client_recv_idle(c, idle));
 	c->_polling_idle = false;
 }
 
-static void handle_action(Client *c, Action action) {
+static void _client_handle_action(Client *c, Action action) {
 	if (action.kind <= 0) return;
 
-	bool res;
-	// TODO: log error when `res` is false
+	struct mpd_connection *conn = c->_conn;
+
+	bool res = 0;
 	switch (action.kind) {
 		case ACTION_TOGGLE:
-			res = run_toggle(c);
-			if (res) fetch_status(c);
+			res = _conn_run_toggle(conn);
+			if (res) _client_fetch_status(c);
 			break;
 		case ACTION_NEXT:
-			res = mpd_run_next(c->_conn);
-			if (res) fetch_status_and_song(c);
+			res = mpd_run_next(conn);
+			if (res) {
+				_client_fetch_status_and_song(c);
+				_client_add_event(c, EVENT_SONG_CHANGED);
+			}
 			break;
 		case ACTION_PREV:
-			res = mpd_run_previous(c->_conn);
-			if (res) fetch_status_and_song(c);
+			res = mpd_run_previous(conn);
+			if (res) {
+				_client_fetch_status_and_song(c);
+				_client_add_event(c, EVENT_SONG_CHANGED);
+			}
 			break;
 		case ACTION_SEEK_SECONDS:
-			res = mpd_run_seek_current(c->_conn, action.data.seek_seconds, false);
-			if (res) fetch_status(c);
+			res = mpd_run_seek_current(conn, action.data.seek_seconds, false);
+			if (res) _client_fetch_status(c);
 			break;
 
 		case ACTION_PLAY_SONG:
-			res = mpd_run_play_id(c->_conn, action.data.song_id);
-			if (res) fetch_status(c);
+			res = mpd_run_play_id(conn, action.data.song_id);
+			if (res) _client_fetch_status(c);
 			break;
 
 		case ACTION_REORDER_QUEUE:
-			res = mpd_run_move(c->_conn, action.data.reorder.from, action.data.reorder.to);
-			if (res) c->_queue_changed = true;
-			else     c->events |= EVENT_REORDER_QUEUE_FAILED;
+			res = mpd_run_move(conn, action.data.reorder.from, action.data.reorder.to);
+			if (res)
+				c->_queue_changed = true;
+			else
+				_client_add_event(c, EVENT_REORDER_QUEUE_FAILED);
+			break;
+
+		case ACTION_CLOSE:
+			c->_should_close = true;
 			break;
 	}
+
+	if (!res)
+		CONN_HANDLE_ERROR(conn);
 }
 
-static void handle_idle(Client *c, enum mpd_idle idle) {
+static void _client_handle_idle(Client *c, enum mpd_idle idle) {
 	if (idle & MPD_IDLE_PLAYER) {
-		bool song_changed = fetch_status_and_song(c);
+		bool song_changed = _client_fetch_status_and_song(c);
 
-		c->events |= EVENT_STATUS_CHANGED;
+		_client_add_event(c, EVENT_STATUS_CHANGED);
 		if (song_changed)
-			c->events |= EVENT_SONG_CHANGED;
+			_client_add_event(c, EVENT_SONG_CHANGED);
 	}
 
 	if (idle & MPD_IDLE_QUEUE) {
-		if (c->_queue_changed)
+		if (c->_queue_changed) {
 			c->_queue_changed = false;
-		else
-			c->events |= EVENT_QUEUE_CHANGED;
+		} else {
+			_client_add_event(c, EVENT_QUEUE_CHANGED);
+
+			// Fetch queue if it was changed outside MUPWIT
+			_client_fetch_queue(c);
+		}
 	}
 }
 
-void client_update(Client *c, State *state) {
+static void _client_fetch_requests(Client *c, enum mpd_idle *idle) {
+#define BATCH 4
+
+	if (TRYLOCK(&c->_reqs_mutex) != 0) return;
+
+	if (!c->_cur_req) {
+		c->_cur_req = c->_reqs;
+	}
+
+	int i = 0;
+	while (i < BATCH) {
+		if (c->_cur_req == NULL)
+			break;
+
+		if (c->_cur_req->status != REQ_PROCESSING) {
+			if (c->_cur_req->canceled || c->_cur_req->status == REQ_DONE) {
+				_client_free_canceled_request(c, c->_cur_req);
+				c->_cur_req = NULL;
+				break;
+			}
+
+			if (c->_cur_req->status == REQ_PENDING) {
+				_client_noidle(c, idle);
+				_client_fetch_song_artwork(c, c->_cur_req);
+				i ++;
+			}
+		}
+
+		c->_cur_req = c->_cur_req->hh.next;
+	}
+
+	UNLOCK(&c->_reqs_mutex);
+}
+
+// Client event loop
+// Runs 30 times per second in a separate thread
+void _client_event_loop(Client *c) {
 #define SHOULD_FETCH (c->_status_fetch_timer <= 0)
+#define INTERVAL_MS (1000/30)
 
 	if (client_get_state(c) != CLIENT_STATE_READY) return;
 
-	c->events = 0;
+	// Elapsed time since previous interation
+	int elapsed = 0;
+	int poll_timer = POLL_IDLE_INTERVAL_MS;
 
-	static int poll_timer = POLL_IDLE_INTERVAL_MS;
+	// TODO!: come up with a mechanism to wait on main thread untill all
+	// the action are handled.
+	// Currently if you, for example, seek the current song using the progress
+	// bar in the player, it may jitter a little, that's because after we
+	// pushed an action to seek the song it is not guaranteed to be handled or
+	// response will arrive untill the next frame and new value for
+	// the progress bar just isn't ready yet.
 
-	int ms = (int)(GetFrameTime() * 1000);
-	c->_status_fetch_timer -= ms;
-	c->_artwork_fetch_delay -= ms;
-	c->_artwork_fetch_delay = MAX(c->_artwork_fetch_delay, 0);
-	poll_timer -= ms;
-
-	Action action = pop_action(c);
-	enum mpd_idle idle = 0;
-
-	if (action.kind == 0 && !SHOULD_FETCH) {
-		if (poll_timer <= 0) {
-			poll_idle(c, &idle);
-			poll_timer = POLL_IDLE_INTERVAL_MS;
-		}
-	} else {
-		run_noidle(c, &idle);
-	}
-
-	// Eat all remaining actions
 	while (true) {
-		handle_action(c, action);
+		clock_t start = clock();
 
-		action = pop_action(c);
-		if (action.kind == 0) break;
-	}
+		c->_status_fetch_timer -= elapsed;
+		poll_timer -= elapsed;
 
-	handle_idle(c, idle);
+		// LOCK(&c->_acc_events_mutex);
+		// c->_acc_events = 0;
+		// UNLOCK(&c->_acc_events_mutex);
 
-	if (SHOULD_FETCH) {
-		fetch_status(c);
-		c->events |= EVENT_ELAPSED;
-	}
+		Action action = _client_pop_action(c);
+		enum mpd_idle idle = 0;
 
-	if (c->_fetch_artwork_again) {
-		if (TRYLOCK(&c->_artwork_mutex) == 0) {
-			if (c->_artwork_fetch_delay <= 0) {
-				run_noidle(c, &idle);
-				fetch_artwork(c);
+		// Poll idle
+		if (action.kind == 0 && !SHOULD_FETCH) {
+			if (poll_timer <= 0) {
+				_client_poll_idle(c, &idle);
+				poll_timer = POLL_IDLE_INTERVAL_MS;
 			}
-			UNLOCK(&c->_artwork_mutex);
-		}
-	}
-
-	if (TRYLOCK(&c->_artwork_mutex) == 0) {
-		if (c->_artwork_changed) {
-			if (c->_artwork_exists) {
-				state_set_artwork(state, c->_artwork_image, c->_artwork_average_color);
-			} else {
-				state_clear_artwork(state);
-			}
-
-			c->_artwork_changed = false;
+		} else {
+			_client_noidle(c, &idle);
 		}
 
-		UNLOCK(&c->_artwork_mutex);
+		// Eat all remaining actions
+		while (true) {
+			_client_handle_action(c, action);
+
+			action = _client_pop_action(c);
+			if (action.kind == 0) break;
+		}
+
+		if (c->_should_close) break;
+
+		_client_fetch_requests(c, &idle);
+
+		_client_handle_idle(c, idle);
+
+		// Fetch status
+		if (SHOULD_FETCH) {
+			_client_fetch_status(c);
+			_client_add_event(c, EVENT_ELAPSED);
+		}
+
+		clock_t end = clock();
+		double time = (double)(end - start) / CLOCKS_PER_SEC * 1000;
+		elapsed = (int)(time + INTERVAL_MS);
+
+		SLEEP_MS(INTERVAL_MS);
 	}
+
+	// Free allocated memory by the client
+	mpd_connection_free(c->_conn);
+	_client_free_cur_status(c);
+	_client_free_cur_song(c);
+
+	LOCK(&c->_queue_mutex);
+	queue_free(&c->_queue);
+	UNLOCK(&c->_queue_mutex);
+
+	TraceLog(LOG_INFO, "MPD CLIENT: Connection was successfully closed");
 }
 
-void client_free(Client *c) {
-	free_cur_status(c);
-	free_cur_song(c);
+void _client_set_state(Client *c, ClientState state) {
+	LOCK(&c->_state_mutex);
+	c->_state = state;
+	UNLOCK(&c->_state_mutex);
 }
 
 ClientState client_get_state(Client *c) {
-	if (TRYLOCK(&c->_conn_mutex) == 0) {
+	if (TRYLOCK(&c->_state_mutex) == 0) {
 		ClientState state = c->_state;
-		UNLOCK(&c->_conn_mutex);
+		UNLOCK(&c->_state_mutex);
 		return state;
 	}
 	return CLIENT_STATE_CONNECTING;
 }
 
-bool song_is_playing(Client *c, const struct mpd_song *song) {
-	if (!c->cur_song) return false;
-	return mpd_song_get_id(c->cur_song) == mpd_song_get_id(song);
+void *do_connect(void *client) {
+	TraceLog(LOG_INFO, "MPD CLIENT: CONNECTION: Connecting to a MPD server...");
+
+	// TODO: allow users to pass custom host and port via cli args
+	struct mpd_connection *conn = mpd_connection_new(NULL, 0, 0);
+
+	// Check for errors
+	if (conn == NULL) {
+		TraceLog(LOG_ERROR, "MPD CLIENT: CONNECTION: Out of memory!");
+		abort();
+	}
+
+	Client *c = (Client*)client;
+
+	// TODO!: show "no server" message when connection was refused by the server
+	if (CONN_HANDLE_ERROR(conn)) {
+		mpd_connection_free(conn);
+
+		// TODO: set error message somewhere
+		_client_set_state(c, CLIENT_STATE_ERROR);
+		return NULL;
+	}
+
+	TraceLog(LOG_INFO, "MPD CLIENT: CONNECTION: Successfully connected to a MPD server");
+
+	c->_conn = conn;
+	_client_set_state(c, CLIENT_STATE_READY);
+
+	_client_fetch_status_and_song(c);
+	_client_fetch_queue(c);
+
+	_client_event_loop(c);
+
+	return NULL;
 }
+void client_connect(Client *c) {
+	assert(client_get_state(c) == CLIENT_STATE_DEAD);
+
+	int res = pthread_create(&c->_thread, NULL, do_connect, c);
+	if (res != 0) {
+		// TODO: print human-readable error code
+		TraceLog(LOG_ERROR, "MPD CLIENT: Unable to create client's thread: %d", res);
+		abort();
+	}
+}
+
+void client_wait_for_thread(Client *c) {
+	int res = pthread_join(c->_thread, NULL);
+	if (res != 0) {
+		// TODO: print human-readable error code
+		TraceLog(LOG_ERROR, "MPD CLIENT: Unable to join client's thread: %d", res);
+		abort();
+	}
+}
+
+Event client_get_events(Client *c) {
+	return c->events;
+}
+
+void client_lock_status_nullable(
+	Client *c,
+	const struct mpd_song   **cur_song,
+	const struct mpd_status **cur_status
+) {
+	LOCK(&c->_status_mutex);
+	if (cur_song)   *cur_song   = c->_cur_song_nullable;
+	if (cur_status) *cur_status = c->_cur_status_nullable;
+}
+void client_unlock_status(Client *c) {
+	UNLOCK(&c->_status_mutex);
+}
+
+const Queue *client_lock_queue(Client *c) {
+	LOCK(&c->_queue_mutex);
+	return &c->_queue;
+}
+void client_unlock_queue(Client *c) {
+	UNLOCK(&c->_queue_mutex);
+}
+
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag) {
 	const char *t = mpd_song_get_tag(song, tag, 0);
 	return t == NULL ? UNKNOWN : t;
-}
-const char *song_title_or_filename(Client *c, const struct mpd_song *song) {
-	const char *title = mpd_song_get_tag(song, MPD_TAG_TITLE, 0);
-	if (title == NULL) {
-		if (c->cur_song_filename)
-			title = c->cur_song_filename;
-		else
-			title = UNKNOWN;
-	}
-	return title;
 }

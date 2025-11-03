@@ -117,19 +117,10 @@ bool try_restore(void) {
 bool should_skip_drawing(void) {
 #if defined(__linux__) && defined(RELEASE)
 	// Do not draw the UI if window is hidden
-	if (IsWindowState(FLAG_WINDOW_HIDDEN)) {
-		// It will update every second instead of 60 times per second so we
-		// don't waste CPU resources
-		sleep(1);
-
-		// NOTE: we are still calling BeginDrawing() and EndDrawing() because
-		// it is essential to things like GetFrameTime() to work
-		EndDrawing();
-		return true;
-	}
-#endif
-
+	return IsWindowState(FLAG_WINDOW_HIDDEN);
+#else
 	return false;
+#endif
 }
 
 bool should_close(void) {

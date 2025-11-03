@@ -4,7 +4,7 @@
 #include <raylib.h>
 
 #include "../theme.h"
-#include "../state.h"
+#include "../assets.h"
 
 #define ICON_SIZE 16
 #define LINE_SIZE 16
@@ -52,9 +52,9 @@ Vec measure_text(Text *text);
 void draw_text(Text text);
 Vec draw_cropped_text(Text text, float max_width, Color background);
 
-void draw_icon(State *state, Icon icon, Vec pos, Color color);
-void draw_box(State *state, Box box, Rect rect, Color color);
-void draw_line(State *state, Line line, Vec pos, float width, Color color);
+void draw_icon(Assets *assets, Icon icon, Vec pos, Color color);
+void draw_box(Assets *assets, Box box, Rect rect, Color color);
+void draw_line(Assets *assets, Line line, Vec pos, float width, Color color);
 
 bool is_key_pressed(KeyboardKey key);
 bool is_shift_down(void);
@@ -81,5 +81,9 @@ int fast_int_fmt(char *buffer, int num, int pad);
 // Unsafe and fast write null-terminated string into the buffer
 // Returns length of the written text
 int fast_str_fmt(char *buffer, const char *s);
+
+// Update and resize existing texture from the specified image and load a new
+// one if doesn't exist
+void update_texture_from_image(Texture *tex, Image image);
 
 #endif
