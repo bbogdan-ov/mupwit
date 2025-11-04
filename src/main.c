@@ -122,6 +122,9 @@ int main() {
 
 	CloseWindow();
 
+	// NOTE: i don't free any GPU stuff (texture, fonts, etc...) myself because i don't care?
+	// And should i?
+
 	state_free(&state);
 
 	// Wait untill the connection is closed
