@@ -97,25 +97,46 @@ static void _album_item_draw(size_t idx, AlbumItem *item, Context ctx) {
 		.text = item->artist_nullable ? item->artist_nullable : UNKNOWN,
 		.font = ctx.assets->title_font,
 		.size = THEME_TITLE_FONT_SIZE,
-		.pos = vec(
-			artwork_rect.x + PADDING,
-			artwork_rect.y + artwork_rect.height - THEME_TITLE_FONT_SIZE - PADDING
-		),
+		.pos = {0},
 		.color = THEME_BLACK,
 	};
 
-
-	// Title
-	BeginScissorMode(
-		artwork_rect.x,
-		artwork_rect.y,
-		artwork_rect.width,
-		artwork_rect.height
+	// Artist badge
+	text.pos = vec(
+		artwork_rect.x + PADDING*1.5,
+		artwork_rect.y + artwork_rect.height - THEME_TITLE_FONT_SIZE - PADDING
 	);
-	draw_text(text);
+
+	Vec artist_text_size = measure_text(&text);
+	Rect badge_rect = {
+		text.pos.x,
+		text.pos.y,
+		MIN(artist_text_size.x, artwork_rect.width - PADDING*3),
+		artist_text_size.y
+	};
+
+	draw_box(
+		ctx.assets,
+		BOX_FILLED_NORMAL,
+		rect_shrink(badge_rect, -PADDING/2, 0),
+		item->artwork.color
+	);
+
+	// Artist badge text
+	BeginScissorMode(
+		badge_rect.x,
+		badge_rect.y,
+		badge_rect.width,
+		badge_rect.height
+	);
+	draw_cropped_text(
+		text,
+		badge_rect.width + 1,
+		item->artwork.color
+	);
 	EndScissorMode();
 
-	// Artist
+	// Title
 	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
 	text.text = item->title;
 	text.font = ctx.assets->normal_font,

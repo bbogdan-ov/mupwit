@@ -38,6 +38,7 @@ typedef enum Box {
 	BOX_ROUNDED,
 	BOX_3D,
 	BOX_FILLED_ROUNDED,
+	BOX_FILLED_NORMAL,
 } Box;
 
 typedef enum Line {
