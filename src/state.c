@@ -88,6 +88,10 @@ static void _state_update_artwork_fetching(State *s, Client *client) {
 		if (cur_song_nullable) {
 			const char *song_uri = mpd_song_get_uri(cur_song_nullable);
 			artwork_image_fetch(&s->cur_artwork, client, song_uri);
+		} else {
+			_state_set_prev_artwork(s);
+			s->cur_artwork.exists = false;
+			_state_start_background_tween(s);
 		}
 
 		client_unlock_status(client);
