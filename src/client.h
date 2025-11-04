@@ -2,7 +2,6 @@
 #define CLIENT_H
 
 #include <raylib.h>
-#include <pthread.h>
 #include <mpd/client.h>
 
 typedef struct Client Client;
@@ -93,7 +92,7 @@ struct Client {
 	// Can be safely read and written
 	Event events;
 
-	pthread_mutex_t _reqs_mutex;
+	pthread_rwlock_t _reqs_rwlock;
 	Request *_reqs;
 	Request *_cur_req;
 	int _last_req_id;
@@ -105,7 +104,7 @@ struct Client {
 	bool _queue_changed;
 	bool _should_close;
 
-	pthread_mutex_t _status_mutex;
+	pthread_rwlock_t _status_rwlock;
 	// Currently playing song
 	// Can be `NULL`
 	struct mpd_song *_cur_song_nullable;
@@ -116,13 +115,13 @@ struct Client {
 	// Can be `NULL`
 	struct mpd_status *_cur_status_nullable;
 
-	pthread_mutex_t _queue_mutex;
+	pthread_rwlock_t _queue_rwlock;
 	Queue _queue;
 
-	pthread_mutex_t _albums_mutex;
+	pthread_rwlock_t _albums_rwlock;
 	Albums _albums;
 
-	pthread_mutex_t _state_mutex;
+	pthread_rwlock_t _state_rwlock;
 	ClientState _state;
 	struct mpd_connection *_conn;
 
@@ -171,19 +170,19 @@ void client_lock_status_nullable(
 	const struct mpd_song   **cur_song,
 	const struct mpd_status **cur_status
 );
-// Unlock status mutex
+// Unlock status rwlock
 void client_unlock_status(Client *c);
 
 // Lock and get current queue
 // DON'T FORGET TO `client_unlock_queue` IT BEFORE YOU'RE DONE DOING THINGS
 const Queue *client_lock_queue(Client *c);
-// Unlock queue mutex
+// Unlock queue rwlock
 void client_unlock_queue(Client *c);
 
 // Lock and get albums list
 // DON'T FORGET TO `client_unlock_albums` IT BEFORE YOU'RE DONE DOING THINGS
 const Albums *client_lock_albums(Client *c);
-// Unlock albums mutex
+// Unlock albums rwlock
 void client_unlock_albums(Client *c);
 
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);

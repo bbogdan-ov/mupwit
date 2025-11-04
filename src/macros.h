@@ -1,6 +1,8 @@
 #ifndef MACROS_H
 #define MACROS_H
 
+#define __USE_UNIX98 1
+
 #include <raylib.h>
 #include <pthread.h>
 #include <assert.h>
@@ -14,9 +16,15 @@
 	abort(); \
 } while (0)
 
-#define LOCK(MUTEX) assert(pthread_mutex_lock(MUTEX) == 0)
+#define LOCK(MUTEX)    assert(pthread_mutex_lock(MUTEX) == 0)
 #define TRYLOCK(MUTEX) pthread_mutex_trylock(MUTEX)
-#define UNLOCK(MUTEX) assert(pthread_mutex_unlock(MUTEX) == 0)
+#define UNLOCK(MUTEX)  assert(pthread_mutex_unlock(MUTEX) == 0)
+
+#define READ_LOCK(RWLOCK)     assert(pthread_rwlock_rdlock(RWLOCK) == 0)
+#define WRITE_LOCK(RWLOCK)    assert(pthread_rwlock_wrlock(RWLOCK) == 0)
+#define READ_TRYLOCK(RWLOCK)  pthread_rwlock_tryrdlock(RWLOCK)
+#define WRITE_TRYLOCK(RWLOCK) pthread_rwlock_trywrlock(RWLOCK)
+#define RW_UNLOCK(RWLOCK)     assert(pthread_rwlock_unlock(RWLOCK) == 0)
 
 #define MAX(A, B) (A < B ? B : A)
 #define MIN(A, B) (A > B ? B : A)
