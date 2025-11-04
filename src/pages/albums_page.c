@@ -47,22 +47,16 @@ static void _album_item_update_artwork(AlbumItem *item, Client *client, bool in_
 	}
 }
 
-static void _album_item_draw(
-	size_t idx,
-	AlbumItem *item,
-	Client *client,
-	State *state,
-	Assets *assets
-) {
+static void _album_item_draw(size_t idx, AlbumItem *item, Context ctx) {
 	Rect rect = {
-		state->container.x + (idx % ROW_COUNT) * item_width,
-		state->container.y - state->scroll + (idx / ROW_COUNT) * item_height,
+		ctx.state->container.x + (idx % ROW_COUNT) * item_width,
+		ctx.state->container.y - ctx.state->scroll + (idx / ROW_COUNT) * item_height,
 		item_width,
 		item_height
 	};
 
 	bool in_view = CheckCollisionRecs(rect, screen_rect());
-	_album_item_update_artwork(item, client, in_view);
+	_album_item_update_artwork(item, ctx.client, in_view);
 
 	if (!in_view) return;
 
@@ -75,18 +69,18 @@ static void _album_item_draw(
 	Rect inner = rect_shrink(rect, PADDING, PADDING);
 	Vec offset = {inner.x, inner.y};
 
-	Color background = state->background;
+	Color background = ctx.state->background;
 
 	Vec mouse_pos = get_mouse_pos();
 	bool is_hovering = CheckCollisionPointRec(mouse_pos, rect);
-	is_hovering = is_hovering && CheckCollisionPointRec(mouse_pos, state->container);
+	is_hovering = is_hovering && CheckCollisionPointRec(mouse_pos, ctx.state->container);
 
 	if (is_hovering) {
 		// Draw background
-		background = state->foreground;
-		draw_box(assets, BOX_FILLED_ROUNDED, rect, background);
+		background = ctx.state->foreground;
+		draw_box(ctx.assets, BOX_FILLED_ROUNDED, rect, background);
 
-		state->cursor = MOUSE_CURSOR_POINTING_HAND;
+		ctx.state->cursor = MOUSE_CURSOR_POINTING_HAND;
 	}
 
 	// Draw artwork
@@ -95,13 +89,13 @@ static void _album_item_draw(
 		float alpha = timer_progress(&item->artwork_tween);
 		draw_texture_quad(item->artwork.texture, artwork_rect, ColorAlpha(WHITE, alpha));
 	}
-	draw_box(assets, BOX_3D, rect_shrink(artwork_rect, -1, -1), THEME_BLACK);
+	draw_box(ctx.assets, BOX_3D, rect_shrink(artwork_rect, -1, -1), THEME_BLACK);
 	offset.y += artwork_rect.height + GAP;
 
 	// Draw title and artist
 	Text text = {
 		.text = item->artist_nullable ? item->artist_nullable : UNKNOWN,
-		.font = assets->title_font,
+		.font = ctx.assets->title_font,
 		.size = THEME_TITLE_FONT_SIZE,
 		.pos = vec(
 			artwork_rect.x + PADDING,
@@ -124,27 +118,27 @@ static void _album_item_draw(
 	// Artist
 	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
 	text.text = item->title;
-	text.font = assets->normal_font,
+	text.font = ctx.assets->normal_font,
 	text.size = THEME_NORMAL_TEXT_SIZE;
 	text.pos = offset;
 	draw_cropped_text(text, inner.width, background);
 	EndScissorMode();
 }
 
-void albums_page_draw(AlbumsPage *a, Client *client, State *state, Assets *assets) {
-	float transition = state->page_transition;
-	if (state->page == PAGE_ALBUMS && state->prev_page == PAGE_QUEUE) {
+void albums_page_draw(AlbumsPage *a, Context ctx) {
+	float transition = ctx.state->page_transition;
+	if (ctx.state->page == PAGE_ALBUMS && ctx.state->prev_page == PAGE_QUEUE) {
 		// pass
-	} else if (state->page == PAGE_ALBUMS) {
+	} else if (ctx.state->page == PAGE_ALBUMS) {
 		transition = 1.0;
-	} else if (state->page == PAGE_QUEUE && state->prev_page == PAGE_ALBUMS) {
-		if (!timer_playing(&state->page_tween)) return;
+	} else if (ctx.state->page == PAGE_QUEUE && ctx.state->prev_page == PAGE_ALBUMS) {
+		if (!timer_playing(&ctx.state->page_tween)) return;
 		transition = 1.0 - transition;
 	} else {
 		return;
 	}
 
-	const Albums *albums = client_lock_albums(client);
+	const Albums *albums = client_lock_albums(ctx.client);
 
 	int sw = GetScreenWidth();
 	int sh = GetScreenHeight();
@@ -168,11 +162,11 @@ void albums_page_draw(AlbumsPage *a, Client *client, State *state, Assets *asset
 	);
 	scrollable_update(&a->scrollable);
 
-	state->scroll = a->scrollable.scroll;
-	state->container = container;
+	ctx.state->scroll = a->scrollable.scroll;
+	ctx.state->container = container;
 
 	// Draw scroll thumb
-	scrollable_draw_thumb(&a->scrollable, state, state->foreground);
+	scrollable_draw_thumb(&a->scrollable, ctx.state, ctx.state->foreground);
 
 	// ==============================
 	// Draw items
@@ -180,8 +174,8 @@ void albums_page_draw(AlbumsPage *a, Client *client, State *state, Assets *asset
 
 	for (size_t i = 0; i < albums->len; i++) {
 		AlbumItem *item = &albums->items[i];
-		_album_item_draw(i, item, client, state, assets);
+		_album_item_draw(i, item, ctx);
 	}
 
-	client_unlock_albums(client);
+	client_unlock_albums(ctx.client);
 }

@@ -18,7 +18,7 @@
 static int artwork_frame = 0;
 static int artwork_frame_timer = 0;
 
-void draw_artwork(ArtworkImage *artwork, Texture empty_artwork, Rect rect, Color tint) {
+static void _draw_artwork(ArtworkImage *artwork, Texture empty_artwork, Rect rect, Color tint) {
 #define FRAME_WIDTH 296
 #define FRAMES_COUNT 4
 #define FRAME_DELAY_MS (1000/2) // 2 fps
@@ -37,14 +37,14 @@ void draw_artwork(ArtworkImage *artwork, Texture empty_artwork, Rect rect, Color
 	}
 }
 
-void player_page_draw(Client *client, State *state, Assets *assets) {
-	float transition = state->page_transition;
-	if (state->page == PAGE_PLAYER && state->prev_page == PAGE_QUEUE) {
+void player_page_draw(Context ctx) {
+	float transition = ctx.state->page_transition;
+	if (ctx.state->page == PAGE_PLAYER && ctx.state->prev_page == PAGE_QUEUE) {
 		// pass
-	} else if (state->page == PAGE_PLAYER) {
+	} else if (ctx.state->page == PAGE_PLAYER) {
 		transition = 1.0;
-	} else if (state->page == PAGE_QUEUE && state->prev_page == PAGE_PLAYER) {
-		if (!timer_playing(&state->page_tween)) return;
+	} else if (ctx.state->page == PAGE_QUEUE && ctx.state->prev_page == PAGE_PLAYER) {
+		if (!timer_playing(&ctx.state->page_tween)) return;
 		transition = 1.0 - transition;
 	} else {
 		return;
@@ -53,7 +53,7 @@ void player_page_draw(Client *client, State *state, Assets *assets) {
 	const struct mpd_song   *cur_song_nullable;
 	const struct mpd_status *cur_status_nullable;
 	client_lock_status_nullable(
-		client,
+		ctx.client,
 		&cur_song_nullable,
 		&cur_status_nullable
 	);
@@ -74,8 +74,8 @@ void player_page_draw(Client *client, State *state, Assets *assets) {
 	if (cur_song_nullable) {
 		title = mpd_song_get_tag(cur_song_nullable, MPD_TAG_TITLE, 0);
 		if (!title) {
-			if (client->_cur_song_filename_nullable) {
-				title = client->_cur_song_filename_nullable;
+			if (ctx.client->_cur_song_filename_nullable) {
+				title = ctx.client->_cur_song_filename_nullable;
 			} else {
 				title = UNKNOWN;
 			}
@@ -88,39 +88,39 @@ void player_page_draw(Client *client, State *state, Assets *assets) {
 	int sw = GetScreenWidth();
 	int sh = GetScreenHeight();
 
-	state->container = rect(-sw * 0.25 * (1.0 - transition), 0, sw, sh);
-	state->container = rect_shrink(state->container, PADDING, PADDING);
-	Vec offset = {state->container.x, state->container.y};
+	ctx.state->container = rect(-sw * 0.25 * (1.0 - transition), 0, sw, sh);
+	ctx.state->container = rect_shrink(ctx.state->container, PADDING, PADDING);
+	Vec offset = {ctx.state->container.x, ctx.state->container.y};
 
 	// Draw artwork
-	Rect artwork_rect = state->container;
+	Rect artwork_rect = ctx.state->container;
 	artwork_rect.height = artwork_rect.width;
 
 	// Previous artwork
-	draw_artwork(
-		&state->prev_artwork,
-		assets->empty_artwork,
+	_draw_artwork(
+		&ctx.state->prev_artwork,
+		ctx.assets->empty_artwork,
 		artwork_rect,
 		WHITE
 	);
 	// Current artwork
-	draw_artwork(
-		&state->cur_artwork,
-		assets->empty_artwork,
+	_draw_artwork(
+		&ctx.state->cur_artwork,
+		ctx.assets->empty_artwork,
 		artwork_rect,
-		ColorAlpha(WHITE, state_artwork_alpha(state))
+		ColorAlpha(WHITE, state_artwork_alpha(ctx.state))
 	);
 
 	// Artwork border
-	draw_box(assets, BOX_3D, rect_shrink(artwork_rect, -1, -1), THEME_BLACK);
+	draw_box(ctx.assets, BOX_3D, rect_shrink(artwork_rect, -1, -1), THEME_BLACK);
 
 	offset.y += artwork_rect.height + GAP;
 
 	BeginScissorMode(
-		state->container.x,
-		state->container.y,
-		state->container.width,
-		state->container.height
+		ctx.state->container.x,
+		ctx.state->container.y,
+		ctx.state->container.width,
+		ctx.state->container.height
 	);
 
 	// ==============================
@@ -129,14 +129,14 @@ void player_page_draw(Client *client, State *state, Assets *assets) {
 
 	Text text = (Text){
 		.text = title,
-		.font = assets->title_font,
+		.font = ctx.assets->title_font,
 		.size = THEME_TITLE_TEXT_SIZE,
 		.pos = offset,
 		.color = THEME_TEXT,
 	};
 
 	// Draw song title
-	Vec text_bounds = draw_cropped_text(text, state->container.width, state->background);
+	Vec text_bounds = draw_cropped_text(text, ctx.state->container.width, ctx.state->background);
 	offset.y += text_bounds.y;
 
 	static char artist_str[128] = {0};
@@ -146,12 +146,12 @@ void player_page_draw(Client *client, State *state, Assets *assets) {
 	// Draw artist and album
 	text = (Text){
 		.text = artist_str,
-		.font = assets->normal_font,
+		.font = ctx.assets->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
 		.pos = offset,
 		.color = THEME_SUBTLE_TEXT,
 	};
-	text_bounds = draw_cropped_text(text, state->container.width, state->background);
+	text_bounds = draw_cropped_text(text, ctx.state->container.width, ctx.state->background);
 	offset.y += text_bounds.y;
 
 	EndScissorMode();
@@ -160,29 +160,29 @@ void player_page_draw(Client *client, State *state, Assets *assets) {
 	offset.y += GAP;
 
 	draw_box(
-		assets,
+		ctx.assets,
 		BOX_ROUNDED,
 		rect(offset.x, offset.y, ICON_BUTTON_SIZE * 3, ICON_BUTTON_SIZE),
 		THEME_BLACK
 	);
 
 	// Previous button
-	if (draw_icon_button(state, assets, ICON_PREV, offset)) {
-		client_push_action_kind(client, ACTION_PREV);
+	if (draw_icon_button(ctx, ICON_PREV, offset)) {
+		client_push_action_kind(ctx.client, ACTION_PREV);
 	}
 	offset.x += ICON_BUTTON_SIZE;
 
 	// Play button
 	Icon play_icon = ICON_PLAY;
 	if (playstate == MPD_STATE_PLAY) play_icon = ICON_PAUSE;
-	if (draw_icon_button(state, assets, play_icon, offset)) {
-		client_push_action_kind(client, ACTION_TOGGLE);
+	if (draw_icon_button(ctx, play_icon, offset)) {
+		client_push_action_kind(ctx.client, ACTION_TOGGLE);
 	}
 	offset.x += ICON_BUTTON_SIZE;
 
 	// Next button
-	if (draw_icon_button(state, assets, ICON_NEXT, offset)) {
-		client_push_action_kind(client, ACTION_NEXT);
+	if (draw_icon_button(ctx, ICON_NEXT, offset)) {
+		client_push_action_kind(ctx.client, ACTION_NEXT);
 	}
 	offset.x += ICON_BUTTON_SIZE;
 
@@ -194,19 +194,19 @@ void player_page_draw(Client *client, State *state, Assets *assets) {
 	bar.rect = rect(
 		offset.x,
 		offset.y,
-		state->container.width - ICON_BUTTON_SIZE*3 - GAP,
+		ctx.state->container.width - ICON_BUTTON_SIZE*3 - GAP,
 		PROGRESS_BAR_HEIGHT
 	);
 	bar.progress = (float)elapsed_sec / (float)duration_sec;
 	bar.color = THEME_BLACK;
 
-	progress_bar_draw(&bar, state, assets);
+	progress_bar_draw(&bar, ctx);
 
 	if (bar.events & PROGRESS_BAR_DRAGGING) {
 		elapsed_sec = (int)(bar.progress * duration_sec);
 	}
 	if (bar.events & PROGRESS_BAR_STOPPED) {
-		client_push_action(client, (Action){
+		client_push_action(ctx.client, (Action){
 			ACTION_SEEK_SECONDS,
 			{.seek_seconds = elapsed_sec}
 		});
@@ -234,5 +234,5 @@ void player_page_draw(Client *client, State *state, Assets *assets) {
 		SetWindowSize(sw, offset.y);
 	}
 
-	client_unlock_status(client);
+	client_unlock_status(ctx.client);
 }

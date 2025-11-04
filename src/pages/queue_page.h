@@ -1,9 +1,7 @@
 #ifndef QUEUE_PAGE_H
 #define QUEUE_PAGE_H
 
-#include "../client.h"
-#include "../state.h"
-#include "../assets.h"
+#include "../context.h"
 #include "../ui/draw.h"
 #include "../ui/scrollable.h"
 
@@ -30,13 +28,8 @@ typedef struct QueuePage {
 
 QueuePage queue_page_new(void);
 
-void queue_page_update(QueuePage *q, Client *client);
+void queue_page_update(QueuePage *q, Context ctx);
 
-void queue_page_draw(
-	QueuePage *q,
-	Client *client,
-	State *state,
-	Assets *assets
-);
+void queue_page_draw(QueuePage *q, Context ctx);
 
 #endif

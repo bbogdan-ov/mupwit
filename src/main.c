@@ -14,6 +14,7 @@
 #include "./pages/queue_page.h"
 #include "./ui/draw.h"
 #include "./ui/currently_playing.h"
+#include "./context.h"
 
 // TODO: add ability to undo actions like queue reordering or song selection
 // TODO: add log file in release file
@@ -33,6 +34,12 @@ int main() {
 
 	State state = state_new();
 	Assets assets = assets_new();
+
+	Context ctx = (Context){
+		.state = &state,
+		.client = &client,
+		.assets = &assets,
+	};
 
 	QueuePage queue_page = queue_page_new();
 	AlbumsPage albums_page = albums_page_new();
@@ -60,7 +67,7 @@ int main() {
 			}
 
 			state_update(&state, &client);
-			queue_page_update(&queue_page, &client);
+			queue_page_update(&queue_page, ctx);
 		}
 
 		BeginDrawing();
@@ -94,12 +101,12 @@ int main() {
 				DrawText("error", 0, 0, 30, BLACK);
 				break;
 			case CLIENT_STATE_READY:
-				albums_page_draw(&albums_page, &client, &state, &assets);
-				player_page_draw(&client, &state, &assets);
+				albums_page_draw(&albums_page, ctx);
+				player_page_draw(ctx);
 
-				queue_page_draw(&queue_page, &client, &state, &assets);
+				queue_page_draw(&queue_page, ctx);
 
-				currently_playing_draw(&client, &state, &assets);
+				currently_playing_draw(ctx);
 				break;
 		}
 

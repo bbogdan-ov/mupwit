@@ -35,17 +35,15 @@ static void _item_draw(
 	int idx,
 	QueueItem *item,
 	QueuePage *queue,
-	Client *client,
-	State *state,
-	Assets *assets
+	Context ctx
 ) {
 #define IS_REORDERING (queue->reordering_idx == idx)
 #define IS_TRYING_TO_GRAB (queue->trying_to_grab_idx == idx)
 
 	Rect rect = {
-		state->container.x,
-		state->container.y - state->scroll + item->pos_y,
-		state->container.width,
+		ctx.state->container.x,
+		ctx.state->container.y - ctx.state->scroll + item->pos_y,
+		ctx.state->container.width,
 		QUEUE_ITEM_HEIGHT
 	};
 
@@ -58,13 +56,13 @@ static void _item_draw(
 		item->pos_y,
 		EASE_OUT_CUBIC(timer_progress(&item->pos_tween))
 	);
-	rect.y = state->container.y - state->scroll + pos_y;
+	rect.y = ctx.state->container.y - ctx.state->scroll + pos_y;
 
 	const struct mpd_song *song = mpd_entity_get_song(item->entity);
 	unsigned song_id = mpd_song_get_id(song);
 
 	Rect inner = rect_shrink(rect, QUEUE_PAGE_PADDING, 0);
-	Color background = state->background;
+	Color background = ctx.state->background;
 
 	// ==============================
 	// Entry events
@@ -73,13 +71,13 @@ static void _item_draw(
 	// NOTE: status mutex is locked in the `queue_page_draw()` so it is safe to
 	// use `_cur_song_nullable` directly
 	bool is_playing = false;
-	if (client->_cur_song_nullable) {
-		is_playing = mpd_song_get_id(client->_cur_song_nullable) == song_id;
+	if (ctx.client->_cur_song_nullable) {
+		is_playing = mpd_song_get_id(ctx.client->_cur_song_nullable) == song_id;
 	}
 
 	Vec mouse_pos = get_mouse_pos();
 	bool is_hovering = CheckCollisionPointRec(mouse_pos, rect);
-	is_hovering = is_hovering && CheckCollisionPointRec(mouse_pos, state->container);
+	is_hovering = is_hovering && CheckCollisionPointRec(mouse_pos, ctx.state->container);
 
 	// Clicking on item will start "trying to grab mode"
 	if (is_hovering && queue->reordering_idx < 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
@@ -114,7 +112,7 @@ static void _item_draw(
 		&& queue->reordering_idx < 0
 		&& IsMouseButtonReleased(MOUSE_BUTTON_LEFT)
 	) {
-		client_push_action(client, (Action){ACTION_PLAY_SONG, {.song_id = song_id}});
+		client_push_action(ctx.client, (Action){ACTION_PLAY_SONG, {.song_id = song_id}});
 	}
 
 	// ==============================
@@ -127,15 +125,15 @@ static void _item_draw(
 		|| IS_REORDERING
 		|| IS_TRYING_TO_GRAB
 	) {
-		background = state->foreground;
-		state->cursor = MOUSE_CURSOR_POINTING_HAND;
-		draw_box(assets, BOX_FILLED_ROUNDED, rect, background);
+		background = ctx.state->foreground;
+		ctx.state->cursor = MOUSE_CURSOR_POINTING_HAND;
+		draw_box(ctx.assets, BOX_FILLED_ROUNDED, rect, background);
 	}
 
 	// Show "currently playing" marker
 	if (is_playing) {
 		draw_icon(
-			assets,
+			ctx.assets,
 			ICON_SMALL_ARROW,
 			vec(rect.x - ICON_SIZE/2, rect.y + rect.height/2 - ICON_SIZE/2),
 			THEME_BLACK
@@ -152,7 +150,7 @@ static void _item_draw(
 		QUEUE_ITEM_ARTWORK_SIZE
 	};
 	draw_icon(
-		assets,
+		ctx.assets,
 		ICON_DISK,
 		vec(
 			artwork_rect.x + artwork_rect.width/2 - ICON_SIZE/2,
@@ -160,13 +158,13 @@ static void _item_draw(
 		),
 		THEME_BLACK
 	);
-	draw_box(assets, BOX_NORMAL, artwork_rect, THEME_BLACK);
+	draw_box(ctx.assets, BOX_NORMAL, artwork_rect, THEME_BLACK);
 	inner.x += artwork_rect.width + QUEUE_PAGE_PADDING;
 	inner.width -= artwork_rect.width + QUEUE_PAGE_PADDING;
 
 	Text text = {
 		.text = "",
-		.font = assets->normal_font,
+		.font = ctx.assets->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
 		.pos = {0},
 		.color = THEME_SUBTLE_TEXT,
@@ -217,11 +215,11 @@ static void _item_draw(
 }
 
 // Reorder item UI element, does NOT affect the actual queue.
-// Any item reordering also does NOT affect the order of items in the array (`client->_queue`)
-void _page_reorder_entry(QueuePage *q, Client *client, QueueItem *item, int to_number) {
+// Any item reordering also does NOT affect the order of items in the array (`ctx.client->_queue`)
+void _page_reorder_entry(QueuePage *q, QueueItem *item, int to_number, Context ctx) {
 	// NOTE: queue mutex is locked in `queue_page_draw()` so it is safe to use
-	// `client->_queue` directly
-	Queue *queue = &client->_queue;
+	// `ctx.client->_queue` directly
+	Queue *queue = &ctx.client->_queue;
 
 	to_number = CLAMP(to_number, 0, queue->len - 1);
 
@@ -261,40 +259,35 @@ void _page_reorder_entry(QueuePage *q, Client *client, QueueItem *item, int to_n
 	item->number = to_number;
 }
 
-void queue_page_update(QueuePage *q, Client *client) {
-	if (client->events & EVENT_QUEUE_CHANGED) {
+void queue_page_update(QueuePage *q, Context ctx) {
+	if (ctx.client->events & EVENT_QUEUE_CHANGED) {
 		q->trying_to_grab_idx = -1;
 		q->reordering_idx = -1;
 		q->reorder_click_offset_y = 0;
 	}
 }
 
-static void _page_draw_reordering_item(
-	QueuePage *q,
-	Client *client,
-	State *state,
-	Assets *assets
-) {
+static void _page_draw_reordering_item(QueuePage *q, Context ctx) {
 	if (q->reordering_idx < 0) return;
 
 	// NOTE: queue mutex is locked in `queue_page_draw()` so it is safe to use
-	// `client->_queue` directly
-	QueueItem *reordering = &client->_queue.items[q->reordering_idx];
+	// `ctx.client->_queue` directly
+	QueueItem *reordering = &ctx.client->_queue.items[q->reordering_idx];
 
 	// Move currently reordering item to mouse position
 	reordering->pos_y = GetMouseY()
 		- q->reorder_click_offset_y
-		- state->container.y
-		+ state->scroll;
+		- ctx.state->container.y
+		+ ctx.state->scroll;
 
 	// Reorder and draw currently reordering item
-	_page_reorder_entry(q, client, reordering, _item_number_from_pos(reordering));
-	_item_draw(q->reordering_idx, reordering, q, client, state, assets);
+	_page_reorder_entry(q, reordering, _item_number_from_pos(reordering), ctx);
+	_item_draw(q->reordering_idx, reordering, q, ctx);
 
 	// Scroll following
-	float relative_pos_y = reordering->pos_y - state->scroll;
+	float relative_pos_y = reordering->pos_y - ctx.state->scroll;
 	float top = (relative_pos_y + 0) - 0;
-	float bottom = (relative_pos_y + QUEUE_ITEM_HEIGHT) - state->container.height;
+	float bottom = (relative_pos_y + QUEUE_ITEM_HEIGHT) - ctx.state->container.height;
 	if (top < 0.0)    q->scrollable.target_scroll += top / 3.0;
 	if (bottom > 0.0) q->scrollable.target_scroll += bottom / 3.0;
 
@@ -303,7 +296,7 @@ static void _page_draw_reordering_item(
 		// Reorder actual queue
 		// TODO: discard reoder when request has failed
 		client_push_action(
-			client,
+			ctx.client,
 			(Action){
 				ACTION_REORDER_QUEUE,
 				{ .reorder = {
@@ -318,24 +311,19 @@ static void _page_draw_reordering_item(
 	}
 }
 
-void queue_page_draw(
-	QueuePage *q,
-	Client *client,
-	State *state,
-	Assets *assets
-) {
+void queue_page_draw(QueuePage *q, Context ctx) {
 	const struct mpd_song   *cur_song_nullable;
 	const struct mpd_status *cur_status_nullable;
 	client_lock_status_nullable(
-		client,
+		ctx.client,
 		&cur_song_nullable,
 		&cur_status_nullable
 	);
 
-	const Queue *queue = client_lock_queue(client);
+	const Queue *queue = client_lock_queue(ctx.client);
 
-	float transition = state->page_transition;
-	if (state->page == PAGE_QUEUE) {
+	float transition = ctx.state->page_transition;
+	if (ctx.state->page == PAGE_QUEUE) {
 		if (!q->is_opened) {
 			q->is_opened = true;
 
@@ -351,8 +339,8 @@ void queue_page_draw(
 	} else {
 		q->is_opened = false;
 
-		if (state->prev_page == PAGE_QUEUE) {
-			if (!timer_playing(&state->page_tween)) goto defer;
+		if (ctx.state->prev_page == PAGE_QUEUE) {
+			if (!timer_playing(&ctx.state->page_tween)) goto defer;
 			transition = 1.0 - transition;
 		} else {
 			goto defer;
@@ -376,25 +364,25 @@ void queue_page_draw(
 
 	scrollable_update(&q->scrollable);
 
-	state->scroll = q->scrollable.scroll;
-	state->container = container;
+	ctx.state->scroll = q->scrollable.scroll;
+	ctx.state->container = container;
 
 	// Draw background gradient
-	if (timer_playing(&state->page_tween)) {
+	if (timer_playing(&ctx.state->page_tween)) {
 		float offset_x = sw * (1.0 - transition * 2.0);
-		DrawRectangle(offset_x + sw, 0, sw, sh, state->background);
-		DrawRectangleGradientH(offset_x, 0, sw, sh, ColorAlpha(state->background, 0.0), state->background);
+		DrawRectangle(offset_x + sw, 0, sw, sh, ctx.state->background);
+		DrawRectangleGradientH(offset_x, 0, sw, sh, ColorAlpha(ctx.state->background, 0.0), ctx.state->background);
 	}
 
 	// Draw curly thing below all entries
 	Rect curly_rect = {
-		state->container.x + QUEUE_PAGE_PADDING,
-		state->container.y - state->scroll + all_entries_height,
-		state->container.width - QUEUE_PAGE_PADDING*2,
+		ctx.state->container.x + QUEUE_PAGE_PADDING,
+		ctx.state->container.y - ctx.state->scroll + all_entries_height,
+		ctx.state->container.width - QUEUE_PAGE_PADDING*2,
 		QUEUE_ITEM_HEIGHT
 	};
 	draw_line(
-		assets,
+		ctx.assets,
 		LINE_CURLY,
 		vec(curly_rect.x, curly_rect.y),
 		curly_rect.width,
@@ -402,7 +390,7 @@ void queue_page_draw(
 	);
 
 	// Draw scroll thumb
-	scrollable_draw_thumb(&q->scrollable, state, state->foreground);
+	scrollable_draw_thumb(&q->scrollable, ctx.state, ctx.state->foreground);
 
 	// ==============================
 	// Draw entries
@@ -424,11 +412,11 @@ void queue_page_draw(
 
 		if ((int)i == q->reordering_idx) continue;
 
-		_item_draw((int)i, item, q, client, state, assets);
+		_item_draw((int)i, item, q, ctx);
 	}
 
 	// Draw item that is currently being reordered
-	_page_draw_reordering_item(q, client, state, assets);
+	_page_draw_reordering_item(q, ctx);
 
 	// ==============================
 	// Draw queue stats
@@ -440,7 +428,7 @@ void queue_page_draw(
 		sw,
 		QUEUE_STATS_HEIGHT
 	);
-	DrawRectangleRec(stats_rect, state->background);
+	DrawRectangleRec(stats_rect, ctx.state->background);
 	DrawRectangle(
 		stats_rect.x,
 		stats_rect.y,
@@ -456,7 +444,7 @@ void queue_page_draw(
 	// Draw number of tracks
 	Text text = (Text){
 		.text = count_str,
-		.font = assets->normal_font,
+		.font = ctx.assets->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
 		.pos = {
 			stats_rect.x + QUEUE_PAGE_PADDING*2,
@@ -480,6 +468,6 @@ void queue_page_draw(
 	draw_text(text);
 
 defer:
-	client_unlock_status(client);
-	client_unlock_queue(client);
+	client_unlock_status(ctx.client);
+	client_unlock_queue(ctx.client);
 }

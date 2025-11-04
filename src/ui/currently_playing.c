@@ -1,19 +1,19 @@
-#include "../theme.h"
 #include "./currently_playing.h"
 #include "./progress_bar.h"
+#include "../theme.h"
 #include "../pages/queue_page.h"
 
 #define PADDING_LEFT 8
 #define PADDING_RIGHT 16
 #define GAP 8
 
-void currently_playing_draw(Client *client, State *state, Assets *assets) {
+void currently_playing_draw(Context ctx) {
 	// Show everywhere except player page
-	float transition = state->page_transition;
-	if (state->prev_page == PAGE_PLAYER) {
+	float transition = ctx.state->page_transition;
+	if (ctx.state->prev_page == PAGE_PLAYER) {
 		// padd
-	} else if (state->page == PAGE_PLAYER) {
-		if (!timer_playing(&state->page_tween)) return;
+	} else if (ctx.state->page == PAGE_PLAYER) {
+		if (!timer_playing(&ctx.state->page_tween)) return;
 		transition = 1.0 - transition;
 	} else {
 		transition = 1.0;
@@ -22,7 +22,7 @@ void currently_playing_draw(Client *client, State *state, Assets *assets) {
 	const struct mpd_song   *cur_song_nullable;
 	const struct mpd_status *cur_status_nullable;
 	client_lock_status_nullable(
-		client,
+		ctx.client,
 		&cur_song_nullable,
 		&cur_status_nullable
 	);
@@ -43,8 +43,8 @@ void currently_playing_draw(Client *client, State *state, Assets *assets) {
 	if (cur_song_nullable) {
 		title = mpd_song_get_tag(cur_song_nullable, MPD_TAG_TITLE, 0);
 		if (!title) {
-			if (client->_cur_song_filename_nullable) {
-				title = client->_cur_song_filename_nullable;
+			if (ctx.client->_cur_song_filename_nullable) {
+				title = ctx.client->_cur_song_filename_nullable;
 			} else {
 				title = UNKNOWN;
 			}
@@ -72,7 +72,7 @@ void currently_playing_draw(Client *client, State *state, Assets *assets) {
 	Vec offset = {container.x, container.y};
 
 	// Draw box
-	DrawRectangleRec(outer_rect, state->background);
+	DrawRectangleRec(outer_rect, ctx.state->background);
 	// Draw box border
 	DrawRectangle(
 		outer_rect.x,
@@ -85,8 +85,8 @@ void currently_playing_draw(Client *client, State *state, Assets *assets) {
 	// Draw "play" button
 	Icon play_icon = ICON_PLAY;
 	if (playstate == MPD_STATE_PLAY) play_icon = ICON_PAUSE;
-	if (draw_icon_button(state, assets, play_icon, offset)) {
-		client_push_action_kind(client, ACTION_TOGGLE);
+	if (draw_icon_button(ctx, play_icon, offset)) {
+		client_push_action_kind(ctx.client, ACTION_TOGGLE);
 	}
 	offset.x += ICON_BUTTON_SIZE + GAP;
 
@@ -104,12 +104,12 @@ void currently_playing_draw(Client *client, State *state, Assets *assets) {
 
 	Text text = {
 		.text = title,
-		.font = assets->normal_font,
+		.font = ctx.assets->normal_font,
 		.size = THEME_NORMAL_TEXT_SIZE,
 		.pos = offset,
 		.color = THEME_BLACK,
 	};
-	Vec title_size = draw_cropped_text(text, right_width, state->background);
+	Vec title_size = draw_cropped_text(text, right_width, ctx.state->background);
 
 	if (artist_nullable && title_size.x < right_width) {
 		// Draw song artist
@@ -120,7 +120,7 @@ void currently_playing_draw(Client *client, State *state, Assets *assets) {
 		text.text = artist_str;
 		text.pos.x += title_size.x;
 		text.color = THEME_GRAY;
-		draw_cropped_text(text, right_width - title_size.x, state->background);
+		draw_cropped_text(text, right_width - title_size.x, ctx.state->background);
 	}
 
 	EndScissorMode();
@@ -133,17 +133,17 @@ void currently_playing_draw(Client *client, State *state, Assets *assets) {
 	bar.progress = (float)elapsed_sec / (float)duration_sec,
 	bar.color = THEME_BLACK,
 
-	progress_bar_draw(&bar, state, assets);
+	progress_bar_draw(&bar, ctx);
 
 	if (bar.events & PROGRESS_BAR_DRAGGING) {
 		elapsed_sec = (int)(bar.progress * duration_sec);
 	}
 	if (bar.events & PROGRESS_BAR_STOPPED) {
-		client_push_action(client, (Action){
+		client_push_action(ctx.client, (Action){
 			ACTION_SEEK_SECONDS,
 			{.seek_seconds = elapsed_sec}
 		});
 	}
 
-	client_unlock_status(client);
+	client_unlock_status(ctx.client);
 }

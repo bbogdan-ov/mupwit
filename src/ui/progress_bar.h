@@ -2,8 +2,7 @@
 #define PROGRESS_BAR_H
 
 #include "./draw.h"
-#include "../assets.h"
-#include "../state.h"
+#include "../context.h"
 
 #define PROGRESS_BAR_HEIGHT 4
 #define PROGRESS_BAR_EXPAND 4
@@ -23,6 +22,6 @@ typedef struct ProgressBar {
 
 // Draw progress bar or range input if you like
 // Returns bit mask of the current progress bar events
-void progress_bar_draw(ProgressBar *bar, State *state, Assets *assets);
+void progress_bar_draw(ProgressBar *bar, Context ctx);
 
 #endif

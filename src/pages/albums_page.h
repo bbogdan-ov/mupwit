@@ -1,9 +1,7 @@
 #ifndef ALBUMS_PAGE_H
 #define ALBUMS_PAGE_H
 
-#include "../client.h"
-#include "../state.h"
-#include "../assets.h"
+#include "../context.h"
 #include "../ui/scrollable.h"
 
 typedef struct AlbumsPage {
@@ -12,6 +10,6 @@ typedef struct AlbumsPage {
 
 AlbumsPage albums_page_new(void);
 
-void albums_page_draw(AlbumsPage *a, Client *client, State *state, Assets *assets);
+void albums_page_draw(AlbumsPage *a, Context ctx);
 
 #endif
