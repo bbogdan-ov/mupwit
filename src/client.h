@@ -92,7 +92,10 @@ struct Client {
 	// Can be safely read and written
 	Event events;
 
-	pthread_rwlock_t _reqs_rwlock;
+	pthread_mutex_t _resps_mutex;
+	Response *_resps;
+
+	pthread_mutex_t _reqs_mutex;
 	Request *_reqs;
 	Request *_cur_req;
 	int _last_req_id;

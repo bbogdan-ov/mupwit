@@ -53,7 +53,8 @@ Client client_new(void) {
 	INIT_MUTEX(actions_mutex);
 
 	INIT_MUTEX(acc_events_mutex);
-	INIT_RWLOCK(reqs_rwlock);
+	INIT_MUTEX(resps_mutex);
+	INIT_MUTEX(reqs_mutex);
 
 	INIT_RWLOCK(queue_rwlock);
 	INIT_RWLOCK(albums_rwlock);
@@ -72,9 +73,13 @@ Client client_new(void) {
 		._acc_events = 0,
 		.events = 0,
 
-		._reqs_rwlock = reqs_rwlock,
+		._resps_mutex = resps_mutex,
+		._resps = NULL,
+
+		._reqs_mutex = reqs_mutex,
 		._reqs = NULL,
 		._cur_req = NULL,
+		._last_req_id = 0,
 
 		._queue_rwlock = queue_rwlock,
 		._queue = (Queue){
@@ -128,15 +133,25 @@ void client_clear_events(Client *c) {
 	}
 }
 
-static void _client_free_canceled_request(Client *c, Request *req) {
-	assert(req->id > 0);
-	assert(req->canceled || req->status == REQ_DONE);
-	assert(req != NULL);
+static void _client_free_canceled_response(Client *c, Response *resp) {
+	assert(resp != NULL);
+	assert(resp->id > 0);
+	assert(resp->canceled || resp->status == RESP_DONE);
 
-	if (req->status == REQ_READY) {
-		if (req->data.image.data != NULL)
-			UnloadImage(req->data.image);
+	if (resp->status == RESP_READY) {
+		if (resp->data.image.data != NULL)
+			UnloadImage(resp->data.image);
 	}
+
+	if (resp->canceled)
+		TraceLog(LOG_INFO, "MPD CLIENT: Response %d was freed due being canceled", resp->id);
+
+	HASH_DEL(c->_resps, resp);
+	free(resp);
+}
+static void _client_free_request(Client *c, Request *req) {
+	assert(req != NULL);
+	assert(req->id > 0);
 
 	if (req->canceled)
 		TraceLog(LOG_INFO, "MPD CLIENT: Request %d was freed due being canceled", req->id);
@@ -149,34 +164,48 @@ static void _client_free_canceled_request(Client *c, Request *req) {
 void client_cancel_request(Client *c, int id) {
 	assert(id > 0);
 
-	WRITE_LOCK(&c->_reqs_rwlock);
+	LOCK(&c->_resps_mutex);
 
-	Request *req = NULL;
-	HASH_FIND_INT(c->_reqs, &id, req);
-	if (!req) goto defer;
+	Response *resp = NULL;
+	HASH_FIND_INT(c->_resps, &id, resp);
 
-	req->canceled = true;
-	TraceLog(LOG_INFO, "MPD CLIENT: Request %d canceled with %d status", req->status);
+	if (resp) {
+		resp->canceled = true;
+		TraceLog(LOG_INFO, "MPD CLIENT: Response %d canceled with %d status", resp->id, resp->status);
 
-defer:
-	RW_UNLOCK(&c->_reqs_rwlock);
+		if (resp->status == RESP_READY) {
+			_client_free_canceled_response(c, resp);
+		}
+
+		UNLOCK(&c->_resps_mutex);
+	} else {
+		UNLOCK(&c->_resps_mutex);
+		LOCK(&c->_reqs_mutex);
+
+		Request *req = NULL;
+		HASH_FIND_INT(c->_reqs, &id, req);
+
+		if (req) {
+			req->canceled = true;
+			TraceLog(LOG_INFO, "MPD CLIENT: Request %d canceled", req->id);
+		}
+
+		UNLOCK(&c->_reqs_mutex);
+	}
 }
 
 int client_request(Client *c, const char *song_uri) {
-	WRITE_LOCK(&c->_reqs_rwlock);
+	LOCK(&c->_reqs_mutex);
 
 	Request *req = calloc(1, sizeof(Request));
 	req->id = ++ c->_last_req_id; // post-increment so id is always > 0
 	req->song_uri = strdup(song_uri);
 	req->canceled = false;
-	req->status = REQ_PENDING;
-	req->data.image = (Image){0};
-	req->data.color = (Color){0};
 
 	HASH_ADD_INT(c->_reqs, id, req);
 	TraceLog(LOG_INFO, "MPD CLIENT: Request %d has been made...", req->id);
 
-	RW_UNLOCK(&c->_reqs_rwlock);
+	UNLOCK(&c->_reqs_mutex);
 	return req->id;
 }
 
@@ -185,36 +214,32 @@ bool client_request_poll_artwork(Client *c, int id, Image *image, Color *color) 
 	assert(image != NULL);
 	assert(color != NULL);
 
-	if (READ_TRYLOCK(&c->_reqs_rwlock) != 0) return false;
+	if (TRYLOCK(&c->_resps_mutex) != 0) return false;
 
-	Request *req = NULL;
+	Response *resp = NULL;
 
-	{
-		HASH_FIND_INT(c->_reqs, &id, req);
-		if (!req) goto nope;
-		if (req->status != REQ_READY) goto nope;
-		assert(!req->canceled);
+	HASH_FIND_INT(c->_resps, &id, resp);
+	if (!resp) goto nope;
+	if (resp->status != RESP_READY) goto nope;
+	assert(!resp->canceled);
 
-		// NOTE: `data.image` and `data.color` may be zeroed which is fine
-		*image = req->data.image;
-		*color = req->data.color;
+	// NOTE: `data.image` and `data.color` may be zeroed which is fine
+	*image = resp->data.image;
+	*color = resp->data.color;
 
-		RW_UNLOCK(&c->_reqs_rwlock);
-	}
+	resp->data.image = (Image){0};
+	resp->data.color = (Color){0};
+	resp->status = RESP_DONE;
 
-	{
-		WRITE_LOCK(&c->_reqs_rwlock);
-		req->data.image = (Image){0};
-		req->data.color = (Color){0};
-		req->status = REQ_DONE;
-		RW_UNLOCK(&c->_reqs_rwlock);
-	}
+	_client_free_canceled_response(c, resp);
 
 	TraceLog(LOG_INFO, "MPD CLIENT: Request %d has been acquired", id);
+
+	UNLOCK(&c->_resps_mutex);
 	return true;
 
 nope:
-	RW_UNLOCK(&c->_reqs_rwlock);
+	UNLOCK(&c->_resps_mutex);
 	return false;
 }
 
@@ -321,22 +346,13 @@ static int readpicture(
 	return size;
 }
 
-static void _client_set_response(Client *c, Request *req, Image image, Color color) {
-	req->data.image = image;
-	req->data.color = color;
-	req->status = REQ_READY;
-
-	if (!req->canceled)
-		_client_add_event(c, EVENT_RESPONSE);
-}
-
 typedef struct DecodeArtworkArgs {
 	Client *client;
 	const char *filetype;
 	unsigned char *buffer;
 	int buffer_size;
 
-	Request *req;
+	Response *resp;
 } DecodeArtworkArgs;
 
 static void *_decode_artwork(void *args_) {
@@ -349,9 +365,20 @@ static void *_decode_artwork(void *args_) {
 		args->buffer_size
 	);
 
-	WRITE_LOCK(&c->_reqs_rwlock);
-	_client_set_response(c, args->req, image, image_average_color(image));
-	RW_UNLOCK(&c->_reqs_rwlock);
+	Color color = image_average_color(image);
+
+	LOCK(&c->_resps_mutex);
+	{
+		args->resp->data.image = image;
+		args->resp->data.color = color;
+		args->resp->status = RESP_READY;
+
+		if (args->resp->canceled)
+			_client_free_canceled_response(c, args->resp);
+		else
+			_client_add_event(c, EVENT_RESPONSE);
+	}
+	UNLOCK(&c->_resps_mutex);
 
 	free(args->buffer);
 	free(args);
@@ -359,8 +386,10 @@ static void *_decode_artwork(void *args_) {
 }
 
 // Returns whether artwork was successfully fetched
-bool _client_fetch_song_artwork(Client *c, Request *req) {
-	assert(req->status == REQ_PENDING);
+bool _client_fetch_song_artwork(Client *c, const Request *req) {
+	assert(req != NULL);
+	assert(req->id > 0);
+	assert(!req->canceled);
 
 	size_t capacity = 1024 * 256; // 256KB
 	unsigned char *buffer = malloc(capacity);
@@ -389,21 +418,29 @@ bool _client_fetch_song_artwork(Client *c, Request *req) {
 		goto nope;
 	}
 
-	req->status = REQ_PROCESSING;
+	Response *resp = calloc(1, sizeof(Response));
+	resp->id = req->id;
+	resp->canceled = false;
+	resp->status = RESP_PENDING;
+	resp->data.image = (Image){0};
+	resp->data.color = (Color){0};
+
+	LOCK(&c->_resps_mutex);
+	HASH_ADD_INT(c->_resps, id, resp);
+	UNLOCK(&c->_resps_mutex);
 
 	DecodeArtworkArgs *args = malloc(sizeof(DecodeArtworkArgs));
 	args->client = c;
 	args->buffer = buffer;
 	args->buffer_size = size;
 	args->filetype = img_filetype;
-	args->req = req;
+	args->resp = resp;
 
 	pthread_t thread;
 	pthread_create(&thread, NULL, _decode_artwork, args);
 	return true;
 
 nope:
-	_client_set_response(c, req, (Image){0}, (Color){0});
 	return false;
 }
 
@@ -618,37 +655,23 @@ static void _client_handle_idle(Client *c, enum mpd_idle idle) {
 }
 
 static void _client_fetch_requests(Client *c, enum mpd_idle *idle) {
-#define BATCH 1
+	if (TRYLOCK(&c->_reqs_mutex) != 0) return;
 
-	if (WRITE_TRYLOCK(&c->_reqs_rwlock) != 0) return;
+	// Return if `_reqs` table is empty
+	if (!c->_reqs) goto defer;
+	if (!c->_cur_req) c->_cur_req = c->_reqs;
 
-	if (!c->_cur_req) {
-		c->_cur_req = c->_reqs;
+	if (!c->_cur_req->canceled) {
+		_client_noidle(c, idle);
+		_client_fetch_song_artwork(c, c->_cur_req);
 	}
 
-	int i = 0;
-	while (i < BATCH) {
-		if (c->_cur_req == NULL)
-			break;
+	Request *to_free = c->_cur_req;
+	c->_cur_req = c->_cur_req->hh.next;
+	_client_free_request(c, to_free);
 
-		if (c->_cur_req->status != REQ_PROCESSING) {
-			if (c->_cur_req->canceled || c->_cur_req->status == REQ_DONE) {
-				_client_free_canceled_request(c, c->_cur_req);
-				c->_cur_req = NULL;
-				break;
-			}
-
-			if (c->_cur_req->status == REQ_PENDING) {
-				_client_noidle(c, idle);
-				_client_fetch_song_artwork(c, c->_cur_req);
-				i ++;
-			}
-		}
-
-		c->_cur_req = c->_cur_req->hh.next;
-	}
-
-	RW_UNLOCK(&c->_reqs_rwlock);
+defer:
+	UNLOCK(&c->_reqs_mutex);
 }
 
 void _client_free(Client *c) {

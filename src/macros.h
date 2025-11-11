@@ -16,9 +16,19 @@
 	abort(); \
 } while (0)
 
-#define LOCK(MUTEX)    assert(pthread_mutex_lock(MUTEX) == 0)
+#define LOCK(MUTEX) do { \
+	if (pthread_mutex_lock(MUTEX) != 0) { \
+		TraceLog(LOG_ERROR, "Unable to lock mutex `" #MUTEX "` at %s:%d", __FILE__, __LINE__); \
+		abort(); \
+	} \
+} while (0)
+#define UNLOCK(MUTEX) do { \
+	if (pthread_mutex_unlock(MUTEX) != 0) { \
+		TraceLog(LOG_ERROR, "Unable to unlock mutex `" #MUTEX "` at %s:%d", __FILE__, __LINE__); \
+		abort(); \
+	} \
+} while (0)
 #define TRYLOCK(MUTEX) pthread_mutex_trylock(MUTEX)
-#define UNLOCK(MUTEX)  assert(pthread_mutex_unlock(MUTEX) == 0)
 
 #define READ_LOCK(RWLOCK)     assert(pthread_rwlock_rdlock(RWLOCK) == 0)
 #define WRITE_LOCK(RWLOCK)    assert(pthread_rwlock_wrlock(RWLOCK) == 0)
