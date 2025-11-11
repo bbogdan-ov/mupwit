@@ -50,6 +50,15 @@ int main() {
 			break;
 		}
 
+		if (should_skip_drawing()) {
+			// Sleep so we don't waste CPU time.
+			// This sleep will be interrupted when window gets restored.
+			// I think it happens because program receives SIGUSR1 signal.
+			// (Probably?... It seems to do so on my machine)
+			sleep(10 * 1000);
+			continue;
+		}
+
 		client_clear_events(&client);
 
 		ClientState client_state = client_get_state(&client);
@@ -71,18 +80,6 @@ int main() {
 		}
 
 		BeginDrawing();
-
-		if (should_skip_drawing()) {
-			// It will update every second instead of 60 times per second so we
-			// don't waste CPU resources
-			sleep(1);
-
-			// NOTE: we are still calling BeginDrawing() and EndDrawing() because
-			// it is essential to things like GetFrameTime() to work
-			EndDrawing();
-			continue;
-		}
-
 		ClearBackground(state.background);
 
 		state.container = screen_rect();
