@@ -21,6 +21,9 @@ and learning purposes.
     - [x] Tracks reordering
     - [ ] Tracks deletion
 - [ ] Albums page
+    - [ ] List of all albums
+    - [ ] Playing albums
+    - [ ] Searching albums
 - [ ] Keyboard controls with VIM bindings
 - [ ] Playlists page
 - [ ] Customization
