@@ -133,18 +133,10 @@ void client_clear_events(Client *c) {
 	}
 }
 
-static void _client_free_canceled_response(Client *c, Response *resp) {
+static void _client_free_done_response(Client *c, Response *resp) {
 	assert(resp != NULL);
 	assert(resp->id > 0);
-	assert(resp->canceled || resp->status == RESP_DONE);
-
-	if (resp->status == RESP_READY) {
-		if (resp->data.image.data != NULL)
-			UnloadImage(resp->data.image);
-	}
-
-	if (resp->canceled)
-		TraceLog(LOG_INFO, "MPD CLIENT: Response %d was freed due being canceled", resp->id);
+	assert(resp->status == RESP_DONE);
 
 	HASH_DEL(c->_resps, resp);
 	free(resp);
@@ -164,34 +156,17 @@ static void _client_free_request(Client *c, Request *req) {
 void client_cancel_request(Client *c, int id) {
 	assert(id > 0);
 
-	LOCK(&c->_resps_mutex);
+	LOCK(&c->_reqs_mutex);
 
-	Response *resp = NULL;
-	HASH_FIND_INT(c->_resps, &id, resp);
+	Request *req = NULL;
+	HASH_FIND_INT(c->_reqs, &id, req);
 
-	if (resp) {
-		resp->canceled = true;
-		TraceLog(LOG_INFO, "MPD CLIENT: Response %d canceled with %d status", resp->id, resp->status);
-
-		if (resp->status == RESP_READY) {
-			_client_free_canceled_response(c, resp);
-		}
-
-		UNLOCK(&c->_resps_mutex);
-	} else {
-		UNLOCK(&c->_resps_mutex);
-		LOCK(&c->_reqs_mutex);
-
-		Request *req = NULL;
-		HASH_FIND_INT(c->_reqs, &id, req);
-
-		if (req) {
-			req->canceled = true;
-			TraceLog(LOG_INFO, "MPD CLIENT: Request %d canceled", req->id);
-		}
-
-		UNLOCK(&c->_reqs_mutex);
+	if (req) {
+		req->canceled = true;
+		TraceLog(LOG_INFO, "MPD CLIENT: Request %d canceled", req->id);
 	}
+
+	UNLOCK(&c->_reqs_mutex);
 }
 
 int client_request(Client *c, const char *song_uri) {
@@ -221,7 +196,6 @@ bool client_request_poll_artwork(Client *c, int id, Image *image, Color *color) 
 	HASH_FIND_INT(c->_resps, &id, resp);
 	if (!resp) goto nope;
 	if (resp->status != RESP_READY) goto nope;
-	assert(!resp->canceled);
 
 	// NOTE: `data.image` and `data.color` may be zeroed which is fine
 	*image = resp->data.image;
@@ -231,7 +205,7 @@ bool client_request_poll_artwork(Client *c, int id, Image *image, Color *color) 
 	resp->data.color = (Color){0};
 	resp->status = RESP_DONE;
 
-	_client_free_canceled_response(c, resp);
+	_client_free_done_response(c, resp);
 
 	TraceLog(LOG_INFO, "MPD CLIENT: Request %d has been acquired", id);
 
@@ -373,10 +347,7 @@ static void *_decode_artwork(void *args_) {
 		args->resp->data.color = color;
 		args->resp->status = RESP_READY;
 
-		if (args->resp->canceled)
-			_client_free_canceled_response(c, args->resp);
-		else
-			_client_add_event(c, EVENT_RESPONSE);
+		_client_add_event(c, EVENT_RESPONSE);
 	}
 	UNLOCK(&c->_resps_mutex);
 
@@ -420,7 +391,6 @@ bool _client_fetch_song_artwork(Client *c, const Request *req) {
 
 	Response *resp = calloc(1, sizeof(Response));
 	resp->id = req->id;
-	resp->canceled = false;
 	resp->status = RESP_PENDING;
 	resp->data.image = (Image){0};
 	resp->data.color = (Color){0};

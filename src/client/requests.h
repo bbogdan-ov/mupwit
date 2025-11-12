@@ -24,7 +24,6 @@ typedef struct Request {
 typedef struct Response {
 	int id;
 
-	bool canceled;
 	RespStatus status;
 	struct {
 		Image image;
