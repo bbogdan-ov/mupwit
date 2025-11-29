@@ -8,6 +8,7 @@ typedef struct Client Client;
 
 #include "./macros.h"
 #include "./client/request.h"
+#include "./client/action.h"
 #include "./client/event.h"
 #include "./client/queue.h"
 #include "./client/albums.h"
@@ -16,7 +17,6 @@ typedef struct Client Client;
 
 #define STATUS_FETCH_INTERVAL_MS 250
 #define POLL_IDLE_INTERVAL_MS (1000/30)
-#define ACTIONS_QUEUE_CAP 16
 #define READY_ARTWORKS_QUEUE_CAP 8
 
 extern const char *UNKNOWN;
@@ -28,44 +28,6 @@ typedef enum ClientState {
 	CLIENT_STATE_READY,
 	CLIENT_STATE_ERROR,
 } ClientState;
-
-typedef enum ActionKind {
-	ACTION_TOGGLE = 1,
-	ACTION_NEXT,
-	ACTION_PREV,
-	// Seek currently playing song
-	// Data: `seek_seconds`
-	ACTION_SEEK_SECONDS,
-
-	// Data: `song_id`
-	ACTION_PLAY_SONG,
-
-	// Data: `reorder`
-	ACTION_REORDER_QUEUE,
-
-	// Close connection
-	ACTION_CLOSE,
-} ActionKind;
-
-typedef struct Action {
-	ActionKind kind;
-	union {
-		unsigned song_id;
-		unsigned seek_seconds;
-
-		struct {
-			unsigned from;
-			unsigned to;
-		} reorder;
-	} data;
-} Action;
-
-typedef struct ActionsQueue {
-	size_t head;
-	size_t tail;
-	size_t cap;
-	Action buffer[ACTIONS_QUEUE_CAP];
-} ActionsQueue;
 
 struct Client {
 	pthread_mutex_t _actions_mutex;
