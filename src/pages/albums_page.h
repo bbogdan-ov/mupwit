@@ -10,6 +10,8 @@ typedef struct AlbumsPage {
 
 AlbumsPage albums_page_new(void);
 
+void albums_page_on_event(Context ctx, Event event);
+
 void albums_page_draw(AlbumsPage *a, Context ctx);
 
 #endif

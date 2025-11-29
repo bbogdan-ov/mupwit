@@ -7,9 +7,10 @@
 typedef struct Client Client;
 
 #include "./macros.h"
+#include "./client/request.h"
+#include "./client/event.h"
 #include "./client/queue.h"
 #include "./client/albums.h"
-#include "./client/requests.h"
 
 #include "../thirdparty/uthash.h"
 
@@ -66,34 +67,12 @@ typedef struct ActionsQueue {
 	Action buffer[ACTIONS_QUEUE_CAP];
 } ActionsQueue;
 
-typedef enum Event {
-	// Half of second has passed
-	EVENT_ELAPSED = 1 << 0,
-	// Playback status chagned (pause, resume, seek, etc...)
-	EVENT_STATUS_CHANGED = 1 << 1,
-	// Currently playing song was changed
-	EVENT_SONG_CHANGED = 1 << 2,
-	// Current queue was changed outside MUPWIT (something else made queue change)
-	EVENT_QUEUE_CHANGED = 1 << 3,
-	EVENT_DATABASE_CHANGED = 1 << 4,
-
-	// Response received
-	EVENT_RESPONSE = 1 << 5,
-} Event;
-
 struct Client {
 	pthread_mutex_t _actions_mutex;
 	ActionsQueue _actions;
 
-	pthread_mutex_t _acc_events_mutex;
-	// Accomulated events
-	Event _acc_events; // like back-buffer, but for events :)
-	// Current events bit mask
-	// Can be safely read and written
-	Event events;
-
-	pthread_mutex_t _resps_mutex;
-	Response *_resps;
+	pthread_mutex_t _events_mutex;
+	EventsQueue _events;
 
 	pthread_mutex_t _reqs_mutex;
 	Request *_reqs;
@@ -121,7 +100,7 @@ struct Client {
 	pthread_rwlock_t _queue_rwlock;
 	Queue _queue;
 
-	pthread_rwlock_t _albums_rwlock;
+	pthread_mutex_t _albums_mutex;
 	Albums _albums;
 
 	pthread_rwlock_t _state_rwlock;
@@ -144,17 +123,19 @@ Client client_new(void);
 void client_push_action(Client *c, Action action);
 void client_push_action_kind(Client *c, ActionKind action);
 
-void client_clear_events(Client *c);
+// Retuns the last occured event
+// Returns zero-initialized `Event` if there is more events
+Event client_pop_event(Client *c);
 
 // Make a request.
 // Returns id of the request.
 // Returns -1 if something went wrong.
 int client_request(Client *c, const char *song_uri);
-// Get the requested artwork from `client_request()` if any.
-// Returns whether the response is ready and assigns `image` and `color`.
-// Assigned `image` and `color` may be zeroed which means that response has
-// been received but it doesn't contain artwork image.
-bool client_request_poll_artwork(Client *c, int id, Image *image, Color *color);
+// // Get the requested artwork from `client_request()` if any.
+// // Returns whether the response is ready and assigns `image` and `color`.
+// // Assigned `image` and `color` may be zeroed which means that response has
+// // been received but it doesn't contain artwork image.
+// bool client_request_poll_artwork(Client *c, int id, Image *image, Color *color);
 void client_cancel_request(Client *c, int id);
 
 // Connect to a MPD server
@@ -185,8 +166,8 @@ void client_unlock_queue(Client *c);
 
 // Lock and get albums list
 // DON'T FORGET TO `client_unlock_albums` IT BEFORE YOU'RE DONE DOING THINGS
-const Albums *client_lock_albums(Client *c);
-// Unlock albums rwlock
+Albums *client_lock_albums(Client *c);
+// Unlock albums mutex
 void client_unlock_albums(Client *c);
 
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);

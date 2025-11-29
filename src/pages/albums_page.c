@@ -28,18 +28,7 @@ static void _album_item_update_artwork(AlbumItem *item, Client *client, bool in_
 	// FIXME!!!!: artwork loading is annoyingly laggy! Needs to be fixed ASAP!
 
 	if (artwork_image_is_fetching(&item->artwork)) {
-		if (in_view) {
-			Image image;
-			Color color;
-			bool received = artwork_image_poll(&item->artwork, client, &image, &color);
-
-			if (received) {
-				artwork_image_update(&item->artwork, image, color);
-				UnloadImage(image);
-
-				timer_play(&item->artwork_tween);
-			}
-		} else {
+		if (!in_view) {
 			artwork_image_cancel(&item->artwork, client);
 		}
 	} else if (in_view) {
@@ -144,6 +133,19 @@ static void _album_item_draw(size_t idx, AlbumItem *item, Context ctx) {
 	text.pos = offset;
 	draw_cropped_text(text, inner.width, background);
 	EndScissorMode();
+}
+
+void albums_page_on_event(Context ctx, Event event) {
+	if (event.kind == EVENT_RESPONSE) {
+		const Albums *albums = client_lock_albums(ctx.client);
+
+		for (size_t i = 0; i < albums->len; i++) {
+			AlbumItem *item = &albums->items[i];
+			artwork_image_on_response_event(&item->artwork, event);
+		}
+
+		client_unlock_albums(ctx.client);
+	}
 }
 
 void albums_page_draw(AlbumsPage *a, Context ctx) {

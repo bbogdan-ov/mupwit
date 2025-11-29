@@ -59,8 +59,6 @@ int main() {
 			continue;
 		}
 
-		client_clear_events(&client);
-
 		ClientState client_state = client_get_state(&client);
 
 		if (client_state == CLIENT_STATE_READY) {
@@ -75,8 +73,17 @@ int main() {
 				client_push_action_kind(&client, ACTION_TOGGLE);
 			}
 
+			Event event = {0};
+			while (true) {
+				event = client_pop_event(&client);
+				if (event.kind == EVENT_NONE) break;
+
+				state_on_event(&state, event);
+				queue_page_on_event(&queue_page, event);
+				albums_page_on_event(ctx, event);
+			};
+
 			state_update(&state, &client);
-			queue_page_update(&queue_page, ctx);
 		}
 
 		BeginDrawing();

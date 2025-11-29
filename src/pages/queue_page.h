@@ -28,7 +28,7 @@ typedef struct QueuePage {
 
 QueuePage queue_page_new(void);
 
-void queue_page_update(QueuePage *q, Context ctx);
+void queue_page_on_event(QueuePage *q, Event event);
 
 void queue_page_draw(QueuePage *q, Context ctx);
 

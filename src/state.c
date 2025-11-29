@@ -66,16 +66,9 @@ static void _state_set_prev_artwork(State *s) {
 	s->prev_artwork.exists = true;
 }
 
-static void _state_update_artworks(State *s, Client *client) {
-	Image image = {0};
-	Color color = {0};
-	bool artwork_received = artwork_image_poll(&s->cur_artwork, client, &image, &color);
-	if (!artwork_received) return;
-
+static void _state_update_artworks(State *s, Image image) {
 	_state_set_prev_artwork(s);
 	_state_start_background_tween(s);
-
-	artwork_image_update(&s->cur_artwork, image, color);
 
 	s->cur_artwork_image = image;
 }
@@ -99,12 +92,25 @@ static void _state_update_artwork_fetching(State *s, Client *client) {
 	}
 
 	static bool first = true;
-	if (!first && (client->events & EVENT_SONG_CHANGED) == 0) return;
+	if (first) {
+		timer_play(&s->artwork_fetch_timer);
+		s->fetch_artwork_on_timer_finish = true;
+		first = false;
+	}
+}
 
-	timer_play(&s->artwork_fetch_timer);
-	s->fetch_artwork_on_timer_finish = true;
+void state_on_event(State *s, Event event) {
+	if (event.kind == EVENT_RESPONSE) {
+		assert(event.data.response_artwork.image.data != NULL);
 
-	first = false;
+		artwork_image_on_response_event(&s->cur_artwork, event);
+		_state_update_artworks(s, event.data.response_artwork.image);
+	}
+
+	if (event.kind == EVENT_SONG_CHANGED) {
+		timer_play(&s->artwork_fetch_timer);
+		s->fetch_artwork_on_timer_finish = true;
+	}
 }
 
 void state_update(State *s, Client *client) {
@@ -112,7 +118,6 @@ void state_update(State *s, Client *client) {
 	timer_update(&s->page_tween);
 	timer_update(&s->artwork_fetch_timer);
 
-	_state_update_artworks(s, client);
 	_state_update_artwork_fetching(s, client);
 
 	// Update background animation

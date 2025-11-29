@@ -259,8 +259,8 @@ void _page_reorder_entry(QueuePage *q, QueueItem *item, int to_number, Context c
 	item->number = to_number;
 }
 
-void queue_page_update(QueuePage *q, Context ctx) {
-	if (ctx.client->events & EVENT_QUEUE_CHANGED) {
+void queue_page_on_event(QueuePage *q, Event event) {
+	if (event.kind == EVENT_QUEUE_CHANGED) {
 		q->trying_to_grab_idx = -1;
 		q->reordering_idx = -1;
 		q->reorder_click_offset_y = 0;

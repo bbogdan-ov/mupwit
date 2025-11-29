@@ -21,15 +21,10 @@ typedef struct ArtworkImage {
 
 ArtworkImage artwork_image_new(void);
 
+void artwork_image_on_response_event(ArtworkImage *a, Event event);
+
 void artwork_image_fetch(ArtworkImage *a, Client *client, const char *song_uri);
 void artwork_image_cancel(ArtworkImage *a, Client *client);
-
-// Poll requested image
-// Returns whether the artwork is ready and assigns `image` and `color`
-// Assigned `image` and `color` may be zeroed which means there is no artwork image
-bool artwork_image_poll(ArtworkImage *a, Client *client, Image *image, Color *color);
-
-void artwork_image_update(ArtworkImage *a, Image image, Color color);
 
 bool artwork_image_is_fetching(const ArtworkImage *a);
 

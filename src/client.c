@@ -52,12 +52,11 @@ Client client_new(void) {
 
 	INIT_MUTEX(actions_mutex);
 
-	INIT_MUTEX(acc_events_mutex);
-	INIT_MUTEX(resps_mutex);
+	INIT_MUTEX(events_mutex);
 	INIT_MUTEX(reqs_mutex);
 
 	INIT_RWLOCK(queue_rwlock);
-	INIT_RWLOCK(albums_rwlock);
+	INIT_MUTEX(albums_mutex);
 
 	INIT_RWLOCK(state_rwlock);
 	INIT_RWLOCK(status_rwlock);
@@ -69,12 +68,11 @@ Client client_new(void) {
 			.buffer = {{0}},
 		},
 
-		._acc_events_mutex = acc_events_mutex,
-		._acc_events = 0,
-		.events = 0,
-
-		._resps_mutex = resps_mutex,
-		._resps = NULL,
+		._events_mutex = events_mutex,
+		._events = (EventsQueue){
+			.cap = EVENTS_QUEUE_CAP,
+			.buffer = {{0}},
+		},
 
 		._reqs_mutex = reqs_mutex,
 		._reqs = NULL,
@@ -89,7 +87,7 @@ Client client_new(void) {
 			.total_duration_sec = 0,
 		},
 
-		._albums_rwlock = albums_rwlock,
+		._albums_mutex = albums_mutex,
 		._albums = (Albums){
 			.items = NULL,
 			.len = 0,
@@ -117,30 +115,21 @@ Action _client_pop_action(Client *c) {
 	return action;
 }
 
-void _client_add_event(Client *c, Event events) {
-	LOCK(&c->_acc_events_mutex);
-	c->_acc_events |= events;
-	UNLOCK(&c->_acc_events_mutex);
+static void _client_push_event(Client *c, Event event) {
+	LOCK(&c->_events_mutex);
+	RINGBUF_PUSH(&c->_events, event);
+	UNLOCK(&c->_events_mutex);
 }
-
-void client_clear_events(Client *c) {
-	if (TRYLOCK(&c->_acc_events_mutex) == 0) {
-		c->events = c->_acc_events;
-		c->_acc_events = 0;
-		UNLOCK(&c->_acc_events_mutex);
-	} else {
-		c->events = 0;
+Event client_pop_event(Client *c) {
+	if (TRYLOCK(&c->_events_mutex) == 0) {
+		Event event = {0};
+		RINGBUF_POP(&c->_events, &event, (Event){0});
+		UNLOCK(&c->_events_mutex);
+		return event;
 	}
+	return (Event){0};
 }
 
-static void _client_free_done_response(Client *c, Response *resp) {
-	assert(resp != NULL);
-	assert(resp->id > 0);
-	assert(resp->status == RESP_DONE);
-
-	HASH_DEL(c->_resps, resp);
-	free(resp);
-}
 static void _client_free_request(Client *c, Request *req) {
 	assert(req != NULL);
 	assert(req->id > 0);
@@ -182,39 +171,6 @@ int client_request(Client *c, const char *song_uri) {
 
 	UNLOCK(&c->_reqs_mutex);
 	return req->id;
-}
-
-bool client_request_poll_artwork(Client *c, int id, Image *image, Color *color) {
-	assert(id > 0);
-	assert(image != NULL);
-	assert(color != NULL);
-
-	if (TRYLOCK(&c->_resps_mutex) != 0) return false;
-
-	Response *resp = NULL;
-
-	HASH_FIND_INT(c->_resps, &id, resp);
-	if (!resp) goto nope;
-	if (resp->status != RESP_READY) goto nope;
-
-	// NOTE: `data.image` and `data.color` may be zeroed which is fine
-	*image = resp->data.image;
-	*color = resp->data.color;
-
-	resp->data.image = (Image){0};
-	resp->data.color = (Color){0};
-	resp->status = RESP_DONE;
-
-	_client_free_done_response(c, resp);
-
-	TraceLog(LOG_INFO, "MPD CLIENT: Request %d has been acquired", id);
-
-	UNLOCK(&c->_resps_mutex);
-	return true;
-
-nope:
-	UNLOCK(&c->_resps_mutex);
-	return false;
 }
 
 void _client_free_cur_status(Client *c) {
@@ -326,7 +282,7 @@ typedef struct DecodeArtworkArgs {
 	unsigned char *buffer;
 	int buffer_size;
 
-	Response *resp;
+	int req_id;
 } DecodeArtworkArgs;
 
 static void *_decode_artwork(void *args_) {
@@ -341,15 +297,16 @@ static void *_decode_artwork(void *args_) {
 
 	Color color = image_average_color(image);
 
-	LOCK(&c->_resps_mutex);
-	{
-		args->resp->data.image = image;
-		args->resp->data.color = color;
-		args->resp->status = RESP_READY;
-
-		_client_add_event(c, EVENT_RESPONSE);
-	}
-	UNLOCK(&c->_resps_mutex);
+	_client_push_event(c, (Event){
+		.kind = EVENT_RESPONSE,
+		.data = {
+			.response_artwork = {
+				.id = args->req_id,
+				.image = image,
+				.color = color,
+			}
+		}
+	});
 
 	free(args->buffer);
 	free(args);
@@ -389,22 +346,12 @@ bool _client_fetch_song_artwork(Client *c, const Request *req) {
 		goto nope;
 	}
 
-	Response *resp = calloc(1, sizeof(Response));
-	resp->id = req->id;
-	resp->status = RESP_PENDING;
-	resp->data.image = (Image){0};
-	resp->data.color = (Color){0};
-
-	LOCK(&c->_resps_mutex);
-	HASH_ADD_INT(c->_resps, id, resp);
-	UNLOCK(&c->_resps_mutex);
-
 	DecodeArtworkArgs *args = malloc(sizeof(DecodeArtworkArgs));
 	args->client = c;
 	args->buffer = buffer;
 	args->buffer_size = size;
 	args->filetype = img_filetype;
-	args->resp = resp;
+	args->req_id = req->id;
 
 	pthread_t thread;
 	pthread_create(&thread, NULL, _decode_artwork, args);
@@ -468,9 +415,9 @@ void _client_fetch_queue(Client *c) {
 }
 
 void _client_fetch_albums(Client *c) {
-	WRITE_LOCK(&c->_albums_rwlock);
+	LOCK(&c->_albums_mutex);
 	albums_fetch(&c->_albums, c->_conn);
-	RW_UNLOCK(&c->_albums_rwlock);
+	UNLOCK(&c->_albums_mutex);
 }
 
 bool _conn_run_toggle(struct mpd_connection *conn) {
@@ -563,14 +510,14 @@ static void _client_handle_action(Client *c, Action action) {
 			res = mpd_run_next(conn);
 			if (res) {
 				_client_fetch_status_and_song(c);
-				_client_add_event(c, EVENT_SONG_CHANGED);
+				_client_push_event(c, (Event){.kind = EVENT_SONG_CHANGED});
 			}
 			break;
 		case ACTION_PREV:
 			res = mpd_run_previous(conn);
 			if (res) {
 				_client_fetch_status_and_song(c);
-				_client_add_event(c, EVENT_SONG_CHANGED);
+				_client_push_event(c, (Event){.kind = EVENT_SONG_CHANGED});
 			}
 			break;
 		case ACTION_SEEK_SECONDS:
@@ -601,16 +548,16 @@ static void _client_handle_idle(Client *c, enum mpd_idle idle) {
 	if (idle & MPD_IDLE_PLAYER) {
 		bool song_changed = _client_fetch_status_and_song(c);
 
-		_client_add_event(c, EVENT_STATUS_CHANGED);
+		_client_push_event(c, (Event){.kind = EVENT_STATUS_CHANGED});
 		if (song_changed)
-			_client_add_event(c, EVENT_SONG_CHANGED);
+			_client_push_event(c, (Event){.kind = EVENT_SONG_CHANGED});
 	}
 
 	if (idle & MPD_IDLE_QUEUE) {
 		if (c->_queue_changed) {
 			c->_queue_changed = false;
 		} else {
-			_client_add_event(c, EVENT_QUEUE_CHANGED);
+			_client_push_event(c, (Event){.kind = EVENT_QUEUE_CHANGED});
 
 			// Fetch queue if it was changed outside MUPWIT
 			_client_fetch_queue(c);
@@ -618,7 +565,7 @@ static void _client_handle_idle(Client *c, enum mpd_idle idle) {
 	}
 
 	if (idle & MPD_IDLE_DATABASE) {
-		_client_add_event(c, EVENT_DATABASE_CHANGED);
+		_client_push_event(c, (Event){.kind = EVENT_DATABASE_CHANGED});
 
 		_client_fetch_albums(c);
 	}
@@ -654,14 +601,14 @@ void _client_free(Client *c) {
 	queue_free(&c->_queue);
 	RW_UNLOCK(&c->_queue_rwlock);
 
-	WRITE_LOCK(&c->_albums_rwlock);
+	LOCK(&c->_albums_mutex);
 	albums_free(&c->_albums);
-	RW_UNLOCK(&c->_albums_rwlock);
+	UNLOCK(&c->_albums_mutex);
 }
 
-// Client event loop
+// Client loop
 // Runs 30 times per second in a separate thread
-void _client_event_loop(Client *c) {
+void _client_loop(Client *c) {
 #define SHOULD_FETCH (c->_status_fetch_timer <= 0)
 #define INTERVAL_MS (1000/30)
 
@@ -715,7 +662,7 @@ void _client_event_loop(Client *c) {
 		// Fetch status
 		if (SHOULD_FETCH) {
 			_client_fetch_status(c);
-			_client_add_event(c, EVENT_ELAPSED);
+			_client_push_event(c, (Event){.kind = EVENT_ELAPSED});
 		}
 
 		clock_t end = clock();
@@ -777,7 +724,7 @@ void *do_connect(void *client) {
 	_client_fetch_queue(c);
 	_client_fetch_albums(c);
 
-	_client_event_loop(c);
+	_client_loop(c);
 
 	return NULL;
 }
@@ -801,10 +748,6 @@ void client_wait_for_thread(Client *c) {
 	}
 }
 
-Event client_get_events(Client *c) {
-	return c->events;
-}
-
 void client_lock_status_nullable(
 	Client *c,
 	const struct mpd_song   **cur_song,
@@ -826,12 +769,12 @@ void client_unlock_queue(Client *c) {
 	RW_UNLOCK(&c->_queue_rwlock);
 }
 
-const Albums *client_lock_albums(Client *c) {
-	READ_LOCK(&c->_albums_rwlock);
+Albums *client_lock_albums(Client *c) {
+	LOCK(&c->_albums_mutex);
 	return &c->_albums;
 }
 void client_unlock_albums(Client *c) {
-	RW_UNLOCK(&c->_albums_rwlock);
+	UNLOCK(&c->_albums_mutex);
 }
 
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag) {

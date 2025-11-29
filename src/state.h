@@ -46,6 +46,8 @@ typedef struct State {
 
 State state_new(void);
 
+void state_on_event(State *s, Event event);
+
 void state_update(State *s, Client *client);
 
 void state_next_page(State *s);
