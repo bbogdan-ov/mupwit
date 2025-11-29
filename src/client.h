@@ -146,13 +146,14 @@ void client_push_action_kind(Client *c, ActionKind action);
 
 void client_clear_events(Client *c);
 
-// Make a request
-// Returns id of the request
-// Returns -1 if something went wrong
+// Make a request.
+// Returns id of the request.
+// Returns -1 if something went wrong.
 int client_request(Client *c, const char *song_uri);
-// Get the requested artwork from `client_request()` if any
-// Returns whether your artwork is ready and assigns `image` and `color`
-// Assigned `image` and `color` may be zeroed which means there is no artwork image
+// Get the requested artwork from `client_request()` if any.
+// Returns whether the response is ready and assigns `image` and `color`.
+// Assigned `image` and `color` may be zeroed which means that response has
+// been received but it doesn't contain artwork image.
 bool client_request_poll_artwork(Client *c, int id, Image *image, Color *color);
 void client_cancel_request(Client *c, int id);
 
