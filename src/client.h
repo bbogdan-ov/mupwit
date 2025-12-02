@@ -53,7 +53,7 @@ struct Client {
 	int _status_fetch_timer;
 	// Current queue was changed by the user inside MUPWIT
 	// (queue item was reordered, deleted, etc...)
-	bool _queue_changed;
+	bool _queue_changed_inside_mupwit;
 	bool _should_close;
 
 	pthread_rwlock_t _status_rwlock;

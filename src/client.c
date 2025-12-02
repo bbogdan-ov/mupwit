@@ -629,7 +629,7 @@ static void _client_handle_action(Client *c, Action action) {
 
 		case ACTION_REORDER_QUEUE:
 			res = mpd_run_move(conn, action.data.reorder.from, action.data.reorder.to);
-			if (res) c->_queue_changed = true;
+			if (res) c->_queue_changed_inside_mupwit = true;
 			break;
 
 		case ACTION_CLOSE:
@@ -651,10 +651,17 @@ static void _client_handle_idle(Client *c, enum mpd_idle idle) {
 	}
 
 	if (idle & MPD_IDLE_QUEUE) {
-		if (c->_queue_changed) {
-			c->_queue_changed = false;
+		if (c->_queue_changed_inside_mupwit) {
+			c->_queue_changed_inside_mupwit = false;
 		} else {
 			// Fetch queue if it was changed outside MUPWIT
+
+			// TODO: `_client_fetch_queue` being called multiple times if you
+			// do multiple queue operations simultaneously.
+			// For example: `mpc clear && mpc listall | mpc add && mpc shuffle`.
+			// This command triggers 3 MPD_IDLE_QUEUE events.
+			// May be i should add a delay between receiving MPD_IDLE_QUEUE and
+			// fetching the queue? Or may be i don't care?
 			_client_fetch_queue(c);
 		}
 	}
