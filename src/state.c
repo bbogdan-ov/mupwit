@@ -4,6 +4,7 @@
 #include "./theme.h"
 #include "./state.h"
 #include "./macros.h"
+#include "./ui/draw.h"
 
 #include <raymath.h>
 

@@ -1,4 +1,5 @@
 #include "./artwork_image.h"
+#include "./draw.h"
 #include "../macros.h"
 
 ArtworkImage artwork_image_new(void) {

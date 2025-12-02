@@ -55,7 +55,6 @@ Client client_new(void) {
 	INIT_MUTEX(events_mutex);
 	INIT_MUTEX(reqs_mutex);
 
-	INIT_RWLOCK(queue_rwlock);
 	INIT_MUTEX(albums_mutex);
 
 	INIT_RWLOCK(state_rwlock);
@@ -78,14 +77,6 @@ Client client_new(void) {
 		._reqs = NULL,
 		._cur_req = NULL,
 		._last_req_id = 0,
-
-		._queue_rwlock = queue_rwlock,
-		._queue = (Queue){
-			.items = NULL,
-			.len = 0,
-			.cap = 0,
-			.total_duration_sec = 0,
-		},
 
 		._albums_mutex = albums_mutex,
 		._albums = (Albums){
@@ -409,9 +400,41 @@ bool _client_fetch_status_and_song(Client *c) {
 }
 
 void _client_fetch_queue(Client *c) {
-	WRITE_LOCK(&c->_queue_rwlock);
-	queue_fetch(&c->_queue, c->_conn);
-	RW_UNLOCK(&c->_queue_rwlock);
+	clock_t start = clock();
+
+	bool res = mpd_send_list_queue_meta(c->_conn);
+	if (!res) {
+		CONN_HANDLE_ERROR(c->_conn);
+		return;
+	}
+
+	EventDataQueue queue = {0};
+
+	DA_RESERVE(&queue, 512);
+
+	// Receive queue entities/songs from the server
+	while (true) {
+		struct mpd_entity *entity = mpd_recv_entity(c->_conn);
+		if (entity == NULL) {
+			CONN_HANDLE_ERROR(c->_conn);
+			break;
+		}
+
+		enum mpd_entity_type typ = mpd_entity_get_type(entity);
+		if (typ == MPD_ENTITY_TYPE_SONG)
+			DA_PUSH(&queue, entity);
+	}
+
+	clock_t end = clock();
+	int time = (int)((double)(end - start) / CLOCKS_PER_SEC * 1000);
+
+	TraceLog(LOG_INFO, "MPD CLIENT: QUEUE: Updated in %dms (%d songs)", time, queue.len);
+
+	// Push event
+	_client_push_event(c, (Event){
+		.kind = EVENT_QUEUE_CHANGED,
+		.data = { .queue = queue }
+	});
 }
 
 void _client_fetch_albums(Client *c) {
@@ -557,8 +580,6 @@ static void _client_handle_idle(Client *c, enum mpd_idle idle) {
 		if (c->_queue_changed) {
 			c->_queue_changed = false;
 		} else {
-			_client_push_event(c, (Event){.kind = EVENT_QUEUE_CHANGED});
-
 			// Fetch queue if it was changed outside MUPWIT
 			_client_fetch_queue(c);
 		}
@@ -596,10 +617,6 @@ void _client_free(Client *c) {
 	mpd_connection_free(c->_conn);
 	_client_free_cur_status(c);
 	_client_free_cur_song(c);
-
-	WRITE_LOCK(&c->_queue_rwlock);
-	queue_free(&c->_queue);
-	RW_UNLOCK(&c->_queue_rwlock);
 
 	LOCK(&c->_albums_mutex);
 	albums_free(&c->_albums);
@@ -759,14 +776,6 @@ void client_lock_status_nullable(
 }
 void client_unlock_status(Client *c) {
 	RW_UNLOCK(&c->_status_rwlock);
-}
-
-const Queue *client_lock_queue(Client *c) {
-	READ_LOCK(&c->_queue_rwlock);
-	return &c->_queue;
-}
-void client_unlock_queue(Client *c) {
-	RW_UNLOCK(&c->_queue_rwlock);
 }
 
 Albums *client_lock_albums(Client *c) {

@@ -41,7 +41,7 @@ int main() {
 		.assets = &assets,
 	};
 
-	QueuePage queue_page = queue_page_new();
+	Queue queue_page = queue_page_new();
 	AlbumsPage albums_page = albums_page_new();
 
 	while (true) {
@@ -129,6 +129,7 @@ int main() {
 	// NOTE: i don't free any GPU stuff (texture, fonts, etc...) myself because i don't care?
 	// And should i?
 
+	queue_page_free(&queue_page);
 	state_free(&state);
 
 	// Wait untill the connection is closed

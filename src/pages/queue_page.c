@@ -4,6 +4,7 @@
 #include "../macros.h"
 #include "../theme.h"
 #include "../macros.h"
+#include "../utils.h"
 #include "../ui/currently_playing.h"
 
 #include <raymath.h>
@@ -12,13 +13,45 @@
 
 // TODO: draw "no songs" when queue is empty
 
-QueuePage queue_page_new(void) {
-	return (QueuePage){
+Queue queue_page_new(void) {
+	return (Queue){
+		.items = NULL,
+		.len = 0,
+		.cap = 0,
+
 		.trying_to_grab_idx = -1,
 		.reordering_idx = -1,
 
 		.scrollable = scrollable_new(),
 	};
+}
+
+static QueueItem _queue_item_new(unsigned number, struct mpd_entity *entity) {
+	const struct mpd_song *song = mpd_entity_get_song(entity);
+	const char *filename = path_basename(mpd_song_get_uri(song));
+
+	QueueItem item = {
+		.number = number,
+		.entity = entity,
+		.filename = filename,
+
+		.pos_y = number * QUEUE_ITEM_HEIGHT,
+		.prev_pos_y = number * QUEUE_ITEM_HEIGHT,
+		.pos_tween = timer_new(200, false),
+
+		.duration_str = {0},
+	};
+
+	format_time(item.duration_str, mpd_song_get_duration(song), false);
+
+	return item;
+}
+
+static void _queue_item_free(QueueItem *i) {
+	if (i->entity) {
+		mpd_entity_free(i->entity);
+		i->entity = NULL;
+	}
 }
 
 static void _item_tween_to_rest(QueueItem *e) {
@@ -34,7 +67,7 @@ static int _item_number_from_pos(QueueItem *e) {
 static void _item_draw(
 	int idx,
 	QueueItem *item,
-	QueuePage *queue,
+	Queue *queue,
 	Context ctx
 ) {
 #define IS_REORDERING (queue->reordering_idx == idx)
@@ -216,12 +249,8 @@ static void _item_draw(
 
 // Reorder item UI element, does NOT affect the actual queue.
 // Any item reordering also does NOT affect the order of items in the array (`ctx.client->_queue`)
-void _page_reorder_entry(QueuePage *q, QueueItem *item, int to_number, Context ctx) {
-	// NOTE: queue mutex is locked in `queue_page_draw()` so it is safe to use
-	// `ctx.client->_queue` directly
-	Queue *queue = &ctx.client->_queue;
-
-	to_number = CLAMP(to_number, 0, queue->len - 1);
+static void _queue_page_reorder_entry(Queue *q, QueueItem *item, int to_number) {
+	to_number = CLAMP(to_number, 0, q->len - 1);
 
 	int range_from = 0;
 	int range_to = 0;
@@ -242,14 +271,14 @@ void _page_reorder_entry(QueuePage *q, QueueItem *item, int to_number, Context c
 	if (move_by == 0) return;
 
 	// Reorder all entries inside range `range_from`-`range_to`
-	for (size_t i = 0; i < queue->len; i++) {
+	for (size_t i = 0; i < q->len; i++) {
 		if ((int)i == q->reordering_idx) continue;
 
-		QueueItem *another = &queue->items[i];
+		QueueItem *another = &q->items[i];
 
 		if (another->number >= range_from && another->number <= range_to) {
 			int moved_number = another->number + move_by;
-			if (moved_number >= 0 && moved_number < (int)queue->len) {
+			if (moved_number >= 0 && moved_number < (int)q->len) {
 				another->number = moved_number;
 				_item_tween_to_rest(another);
 			}
@@ -259,20 +288,41 @@ void _page_reorder_entry(QueuePage *q, QueueItem *item, int to_number, Context c
 	item->number = to_number;
 }
 
-void queue_page_on_event(QueuePage *q, Event event) {
+static void _queue_update(Queue *q, EventDataQueue data) {
+	q->trying_to_grab_idx = -1;
+	q->reordering_idx = -1;
+	q->reorder_click_offset_y = 0;
+
+	// Free previous items
+	queue_page_free(q);
+
+	for (size_t i = 0; i < data.len; i ++) {
+		struct mpd_entity *entity = data.items[i];
+
+		// Count total queue duration
+		const struct mpd_song *song = mpd_entity_get_song(entity);
+		q->total_duration_sec += mpd_song_get_duration(song);
+
+		unsigned number = q->len;
+		DA_PUSH(q, _queue_item_new(number, entity));
+	}
+
+	// Free the array, but not its items, they are owned by `QueueItem`s
+	free(data.items);
+	data.items = NULL;
+}
+
+void queue_page_on_event(Queue *q, Event event) {
 	if (event.kind == EVENT_QUEUE_CHANGED) {
-		q->trying_to_grab_idx = -1;
-		q->reordering_idx = -1;
-		q->reorder_click_offset_y = 0;
+		assert(event.data.queue.items != NULL);
+		_queue_update(q, event.data.queue);
 	}
 }
 
-static void _page_draw_reordering_item(QueuePage *q, Context ctx) {
+static void _queue_page_draw_reordering_item(Queue *q, Context ctx) {
 	if (q->reordering_idx < 0) return;
 
-	// NOTE: queue mutex is locked in `queue_page_draw()` so it is safe to use
-	// `ctx.client->_queue` directly
-	QueueItem *reordering = &ctx.client->_queue.items[q->reordering_idx];
+	QueueItem *reordering = &q->items[q->reordering_idx];
 
 	// Move currently reordering item to mouse position
 	reordering->pos_y = GetMouseY()
@@ -281,7 +331,7 @@ static void _page_draw_reordering_item(QueuePage *q, Context ctx) {
 		+ ctx.state->scroll;
 
 	// Reorder and draw currently reordering item
-	_page_reorder_entry(q, reordering, _item_number_from_pos(reordering), ctx);
+	_queue_page_reorder_entry(q, reordering, _item_number_from_pos(reordering));
 	_item_draw(q->reordering_idx, reordering, q, ctx);
 
 	// Scroll following
@@ -311,7 +361,7 @@ static void _page_draw_reordering_item(QueuePage *q, Context ctx) {
 	}
 }
 
-void queue_page_draw(QueuePage *q, Context ctx) {
+void queue_page_draw(Queue *q, Context ctx) {
 	const struct mpd_song   *cur_song_nullable;
 	const struct mpd_status *cur_status_nullable;
 	client_lock_status_nullable(
@@ -319,8 +369,6 @@ void queue_page_draw(QueuePage *q, Context ctx) {
 		&cur_song_nullable,
 		&cur_status_nullable
 	);
-
-	const Queue *queue = client_lock_queue(ctx.client);
 
 	float transition = ctx.state->page_transition;
 	if (ctx.state->page == PAGE_QUEUE) {
@@ -356,7 +404,7 @@ void queue_page_draw(QueuePage *q, Context ctx) {
 		sh - QUEUE_PAGE_PADDING*2 - (QUEUE_STATS_HEIGHT + CUR_PLAY_HEIGHT)
 	);
 
-	float all_entries_height = queue->len * QUEUE_ITEM_HEIGHT;
+	float all_entries_height = q->len * QUEUE_ITEM_HEIGHT;
 	scrollable_set_height(
 		&q->scrollable,
 		all_entries_height + QUEUE_PAGE_PADDING*2 - container.height
@@ -400,8 +448,8 @@ void queue_page_draw(QueuePage *q, Context ctx) {
 	if (cur_status_nullable)
 		elapsed_sec = mpd_status_get_elapsed_ms(cur_status_nullable) / (int)1000;
 
-	for (size_t i = 0; i < queue->len; i++) {
-		QueueItem *item = &queue->items[i];
+	for (size_t i = 0; i < q->len; i++) {
+		QueueItem *item = &q->items[i];
 
 		// TODO: it would be better to cache the total elapsed time
 		if (cur_status_nullable) {
@@ -416,7 +464,7 @@ void queue_page_draw(QueuePage *q, Context ctx) {
 	}
 
 	// Draw item that is currently being reordered
-	_page_draw_reordering_item(q, ctx);
+	_queue_page_draw_reordering_item(q, ctx);
 
 	// ==============================
 	// Draw queue stats
@@ -438,7 +486,7 @@ void queue_page_draw(QueuePage *q, Context ctx) {
 	);
 
 	static char count_str[26] = {0};
-	snprintf(count_str, 25, "♪ %ld", queue->len);
+	snprintf(count_str, 25, "♪ %ld", q->len);
 	count_str[25] = 0;
 
 	// Draw number of tracks
@@ -456,8 +504,8 @@ void queue_page_draw(QueuePage *q, Context ctx) {
 
 	// Draw queue elapsed time
 	unsigned time_left = 0;
-	if (elapsed_sec <= queue->total_duration_sec)
-		time_left = queue->total_duration_sec - elapsed_sec;
+	if (elapsed_sec <= q->total_duration_sec)
+		time_left = q->total_duration_sec - elapsed_sec;
 
 	static char time_left_str[TIME_BUF_LEN] = {0};
 	format_time(time_left_str, time_left, true);
@@ -469,5 +517,14 @@ void queue_page_draw(QueuePage *q, Context ctx) {
 
 defer:
 	client_unlock_status(ctx.client);
-	client_unlock_queue(ctx.client);
+}
+
+void queue_page_free(Queue *q) {
+	for (size_t i = 0; i < q->len; i++) {
+		_queue_item_free(&q->items[i]);
+	}
+	free(q->items);
+	q->len = 0;
+	q->cap = 0;
+	q->items = NULL;
 }

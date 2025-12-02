@@ -10,7 +10,6 @@ typedef struct Client Client;
 #include "./client/request.h"
 #include "./client/action.h"
 #include "./client/event.h"
-#include "./client/queue.h"
 #include "./client/albums.h"
 
 #include "../thirdparty/uthash.h"
@@ -58,9 +57,6 @@ struct Client {
 	// Current playback status
 	// Can be `NULL`
 	struct mpd_status *_cur_status_nullable;
-
-	pthread_rwlock_t _queue_rwlock;
-	Queue _queue;
 
 	pthread_mutex_t _albums_mutex;
 	Albums _albums;
@@ -119,12 +115,6 @@ void client_lock_status_nullable(
 );
 // Unlock status rwlock
 void client_unlock_status(Client *c);
-
-// Lock and get current queue
-// DON'T FORGET TO `client_unlock_queue` IT BEFORE YOU'RE DONE DOING THINGS
-const Queue *client_lock_queue(Client *c);
-// Unlock queue rwlock
-void client_unlock_queue(Client *c);
 
 // Lock and get albums list
 // DON'T FORGET TO `client_unlock_albums` IT BEFORE YOU'RE DONE DOING THINGS
