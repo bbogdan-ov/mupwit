@@ -42,7 +42,7 @@ int main() {
 	};
 
 	Queue queue_page = queue_page_new();
-	AlbumsPage albums_page = albums_page_new();
+	Albums albums_page = albums_page_new();
 
 	while (true) {
 		if (should_close()) {
@@ -80,7 +80,7 @@ int main() {
 
 				state_on_event(&state, event);
 				queue_page_on_event(&queue_page, event);
-				albums_page_on_event(ctx, event);
+				albums_page_on_event(&albums_page, event);
 			};
 
 			state_update(&state, &client);
@@ -130,6 +130,7 @@ int main() {
 	// And should i?
 
 	queue_page_free(&queue_page);
+	albums_page_free(&albums_page);
 	state_free(&state);
 
 	// Wait untill the connection is closed

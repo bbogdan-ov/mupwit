@@ -13,14 +13,31 @@
 #define PADDING 8
 #define GAP 8
 
-AlbumsPage albums_page_new(void) {
-	return (AlbumsPage){
+Albums albums_page_new(void) {
+	return (Albums){
+		.items = NULL,
+		.len = 0,
+		.cap = 0,
+
 		.scrollable = scrollable_new(),
 	};
 }
 
 static float item_width = 0;
 static float item_height = 0;
+
+static AlbumItem _album_item_new(AlbumInfo info) {
+	return (AlbumItem){
+		.info = info,
+
+		.artwork = artwork_image_new(),
+		.artwork_tween = timer_new(300, false),
+	};
+}
+
+static void _album_item_free(AlbumItem *item) {
+	album_info_free(item->info);
+}
 
 static void _album_item_update_artwork(AlbumItem *item, Client *client, bool in_view) {
 	if (item->artwork.received) return;
@@ -32,7 +49,7 @@ static void _album_item_update_artwork(AlbumItem *item, Client *client, bool in_
 			artwork_image_cancel(&item->artwork, client);
 		}
 	} else if (in_view) {
-		artwork_image_fetch(&item->artwork, client, item->first_song_uri_nullable);
+		artwork_image_fetch(&item->artwork, client, item->info.first_song_uri_nullable);
 	}
 }
 
@@ -83,7 +100,7 @@ static void _album_item_draw(size_t idx, AlbumItem *item, Context ctx) {
 
 	// Draw title and artist
 	Text text = {
-		.text = item->artist_nullable ? item->artist_nullable : UNKNOWN,
+		.text = item->info.artist_nullable ? item->info.artist_nullable : UNKNOWN,
 		.font = ctx.assets->title_font,
 		.size = THEME_TITLE_FONT_SIZE,
 		.pos = {0},
@@ -127,7 +144,7 @@ static void _album_item_draw(size_t idx, AlbumItem *item, Context ctx) {
 
 	// Title
 	BeginScissorMode(inner.x, inner.y, inner.width, inner.height);
-	text.text = item->title;
+	text.text = item->info.title;
 	text.font = ctx.assets->normal_font,
 	text.size = THEME_NORMAL_TEXT_SIZE;
 	text.pos = offset;
@@ -135,20 +152,35 @@ static void _album_item_draw(size_t idx, AlbumItem *item, Context ctx) {
 	EndScissorMode();
 }
 
-void albums_page_on_event(Context ctx, Event event) {
-	if (event.kind == EVENT_RESPONSE) {
-		const Albums *albums = client_lock_albums(ctx.client);
+static void _albums_update(Albums *a, EventDataAlbumsList data) {
+	// Free previous items
+	albums_page_free(a);
 
-		for (size_t i = 0; i < albums->len; i++) {
-			AlbumItem *item = &albums->items[i];
+	for (size_t i = 0; i < data.len; i ++) {
+		AlbumInfo info = data.items[i];
+		DA_PUSH(a, _album_item_new(info));
+	}
+
+	// Free the array, but not its items, they are owned by `AlbumItem`s
+	free(data.items);
+	data.items = NULL;
+}
+
+void albums_page_on_event(Albums *a, Event event) {
+	if (event.kind == EVENT_RESPONSE) {
+		for (size_t i = 0; i < a->len; i++) {
+			AlbumItem *item = &a->items[i];
 			artwork_image_on_response_event(&item->artwork, event);
 		}
+	}
 
-		client_unlock_albums(ctx.client);
+	else if (event.kind == EVENT_ALBUMS_LIST_CHANGED) {
+		assert(event.data.albums.items != NULL);
+		_albums_update(a, event.data.albums);
 	}
 }
 
-void albums_page_draw(AlbumsPage *a, Context ctx) {
+void albums_page_draw(Albums *a, Context ctx) {
 	float transition = ctx.state->page_transition;
 	if (ctx.state->page == PAGE_ALBUMS && ctx.state->prev_page == PAGE_QUEUE) {
 		// pass
@@ -160,8 +192,6 @@ void albums_page_draw(AlbumsPage *a, Context ctx) {
 	} else {
 		return;
 	}
-
-	const Albums *albums = client_lock_albums(ctx.client);
 
 	int sw = GetScreenWidth();
 	int sh = GetScreenHeight();
@@ -178,7 +208,7 @@ void albums_page_draw(AlbumsPage *a, Context ctx) {
 	item_height = item_width + THEME_NORMAL_TEXT_SIZE + PADDING;
 
 	// Update scrollable
-	float all_entries_height = albums->len/ROW_COUNT * item_height + item_height;
+	float all_entries_height = a->len/ROW_COUNT * item_height + item_height;
 	scrollable_set_height(
 		&a->scrollable,
 		all_entries_height - container.height
@@ -195,10 +225,18 @@ void albums_page_draw(AlbumsPage *a, Context ctx) {
 	// Draw items
 	// ==============================
 
-	for (size_t i = 0; i < albums->len; i++) {
-		AlbumItem *item = &albums->items[i];
+	for (size_t i = 0; i < a->len; i++) {
+		AlbumItem *item = &a->items[i];
 		_album_item_draw(i, item, ctx);
 	}
+}
 
-	client_unlock_albums(ctx.client);
+void albums_page_free(Albums *a) {
+	for (size_t i = 0; i < a->len; i++) {
+		_album_item_free(&a->items[i]);
+	}
+	free(a->items);
+	a->len = 0;
+	a->cap = 0;
+	a->items = NULL;
 }

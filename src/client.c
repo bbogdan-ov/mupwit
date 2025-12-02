@@ -55,8 +55,6 @@ Client client_new(void) {
 	INIT_MUTEX(events_mutex);
 	INIT_MUTEX(reqs_mutex);
 
-	INIT_MUTEX(albums_mutex);
-
 	INIT_RWLOCK(state_rwlock);
 	INIT_RWLOCK(status_rwlock);
 
@@ -77,13 +75,6 @@ Client client_new(void) {
 		._reqs = NULL,
 		._cur_req = NULL,
 		._last_req_id = 0,
-
-		._albums_mutex = albums_mutex,
-		._albums = (Albums){
-			.items = NULL,
-			.len = 0,
-			.cap = 0,
-		},
 
 		._state_rwlock = state_rwlock,
 		._status_rwlock = status_rwlock,
@@ -427,7 +418,6 @@ void _client_fetch_queue(Client *c) {
 
 	clock_t end = clock();
 	int time = (int)((double)(end - start) / CLOCKS_PER_SEC * 1000);
-
 	TraceLog(LOG_INFO, "MPD CLIENT: QUEUE: Updated in %dms (%d songs)", time, queue.len);
 
 	// Push event
@@ -437,10 +427,94 @@ void _client_fetch_queue(Client *c) {
 	});
 }
 
+static int _items_sort_func(const void* a, const void* b) {
+	const AlbumInfo *ai = a;
+	const AlbumInfo *bi = b;
+	return strcmp(ai->title, bi->title);
+}
 void _client_fetch_albums(Client *c) {
-	LOCK(&c->_albums_mutex);
-	albums_fetch(&c->_albums, c->_conn);
-	UNLOCK(&c->_albums_mutex);
+	clock_t start = clock();
+
+	// TODO: also group by the "disk" tag
+	if (false
+		|| !mpd_search_db_tags(c->_conn, MPD_TAG_ALBUM)
+		|| !mpd_search_add_group_tag(c->_conn, MPD_TAG_ARTIST)
+		|| !mpd_search_commit(c->_conn)
+	) {
+		CONN_HANDLE_ERROR(c->_conn);
+		return;
+	}
+
+	EventDataAlbumsList albums = {0};
+
+	// Collect all albums and their artists
+	char *cur_artist = NULL;
+	while (true) {
+		struct mpd_pair *pair = mpd_recv_pair(c->_conn);
+		if (!pair) break;
+
+		if (strcmp(pair->name, "Artist") == 0) {
+			free(cur_artist);
+			cur_artist = strdup(pair->value);
+		}
+
+		if (strcmp(pair->name, "Album") == 0 && strlen(pair->value) > 0) {
+			AlbumInfo info = {
+				.title = strdup(pair->value),
+				.artist_nullable = cur_artist ? strdup(cur_artist) : NULL,
+				.first_song_uri_nullable = NULL,
+			};
+			DA_PUSH(&albums, info);
+		}
+
+		mpd_return_pair(c->_conn, pair);
+	}
+	free(cur_artist);
+
+	qsort(albums.items, albums.len, sizeof(albums.items[0]), _items_sort_func);
+
+	if (!mpd_response_finish(c->_conn)) {
+		CONN_HANDLE_ERROR(c->_conn);
+		return;
+	}
+
+	// Fetch first song of each album
+	for (size_t i = 0; i < albums.len; i++) {
+		AlbumInfo *info = &albums.items[i];
+
+		if (false
+			|| !mpd_search_db_songs(c->_conn, true)
+			|| !mpd_search_add_tag_constraint(c->_conn, MPD_OPERATOR_DEFAULT, MPD_TAG_ALBUM, info->title)
+			|| !mpd_search_add_window(c->_conn, 0, 1)
+			|| !mpd_search_commit(c->_conn)
+		) {
+			CONN_HANDLE_ERROR(c->_conn);
+			continue;
+		}
+
+		// Receive info for the first song in the album
+		{
+			struct mpd_pair *pair = mpd_recv_pair_named(c->_conn, "file");
+			if (!pair) continue;
+
+			info->first_song_uri_nullable = strdup(pair->value);
+
+			mpd_return_pair(c->_conn, pair);
+		}
+
+		if (!mpd_response_finish(c->_conn))
+			CONN_HANDLE_ERROR(c->_conn);
+	}
+
+	clock_t end = clock();
+	int time = (int)((double)(end - start) / CLOCKS_PER_SEC * 1000);
+	TraceLog(LOG_INFO, "MPD CLIENT: ALBUMS LIST: Updated in %dms (%d albums)", time, albums.len);
+
+	// Push event
+	_client_push_event(c, (Event){
+		.kind = EVENT_ALBUMS_LIST_CHANGED,
+		.data = { .albums = albums },
+	});
 }
 
 bool _conn_run_toggle(struct mpd_connection *conn) {
@@ -586,8 +660,6 @@ static void _client_handle_idle(Client *c, enum mpd_idle idle) {
 	}
 
 	if (idle & MPD_IDLE_DATABASE) {
-		_client_push_event(c, (Event){.kind = EVENT_DATABASE_CHANGED});
-
 		_client_fetch_albums(c);
 	}
 }
@@ -617,10 +689,6 @@ void _client_free(Client *c) {
 	mpd_connection_free(c->_conn);
 	_client_free_cur_status(c);
 	_client_free_cur_song(c);
-
-	LOCK(&c->_albums_mutex);
-	albums_free(&c->_albums);
-	UNLOCK(&c->_albums_mutex);
 }
 
 // Client loop
@@ -778,15 +846,16 @@ void client_unlock_status(Client *c) {
 	RW_UNLOCK(&c->_status_rwlock);
 }
 
-Albums *client_lock_albums(Client *c) {
-	LOCK(&c->_albums_mutex);
-	return &c->_albums;
-}
-void client_unlock_albums(Client *c) {
-	UNLOCK(&c->_albums_mutex);
-}
-
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag) {
 	const char *t = mpd_song_get_tag(song, tag, 0);
 	return t == NULL ? UNKNOWN : t;
+}
+
+void album_info_free(AlbumInfo a) {
+	free(a.title);
+	free(a.artist_nullable);
+	free(a.first_song_uri_nullable);
+	a.title = NULL;
+	a.artist_nullable = NULL;
+	a.first_song_uri_nullable = NULL;
 }

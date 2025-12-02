@@ -12,10 +12,13 @@ typedef enum EventKind {
 	EVENT_STATUS_CHANGED,
 	// Currently playing song was changed
 	EVENT_SONG_CHANGED,
+
 	// Current queue was changed outside MUPWIT (something else made queue to change)
 	// Data: `queue`
 	EVENT_QUEUE_CHANGED,
-	EVENT_DATABASE_CHANGED,
+	// Albums list was changed
+	// Data: `albums`
+	EVENT_ALBUMS_LIST_CHANGED,
 
 	// Response received
 	// Data: `response_artwork`
@@ -28,10 +31,15 @@ typedef struct EventDataQueue {
 	DA_FIELDS(struct mpd_entity*)
 } EventDataQueue;
 
+typedef struct EventDataAlbumsList {
+	DA_FIELDS(AlbumInfo)
+} EventDataAlbumsList;
+
 typedef struct Event {
 	EventKind kind;
 	union {
 		EventDataQueue queue;
+		EventDataAlbumsList albums;
 
 		struct {
 			int id;

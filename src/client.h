@@ -6,11 +6,20 @@
 
 typedef struct Client Client;
 
+// TODO!: refactor this struct to somewhere else
+typedef struct AlbumInfo {
+	// These 3 are owned strings
+	char *title;
+	char *artist_nullable;
+	char *first_song_uri_nullable;
+} AlbumInfo;
+
+void album_info_free(AlbumInfo a);
+
 #include "./macros.h"
 #include "./client/request.h"
 #include "./client/action.h"
 #include "./client/event.h"
-#include "./client/albums.h"
 
 #include "../thirdparty/uthash.h"
 
@@ -57,9 +66,6 @@ struct Client {
 	// Current playback status
 	// Can be `NULL`
 	struct mpd_status *_cur_status_nullable;
-
-	pthread_mutex_t _albums_mutex;
-	Albums _albums;
 
 	pthread_rwlock_t _state_rwlock;
 	ClientState _state;
@@ -115,12 +121,6 @@ void client_lock_status_nullable(
 );
 // Unlock status rwlock
 void client_unlock_status(Client *c);
-
-// Lock and get albums list
-// DON'T FORGET TO `client_unlock_albums` IT BEFORE YOU'RE DONE DOING THINGS
-Albums *client_lock_albums(Client *c);
-// Unlock albums mutex
-void client_unlock_albums(Client *c);
 
 const char *song_tag_or_unknown(const struct mpd_song *song, enum mpd_tag_type tag);
 
