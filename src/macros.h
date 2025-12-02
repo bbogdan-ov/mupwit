@@ -48,6 +48,11 @@
 	assert(nanosleep(&ts, &ts) == 0); \
 } while (0)
 
+#define DA_FIELDS(type) \
+	type *items; \
+	size_t len; \
+	size_t cap;
+
 #define DA_RESERVE(da, capacity) if ((capacity) >= (da)->cap) { \
 	(da)->cap = MAX((capacity) * 2, DA_INIT_CAP); \
 	(da)->items = realloc((da)->items, (da)->cap * sizeof((da)->items[0])); \
@@ -61,6 +66,12 @@
 	DA_RESERVE((da), (da)->len + 1); \
 	(da)->items[(da)->len++] = (item); \
 } while (0)
+
+#define RINGBUF_FIELDS(type, capacity) \
+	size_t head; \
+	size_t tail; \
+	size_t cap; \
+	type buffer[capacity];
 
 #define RINGBUF_IS_EMPTY(rb) ((rb)->head == (rb)->tail)
 #define RINGBUF_IS_FULL(rb)  (((rb)->head + 1) % (rb)->cap == (rb)->tail)

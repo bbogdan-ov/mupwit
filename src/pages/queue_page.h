@@ -32,9 +32,7 @@ typedef struct QueueItem {
 } QueueItem;
 
 typedef struct Queue {
-	QueueItem *items;
-	size_t len;
-	size_t cap;
+	DA_FIELDS(QueueItem)
 
 	unsigned total_duration_sec;
 

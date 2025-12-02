@@ -35,10 +35,7 @@ typedef struct Action {
 } Action;
 
 typedef struct ActionsQueue {
-	size_t head;
-	size_t tail;
-	size_t cap;
-	Action buffer[ACTIONS_QUEUE_CAP];
+	RINGBUF_FIELDS(Action, ACTIONS_QUEUE_CAP)
 } ActionsQueue;
 
 #endif

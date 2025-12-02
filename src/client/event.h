@@ -24,10 +24,8 @@ typedef enum EventKind {
 
 typedef struct EventDataQueue {
 	// List MPD queue entities/songs
-	// Type is guaranteed to be `MPD_ENTITY_TYPE_SONG`
-	struct mpd_entity **items;
-	size_t len;
-	size_t cap;
+	// Entities types are guaranteed to be `MPD_ENTITY_TYPE_SONG`
+	DA_FIELDS(struct mpd_entity*)
 } EventDataQueue;
 
 typedef struct Event {
@@ -44,10 +42,7 @@ typedef struct Event {
 } Event;
 
 typedef struct EventsQueue {
-	size_t head;
-	size_t tail;
-	size_t cap;
-	Event buffer[EVENTS_QUEUE_CAP];
+	RINGBUF_FIELDS(Event, EVENTS_QUEUE_CAP)
 } EventsQueue;
 
 #endif
