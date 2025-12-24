@@ -1,3 +1,6 @@
+> [!WARNING]
+> Currently MUPWIT is being rewritten in ODIN! I got sick of C
+
 # MUPWIT - MUsic Player WIth Things
 
 > [!WARNING]
