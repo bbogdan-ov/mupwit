@@ -3,7 +3,6 @@ package client
 import "core:fmt"
 import "core:net"
 import "core:strings"
-import "core:sync"
 import "core:thread"
 import "core:time"
 import "vendor:raylib"
@@ -107,9 +106,10 @@ handle_action :: proc(client: ^Client, sock: net.TCP_Socket, action: loop.Action
 	}
 }
 
-trace :: proc(level: raylib.TraceLogLevel, $msg: string, args: ..any) {
+trace :: proc(level: raylib.TraceLogLevel, msg: string, args: ..any) {
 	// Is this a good way to format Odin's strings?
 	sb := strings.builder_make()
-	fmt.sbprintf(&sb, "CLIENT:" + msg, ..args)
+	fmt.sbprint(&sb, "CLIENT:")
+	fmt.sbprintf(&sb, msg, ..args)
 	raylib.TraceLog(level, strings.to_cstring(&sb))
 }

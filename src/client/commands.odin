@@ -1,6 +1,5 @@
 package client
 
-import "core:bytes"
 import "core:fmt"
 import "core:net"
 import "core:strings"

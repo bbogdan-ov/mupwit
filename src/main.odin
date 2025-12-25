@@ -8,7 +8,7 @@ import loop_ "loop"
 
 main :: proc() {
 	loop := loop_.create()
-	client := client_.connect(loop)
+	client_.connect(loop)
 
 	is_ready := false
 
