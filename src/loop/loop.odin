@@ -1,15 +1,24 @@
 package loop
 
+import "base:builtin"
 import "core:container/queue"
+
 Event_Loop :: struct {
 	events:  [dynamic]Event,
 	actions: queue.Queue(Action),
 }
 
-create :: proc() -> ^Event_Loop {
+make :: proc() -> ^Event_Loop {
 	loop := new(Event_Loop)
+	loop.events = builtin.make([dynamic]Event)
 	queue.init(&loop.actions)
 	return loop
+}
+
+destroy :: proc(loop: ^Event_Loop) {
+	queue.destroy(&loop.actions)
+	delete(loop.events)
+	free(loop)
 }
 
 push_event :: proc(loop: ^Event_Loop, event: Event) {

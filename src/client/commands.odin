@@ -22,6 +22,10 @@ cmd_make :: proc() -> Cmd {
 	return Cmd{builder = strings.builder_make()}
 }
 
+cmd_destroy :: proc(cmd: ^Cmd) {
+	strings.builder_destroy(&cmd.builder)
+}
+
 cmd_append :: proc(cmd: ^Cmd, args: ..any) {
 	fmt.sbprint(&cmd.builder, ..args)
 }
@@ -53,8 +57,4 @@ cmd_send :: proc(s: string, sock: net.TCP_Socket) -> Cmd_Error {
 	if err != nil {return err}
 	if size != len(s) {return .Invalid_Size}
 	return nil
-}
-
-cmd_destroy :: proc(cmd: ^Cmd) {
-	strings.builder_destroy(&cmd.builder)
 }
