@@ -2,6 +2,7 @@ package client
 
 import "core:fmt"
 import "core:net"
+import "core:strings"
 import "core:sync"
 import "core:thread"
 import "core:time"
@@ -103,21 +104,17 @@ dial :: proc(client: ^Client, status: Status_Connecting) {
 
 @(private)
 handle_action :: proc(client: ^Client, sock: net.TCP_Socket, action: loop.Action) {
-	cmd: string
-
 	switch a in action {
 	case loop.Action_Play:
-		cmd = "pause 0\n"
+		cmd_immediate(sock, "pause 0")
 	case loop.Action_Pause:
-		cmd = "pause 1\n"
-	}
-
-	size, err := net.send(sock, transmute([]byte)cmd)
-	if err != nil {
-		panic("TODO: oh no")
+		cmd_immediate(sock, "pause 1")
 	}
 }
 
-trace :: proc(level: raylib.TraceLogLevel, $msg: cstring, args: ..any) {
-	raylib.TraceLog(level, "CLIENT: " + msg, args)
+trace :: proc(level: raylib.TraceLogLevel, $msg: string, args: ..any) {
+	// Is this a good way to format Odin's strings?
+	sb := strings.builder_make()
+	fmt.sbprintf(&sb, "CLIENT:" + msg, ..args)
+	raylib.TraceLog(level, strings.to_cstring(&sb))
 }

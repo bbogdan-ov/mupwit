@@ -10,7 +10,7 @@ build:
 
 build/mupwit: $(SOURCES)
 	@echo "INFO: Compiling MUPWIT..."
-	@odin build src -out:build/mupwit
+	@odin build src -out:build/mupwit -debug
 
 clean:
 	rm -r build
