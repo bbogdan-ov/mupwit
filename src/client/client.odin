@@ -32,9 +32,8 @@ Status :: union {
 }
 
 Client :: struct {
-	loop:         ^loop.Event_Loop,
-	status:       Status,
-	status_mutex: sync.Mutex,
+	loop:   ^loop.Event_Loop,
+	status: Status,
 }
 
 // Open a connection with the MPD server
@@ -59,15 +58,11 @@ connect :: proc(loop: ^loop.Event_Loop, ip := DEFAULT_IP, port := DEFAULT_PORT) 
 do_connect :: proc(t: ^thread.Thread) {
 	client := (^Client)(t.data)
 
-	{
-		sync.guard(&client.status_mutex)
-
-		#partial switch s in client.status {
-		case Status_Connecting:
-			dial(client, s)
-		case:
-			panic(fmt.tprint("client must be in `Connecting` state, but got", s))
-		}
+	#partial switch s in client.status {
+	case Status_Connecting:
+		dial(client, s)
+	case:
+		panic(fmt.tprint("client must be in `Connecting` state, but got", s))
 	}
 
 	trace(.INFO, "Successfully connected")
