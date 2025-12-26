@@ -17,9 +17,9 @@ Error_Kind :: enum {
 	None = 0,
 	Invalid_Size,
 	Not_OK,
-	Unexpected_Binary,
+	Expected_String,
 	Invalid_Pair,
-	Pair_Not_Int,
+	Pair_Not_Number,
 }
 
 Error :: union {
@@ -71,7 +71,7 @@ do_connect :: proc(t: ^thread.Thread) {
 
 	// Successfully connected
 	loop.push_event(data.event_loop, loop.Event_Client_Ready{})
-	response_receive(sock) // consume the MPD version message
+	receive_string(sock) // consume the MPD version message
 
 	trace(.INFO, "Successfully connected")
 
@@ -95,14 +95,14 @@ handle_action :: proc(sock: net.TCP_Socket, event_loop: ^loop.Event_Loop, action
 	switch a in action {
 	case loop.Action_Play:
 		cmd_immediate(sock, "pause 0")
-		response_expect_ok(sock)
+		receive_ok(sock)
 	case loop.Action_Pause:
 		cmd_immediate(sock, "pause 1")
-		response_expect_ok(sock)
+		receive_ok(sock)
 	case loop.Action_Req_Status:
-		status_request(sock)
+		request_status(sock)
 
-		status, err := status_receive(sock)
+		status, err := receive_status(sock)
 		if err != nil {
 			trace(.ERROR, "STATUS: Unable to receive the playback status: %s", err)
 			return

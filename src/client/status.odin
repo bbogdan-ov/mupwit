@@ -18,12 +18,12 @@ Status :: struct {
 	duration:     time.Duration,
 }
 
-status_request :: proc(sock: net.TCP_Socket) -> Error {
+request_status :: proc(sock: net.TCP_Socket) -> Error {
 	return cmd_immediate(sock, "status")
 }
 
-status_receive :: proc(sock: net.TCP_Socket) -> (status: Status, err: Error) {
-	pairs := pairs_receive(sock) or_return
+receive_status :: proc(sock: net.TCP_Socket) -> (status: Status, err: Error) {
+	pairs := receive_pairs(sock) or_return
 	defer pairs_destroy(pairs)
 
 	for pair in pairs.list {
