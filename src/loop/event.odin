@@ -1,9 +1,9 @@
 package loop
 
+// The client was been connected successfully
 Event_Client_Ready :: struct {}
-Event_Client_Error :: struct {
-	error: string,
-}
+// Something went wrong while trying to connect the client
+Event_Client_Error :: struct {}
 
 Event :: union {
 	Event_Client_Ready,

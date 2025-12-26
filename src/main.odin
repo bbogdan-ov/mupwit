@@ -3,15 +3,15 @@ package mupwit
 import "core:math"
 import "vendor:raylib"
 
-import client_ "client"
+import "client"
 import loop_ "loop"
 
 main :: proc() {
 	loop := loop_.make()
 	defer loop_.destroy(loop)
-	client_.connect(loop)
+	client.connect(loop)
 
-	is_ready := false
+	status: client.Status = .Connecting
 
 	raylib.InitWindow(256, 256, "hey")
 	raylib.SetTargetFPS(60)
@@ -22,13 +22,13 @@ main :: proc() {
 
 		events: for {
 			event := loop_.pop_event(loop)
-			switch _ in event {
+			switch e in event {
 			case nil:
 				break events
 			case loop_.Event_Client_Ready:
-				is_ready = true
+				status = .Ready
 			case loop_.Event_Client_Error:
-				panic("TODO: oh no")
+				status = .Error
 			}
 		}
 
@@ -41,10 +41,13 @@ main :: proc() {
 		x := cast(i32)(math.sin(raylib.GetTime() * 10) * 20)
 		raylib.DrawRectangle(x, 16, 32, 32, raylib.RED)
 
-		if is_ready {
-			raylib.DrawText("Ready!", 4, 4, 20, raylib.WHITE)
-		} else {
+		switch status {
+		case .Connecting:
 			raylib.DrawText("Connecting...", 4, 4, 20, raylib.WHITE)
+		case .Ready:
+			raylib.DrawText("Ready!", 4, 4, 20, raylib.WHITE)
+		case .Error:
+			raylib.DrawText("Error", 4, 4, 20, raylib.WHITE)
 		}
 
 		raylib.EndDrawing()
