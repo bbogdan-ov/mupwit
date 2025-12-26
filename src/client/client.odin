@@ -13,6 +13,18 @@ DEFAULT_IP: string : "127.0.0.1"
 // MPD uses this port by default
 DEFAULT_PORT: int : 6600
 
+Error_Kind :: enum {
+	None = 0,
+	Invalid_Size,
+	Not_OK,
+}
+
+Error :: union {
+	Error_Kind,
+	net.Network_Error,
+	net.TCP_Recv_Error,
+}
+
 Status_Connecting :: struct {
 	addr: net.IP4_Address,
 	port: int,
@@ -64,7 +76,6 @@ do_connect :: proc(t: ^thread.Thread) {
 		panic(fmt.tprint("client must be in `Connecting` state, but got", s))
 	}
 
-	trace(.INFO, "Successfully connected")
 }
 
 @(private)
@@ -76,11 +87,17 @@ dial :: proc(client: ^Client, status: Status_Connecting) {
 		panic("TODO: catch error")
 	}
 
+	// Successfully connected
+
+	// Consume the MPD version message
+	response_read(sock)
+
 	client.status = Status_Ready {
 		sock = sock,
 	}
-
 	loop.push_event(client.loop, loop.Event_Client_Ready{})
+
+	trace(.INFO, "Successfully connected")
 
 	for {
 		action: for {
@@ -109,7 +126,7 @@ handle_action :: proc(client: ^Client, sock: net.TCP_Socket, action: loop.Action
 trace :: proc(level: raylib.TraceLogLevel, msg: string, args: ..any) {
 	// Is this a good way to format Odin's strings?
 	sb := strings.builder_make()
-	fmt.sbprint(&sb, "CLIENT:")
+	fmt.sbprint(&sb, "CLIENT: ")
 	fmt.sbprintf(&sb, msg, ..args)
 	raylib.TraceLog(level, strings.to_cstring(&sb))
 }

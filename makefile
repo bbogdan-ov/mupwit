@@ -10,7 +10,12 @@ build:
 
 build/mupwit: $(SOURCES)
 	@echo "INFO: Compiling MUPWIT..."
-	@odin build src -out:build/mupwit -debug -vet
+	@odin build src -out:build/mupwit -debug \
+		-vet-tabs \
+		-vet-unused \
+		-vet-unused-variables \
+		-vet-unused-imports \
+		-vet-using-stmt
 
 clean:
 	rm -r build
