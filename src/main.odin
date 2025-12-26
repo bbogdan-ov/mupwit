@@ -9,6 +9,7 @@ import "client"
 main :: proc() {
 	event_loop := client.loop_make()
 	defer client.loop_destroy(event_loop)
+
 	client.connect(event_loop)
 
 	state: client.State = .Connecting

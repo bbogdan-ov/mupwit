@@ -1,8 +1,6 @@
 package client
 
-import "core:fmt"
 import "core:net"
-import "core:strings"
 import "core:thread"
 import "core:time"
 import "vendor:raylib"
@@ -13,17 +11,39 @@ DEFAULT_PORT: int : 6600
 
 Error_Kind :: enum {
 	None = 0,
-	Invalid_Size,
-	Not_OK,
-	Expected_String,
-	Invalid_Pair,
-	Pair_Not_Number,
+	Cmd_Invalid_Size,
+	Response_Not_OK,
+	Response_Expected_String,
+	Response_Invalid_Pair,
+	Respose_Pair_Expected_Number,
 }
 
-Error :: union {
+Error :: union #shared_nil {
 	Error_Kind,
 	net.Network_Error,
-	net.TCP_Recv_Error,
+}
+
+error_trace :: proc(error: Error) {
+	if error == nil do return
+
+	switch e in error {
+	case Error_Kind:
+		switch e {
+		case .None:
+		case .Cmd_Invalid_Size:
+			raylib.TraceLog(.ERROR, "CLIENT: COMMAND: Sent invalid number of bytes")
+		case .Response_Not_OK:
+			raylib.TraceLog(.ERROR, "CLIENT: RESPONSE: Received response is not OK")
+		case .Response_Expected_String:
+			raylib.TraceLog(.ERROR, "CLIENT: RESPONSE: Expected a valid UTF-8 string")
+		case .Response_Invalid_Pair:
+			raylib.TraceLog(.ERROR, "CLIENT: RESPONSE: Invalid pair")
+		case .Respose_Pair_Expected_Number:
+			raylib.TraceLog(.ERROR, "CLIENT: RESPONSE: Pair value expected to be a number")
+		}
+	case net.Network_Error:
+		raylib.TraceLog(.ERROR, "CLIENT: Network error: %s", e)
+	}
 }
 
 @(private)
@@ -37,6 +57,10 @@ State :: enum {
 	Connecting,
 	Ready,
 	Error,
+}
+
+Client :: struct {
+	sock: net.TCP_Socket,
 }
 
 // Open a connection with the MPD server
@@ -67,11 +91,15 @@ do_connect :: proc(t: ^thread.Thread) {
 		panic("TODO: catch error")
 	}
 
-	// Successfully connected
-	loop_push_event(data.event_loop, Event_State_Changed{state = .Ready})
-	receive_string(sock) // consume the MPD version message
+	client := Client {
+		sock = sock,
+	}
 
-	trace(.INFO, "Successfully connected")
+	// Successfully connected
+	loop_push_event(data.event_loop, Event_State_Changed{.Ready})
+	receive_string(&client) // consume the MPD version message
+
+	raylib.TraceLog(.INFO, "Successfully connected")
 
 	// Loop forever
 	for {
@@ -80,7 +108,8 @@ do_connect :: proc(t: ^thread.Thread) {
 			case nil:
 				break action
 			case Action:
-				handle_action(sock, data.event_loop, a)
+				err := handle_action(&client, data.event_loop, a)
+				error_trace(err)
 			}
 		}
 
@@ -89,31 +118,19 @@ do_connect :: proc(t: ^thread.Thread) {
 }
 
 @(private)
-handle_action :: proc(sock: net.TCP_Socket, event_loop: ^Event_Loop, action: Action) {
+handle_action :: proc(client: ^Client, event_loop: ^Event_Loop, action: Action) -> Error {
 	switch a in action {
 	case Action_Play:
-		execute(sock, "pause 0")
-		receive_ok(sock)
+		execute(client, "pause 0") or_return
+		receive_ok(client) or_return
 	case Action_Pause:
-		execute(sock, "pause 1")
-		receive_ok(sock)
+		execute(client, "pause 1") or_return
+		receive_ok(client) or_return
 	case Action_Req_Status:
-		request_status(sock)
-
-		status, err := receive_status(sock)
-		if err != nil {
-			trace(.ERROR, "STATUS: Unable to receive the playback status: %s", err)
-			return
-		}
-
+		request_status(client) or_return
+		status := receive_status(client) or_return
 		loop_push_event(event_loop, Event_Status{status})
 	}
-}
 
-trace :: proc(level: raylib.TraceLogLevel, msg: string, args: ..any) {
-	// Is this a good way to format Odin's strings?
-	sb := strings.builder_make()
-	fmt.sbprint(&sb, "CLIENT: ")
-	fmt.sbprintf(&sb, msg, ..args)
-	raylib.TraceLog(level, strings.to_cstring(&sb))
+	return nil
 }

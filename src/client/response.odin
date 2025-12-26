@@ -17,20 +17,17 @@ Pairs :: struct {
 	list: [dynamic]Pair,
 }
 
-receive_binary :: proc(sock: net.TCP_Socket) -> (binary: [dynamic]byte, err: Error) {
+receive_binary :: proc(client: ^Client) -> (binary: [dynamic]byte, err: Error) {
 	buffer := bytes.Buffer{}
-	bytes.buffer_init_allocator(&buffer, len = 0, cap = 128)
+	bytes.buffer_init_allocator(&buffer, len = 0, cap = 32)
 
 	length := 0
 
 	for {
 		tmp: [128]byte = ---
 
-		size, err := net.recv_tcp(sock, tmp[:])
-		if err != nil {
-			trace(.ERROR, "RESPONSE: Unable to receive a response: %s", err)
-			return nil, err
-		}
+		size, err := net.recv_tcp(client.sock, tmp[:])
+		if err != nil do return nil, net.Network_Error(err)
 		if size <= 0 do break
 
 		bytes.buffer_write_at(&buffer, tmp[:], length)
@@ -54,28 +51,25 @@ receive_binary :: proc(sock: net.TCP_Socket) -> (binary: [dynamic]byte, err: Err
 	return buffer.buf, nil
 }
 
-receive_string :: proc(sock: net.TCP_Socket) -> (str: string, err: Error) {
-	binary := receive_binary(sock) or_return
+receive_string :: proc(client: ^Client) -> (str: string, err: Error) {
+	binary := receive_binary(client) or_return
 	s := string(binary[:])
 	if utf8.valid_string(s) {
 		return s, nil
 	} else {
-		return "", .Expected_String
+		return "", .Response_Expected_String
 	}
 }
 
-receive_ok :: proc(sock: net.TCP_Socket) -> Error {
-	s := receive_string(sock) or_return
+receive_ok :: proc(client: ^Client) -> Error {
+	s := receive_string(client) or_return
 	defer delete(s)
-	if s != "OK" {
-		trace(.ERROR, "RESPONSE: Received response is not OK: %s", s)
-		return .Not_OK
-	}
+	if s != "OK" do return .Response_Not_OK
 	return nil
 }
 
-receive_pairs :: proc(sock: net.TCP_Socket) -> (pairs: Pairs, err: Error) {
-	s := receive_string(sock) or_return
+receive_pairs :: proc(client: ^Client) -> (pairs: Pairs, err: Error) {
+	s := receive_string(client) or_return
 
 	pairs.str = s
 	pairs.list = make([dynamic]Pair, len = 0, cap = 10)
@@ -84,7 +78,7 @@ receive_pairs :: proc(sock: net.TCP_Socket) -> (pairs: Pairs, err: Error) {
 		if line == "OK" do break
 
 		parts := strings.split_n(line, ":", 2)
-		if len(parts) != 2 do return Pairs{}, .Invalid_Pair
+		if len(parts) != 2 do return Pairs{}, .Response_Invalid_Pair
 
 		pair := Pair {
 			name  = strings.trim_space(parts[0]),
@@ -103,11 +97,11 @@ pairs_destroy :: proc(pairs: Pairs) {
 
 pair_parse_int :: proc(pair: Pair) -> (number: int, err: Error) {
 	num, ok := strconv.parse_int(pair.value)
-	if !ok do return 0, .Pair_Not_Number
+	if !ok do return 0, .Respose_Pair_Expected_Number
 	return num, nil
 }
 pair_parse_f32 :: proc(pair: Pair) -> (number: f32, err: Error) {
 	num, ok := strconv.parse_f32(pair.value)
-	if !ok do return 0, .Pair_Not_Number
+	if !ok do return 0, .Respose_Pair_Expected_Number
 	return num, nil
 }

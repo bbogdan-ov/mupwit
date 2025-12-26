@@ -1,49 +1,68 @@
 package client
 
-import "core:net"
 import "core:time"
 
-Status :: struct {
-	// Volume in range 0..=100
-	volume:       int,
+Playstate :: enum {
+	Stop = 0,
+	Play,
+	Pause,
+}
 
-	// Index of the current song in the current queue
-	cur_song_pos: int,
+Status :: struct {
+	state:       Playstate,
+
+	// Volume in range 0..=100
+	volume:      int,
+
 	// Id of the current song
-	cur_song_id:  int,
+	cur_song_id: int,
 
 	// Time elapsed within the current song
-	elapsed:      time.Duration,
+	elapsed:     time.Duration,
 	// Duration of the current song
-	duration:     time.Duration,
+	duration:    time.Duration,
 }
 
-request_status :: proc(sock: net.TCP_Socket) -> Error {
-	return execute(sock, "status")
+request_status :: proc(client: ^Client) -> Error {
+	return execute(client, "status")
 }
 
-receive_status :: proc(sock: net.TCP_Socket) -> (status: Status, err: Error) {
-	pairs := receive_pairs(sock) or_return
+receive_status :: proc(client: ^Client) -> (status: Status, err: Error) {
+	pairs := receive_pairs(client) or_return
 	defer pairs_destroy(pairs)
+
+	state: Playstate = .Stop
+	volume: int
+	cur_song_id: int
+	elapsed: time.Duration
+	duration: time.Duration
 
 	for pair in pairs.list {
 		switch pair.name {
-		case "volume":
-			status.volume = pair_parse_int(pair) or_return
+		case "state":
+			switch pair.value {
+			case "play":
+				state = .Play
+			case "pause":
+				state = .Pause
+			case "stop":
+				state = .Stop
+			}
 
-		case "song":
-			status.cur_song_pos = pair_parse_int(pair) or_return
+		case "volume":
+			volume = pair_parse_int(pair) or_return
+
 		case "songid":
-			status.cur_song_id = pair_parse_int(pair) or_return
+			cur_song_id = pair_parse_int(pair) or_return
 
 		case "elapsed":
 			secs := pair_parse_f32(pair) or_return
-			status.elapsed = time.Duration(secs) * time.Second
+			elapsed = time.Duration(secs) * time.Second
 		case "duration":
 			secs := pair_parse_f32(pair) or_return
-			status.duration = time.Duration(secs) * time.Second
+			duration = time.Duration(secs) * time.Second
 		}
 	}
 
-	return status, nil
+	return Status{state, volume, cur_song_id, elapsed, duration}, nil
 }
