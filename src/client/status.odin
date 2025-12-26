@@ -23,13 +23,12 @@ Status :: struct {
 	duration:    time.Duration,
 }
 
-request_status :: proc(client: ^Client) -> Error {
-	return execute(client, "status")
-}
+request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
+	execute(client, "status") or_return
 
-receive_status :: proc(client: ^Client) -> (status: Status, err: Error) {
-	pairs := receive_pairs(client) or_return
-	defer pairs_destroy(pairs)
+	// Receive status data
+	res := receive(client) or_return
+	defer response_destroy(&res)
 
 	state: Playstate = .Stop
 	volume: int
@@ -37,7 +36,10 @@ receive_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 	elapsed: time.Duration
 	duration: time.Duration
 
-	for pair in pairs.list {
+	for {
+		maybe_pair := response_next_pair(&res) or_return
+		pair := maybe_pair.? or_break
+
 		switch pair.name {
 		case "state":
 			switch pair.value {

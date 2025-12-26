@@ -1,16 +1,18 @@
 package client
 
+import "core:fmt"
 import "core:net"
+import "core:strings"
 
-Cmd :: distinct string
-
-// Execute a static MPD command
-execute :: #force_inline proc(client: ^Client, $s: string) -> Error {
-	return cmd_send(client, Cmd(s + "\n"))
+// Execute a MPD command
+execute :: proc(client: ^Client, args: ..any, allocator := context.allocator) -> Error {
+	sb := strings.builder_make(allocator = allocator)
+	fmt.sbprintln(&sb, ..args)
+	return cmd_send(client, strings.to_string(sb))
 }
 
 @(private)
-cmd_send :: proc(client: ^Client, cmd: Cmd) -> Error {
+cmd_send :: proc(client: ^Client, cmd: string) -> Error {
 	size := net.send(client.sock, transmute([]u8)cmd) or_return
 	if size != len(cmd) do return .Cmd_Invalid_Size
 	return nil

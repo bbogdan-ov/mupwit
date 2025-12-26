@@ -80,7 +80,9 @@ do_connect :: proc(t: ^thread.Thread) {
 
 	// Successfully connected
 	loop_push_event(data.event_loop, Event_State_Changed{.Ready})
-	receive_string(&client) // consume the MPD version message
+
+	res, _ := receive(&client)
+	response_next_string(&res) // consume the MPD version message
 
 	trace(.INFO, "Successfully connected")
 
@@ -109,10 +111,12 @@ handle_action :: proc(client: ^Client, event_loop: ^Event_Loop, action: Action) 
 	case Action_Pause:
 		execute(client, "pause 1") or_return
 		receive_ok(client) or_return
+
 	case Action_Req_Status:
-		request_status(client) or_return
-		status := receive_status(client) or_return
+		status := request_status(client) or_return
 		loop_push_event(event_loop, Event_Status{status})
+
+	case Action_Req_Cover:
 	}
 
 	return nil
