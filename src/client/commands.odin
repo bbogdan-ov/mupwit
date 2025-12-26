@@ -33,12 +33,6 @@ cmd_exec :: proc(cmd: ^Cmd, sock: net.TCP_Socket) -> Error {
 	s := fmt.sbprint(&cmd.builder, '\n')
 	defer strings.builder_reset(&cmd.builder)
 	cmd_send(s, sock) or_return
-
-	res := response_read(sock) or_return
-	defer response_destroy(&res)
-
-	response_ensure_ok(res) or_return
-
 	return nil
 }
 

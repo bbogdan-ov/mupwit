@@ -1,5 +1,6 @@
 package mupwit
 
+import "core:fmt"
 import "core:math"
 import "vendor:raylib"
 
@@ -11,7 +12,7 @@ main :: proc() {
 	defer loop.destroy(event_loop)
 	client.connect(event_loop)
 
-	status: client.Status = .Connecting
+	state: client.State = .Connecting
 
 	raylib.InitWindow(256, 256, "hey")
 	raylib.SetTargetFPS(60)
@@ -26,9 +27,11 @@ main :: proc() {
 			case nil:
 				break events
 			case loop.Event_Client_Ready:
-				status = .Ready
+				state = .Ready
 			case loop.Event_Client_Error:
-				status = .Error
+				state = .Error
+			case loop.Event_Song_Pos:
+				fmt.print(e)
 			}
 		}
 
@@ -36,12 +39,14 @@ main :: proc() {
 			loop.push_action(event_loop, loop.Action_Play{})
 		} else if raylib.IsKeyPressed(.O) {
 			loop.push_action(event_loop, loop.Action_Pause{})
+		} else if raylib.IsKeyPressed(.SPACE) {
+			loop.push_action(event_loop, loop.Action_Req_Status{})
 		}
 
 		x := cast(i32)(math.sin(raylib.GetTime() * 10) * 20)
 		raylib.DrawRectangle(x, 16, 32, 32, raylib.RED)
 
-		switch status {
+		switch state {
 		case .Connecting:
 			raylib.DrawText("Connecting...", 4, 4, 20, raylib.WHITE)
 		case .Ready:

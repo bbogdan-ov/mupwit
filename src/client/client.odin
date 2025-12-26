@@ -17,6 +17,9 @@ Error_Kind :: enum {
 	None = 0,
 	Invalid_Size,
 	Not_OK,
+	Unexpected_Binary,
+	Invalid_Pair,
+	Pair_Not_Int,
 }
 
 Error :: union {
@@ -27,12 +30,12 @@ Error :: union {
 
 @(private)
 Connect_Data :: struct {
-	loop: ^loop.Event_Loop,
-	addr: net.IP4_Address,
-	port: int,
+	event_loop: ^loop.Event_Loop,
+	addr:       net.IP4_Address,
+	port:       int,
 }
 
-Status :: enum {
+State :: enum {
 	Connecting,
 	Ready,
 	Error,
@@ -46,7 +49,7 @@ connect :: proc(loop: ^loop.Event_Loop, ip := DEFAULT_IP, port := DEFAULT_PORT) 
 	}
 
 	data := new(Connect_Data)
-	data.loop = loop
+	data.event_loop = loop
 	data.addr = addr
 	data.port = port
 
@@ -67,19 +70,19 @@ do_connect :: proc(t: ^thread.Thread) {
 	}
 
 	// Successfully connected
-	loop.push_event(data.loop, loop.Event_Client_Ready{})
-	response_read(sock) // consume the MPD version message
+	loop.push_event(data.event_loop, loop.Event_Client_Ready{})
+	response_receive(sock) // consume the MPD version message
 
 	trace(.INFO, "Successfully connected")
 
 	// Loop forever
 	for {
 		action: for {
-			switch a in loop.pop_action(data.loop) {
+			switch a in loop.pop_action(data.event_loop) {
 			case nil:
 				break action
 			case loop.Action:
-				handle_action(sock, a)
+				handle_action(sock, data.event_loop, a)
 			}
 		}
 
@@ -88,12 +91,24 @@ do_connect :: proc(t: ^thread.Thread) {
 }
 
 @(private)
-handle_action :: proc(sock: net.TCP_Socket, action: loop.Action) {
+handle_action :: proc(sock: net.TCP_Socket, event_loop: ^loop.Event_Loop, action: loop.Action) {
 	switch a in action {
 	case loop.Action_Play:
 		cmd_immediate(sock, "pause 0")
+		response_expect_ok(sock)
 	case loop.Action_Pause:
 		cmd_immediate(sock, "pause 1")
+		response_expect_ok(sock)
+	case loop.Action_Req_Status:
+		status_request(sock)
+
+		status, err := status_receive(sock)
+		if err != nil {
+			trace(.ERROR, "STATUS: Unable to receive the playback status: %s", err)
+			return
+		}
+
+		loop.push_event(event_loop, loop.Event_Song_Pos(status.cur_song_pos))
 	}
 }
 
