@@ -7,8 +7,6 @@ import "core:thread"
 import "core:time"
 import "vendor:raylib"
 
-import "../loop"
-
 DEFAULT_IP: string : "127.0.0.1"
 // MPD uses this port by default
 DEFAULT_PORT: int : 6600
@@ -30,7 +28,7 @@ Error :: union {
 
 @(private)
 Connect_Data :: struct {
-	event_loop: ^loop.Event_Loop,
+	event_loop: ^Event_Loop,
 	addr:       net.IP4_Address,
 	port:       int,
 }
@@ -42,7 +40,7 @@ State :: enum {
 }
 
 // Open a connection with the MPD server
-connect :: proc(loop: ^loop.Event_Loop, ip := DEFAULT_IP, port := DEFAULT_PORT) {
+connect :: proc(loop: ^Event_Loop, ip := DEFAULT_IP, port := DEFAULT_PORT) {
 	addr, ok := net.parse_ip4_address(ip)
 	if !ok {
 		panic("TODO: catch error")
@@ -70,7 +68,7 @@ do_connect :: proc(t: ^thread.Thread) {
 	}
 
 	// Successfully connected
-	loop.push_event(data.event_loop, loop.Event_Client_Ready{})
+	loop_push_event(data.event_loop, Event_State_Changed{state = .Ready})
 	receive_string(sock) // consume the MPD version message
 
 	trace(.INFO, "Successfully connected")
@@ -78,10 +76,10 @@ do_connect :: proc(t: ^thread.Thread) {
 	// Loop forever
 	for {
 		action: for {
-			switch a in loop.pop_action(data.event_loop) {
+			switch a in loop_pop_action(data.event_loop) {
 			case nil:
 				break action
-			case loop.Action:
+			case Action:
 				handle_action(sock, data.event_loop, a)
 			}
 		}
@@ -91,15 +89,15 @@ do_connect :: proc(t: ^thread.Thread) {
 }
 
 @(private)
-handle_action :: proc(sock: net.TCP_Socket, event_loop: ^loop.Event_Loop, action: loop.Action) {
+handle_action :: proc(sock: net.TCP_Socket, event_loop: ^Event_Loop, action: Action) {
 	switch a in action {
-	case loop.Action_Play:
+	case Action_Play:
 		execute(sock, "pause 0")
 		receive_ok(sock)
-	case loop.Action_Pause:
+	case Action_Pause:
 		execute(sock, "pause 1")
 		receive_ok(sock)
-	case loop.Action_Req_Status:
+	case Action_Req_Status:
 		request_status(sock)
 
 		status, err := receive_status(sock)
@@ -108,7 +106,7 @@ handle_action :: proc(sock: net.TCP_Socket, event_loop: ^loop.Event_Loop, action
 			return
 		}
 
-		loop.push_event(event_loop, loop.Event_Song_Pos(status.cur_song_pos))
+		loop_push_event(event_loop, Event_Status{status})
 	}
 }
 

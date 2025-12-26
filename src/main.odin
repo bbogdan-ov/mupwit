@@ -5,11 +5,10 @@ import "core:math"
 import "vendor:raylib"
 
 import "client"
-import "loop"
 
 main :: proc() {
-	event_loop := loop.make()
-	defer loop.destroy(event_loop)
+	event_loop := client.loop_make()
+	defer client.loop_destroy(event_loop)
 	client.connect(event_loop)
 
 	state: client.State = .Connecting
@@ -22,25 +21,23 @@ main :: proc() {
 		raylib.ClearBackground(raylib.BLACK)
 
 		events: for {
-			event := loop.pop_event(event_loop)
+			event := client.loop_pop_event(event_loop)
 			switch e in event {
 			case nil:
 				break events
-			case loop.Event_Client_Ready:
-				state = .Ready
-			case loop.Event_Client_Error:
-				state = .Error
-			case loop.Event_Song_Pos:
-				fmt.print(e)
+			case client.Event_State_Changed:
+				state = e.state
+			case client.Event_Status:
+				fmt.println(e.status)
 			}
 		}
 
 		if raylib.IsKeyPressed(.P) {
-			loop.push_action(event_loop, loop.Action_Play{})
+			client.loop_push_action(event_loop, client.Action_Play{})
 		} else if raylib.IsKeyPressed(.O) {
-			loop.push_action(event_loop, loop.Action_Pause{})
+			client.loop_push_action(event_loop, client.Action_Pause{})
 		} else if raylib.IsKeyPressed(.SPACE) {
-			loop.push_action(event_loop, loop.Action_Req_Status{})
+			client.loop_push_action(event_loop, client.Action_Req_Status{})
 		}
 
 		x := cast(i32)(math.sin(raylib.GetTime() * 10) * 20)

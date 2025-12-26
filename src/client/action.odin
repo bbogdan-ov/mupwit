@@ -1,4 +1,4 @@
-package loop
+package client
 
 Action_Play :: struct {}
 Action_Pause :: struct {}
