@@ -19,7 +19,7 @@ Status :: struct {
 }
 
 request_status :: proc(sock: net.TCP_Socket) -> Error {
-	return cmd_immediate(sock, "status")
+	return execute(sock, "status")
 }
 
 receive_status :: proc(sock: net.TCP_Socket) -> (status: Status, err: Error) {

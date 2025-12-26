@@ -94,10 +94,10 @@ do_connect :: proc(t: ^thread.Thread) {
 handle_action :: proc(sock: net.TCP_Socket, event_loop: ^loop.Event_Loop, action: loop.Action) {
 	switch a in action {
 	case loop.Action_Play:
-		cmd_immediate(sock, "pause 0")
+		execute(sock, "pause 0")
 		receive_ok(sock)
 	case loop.Action_Pause:
-		cmd_immediate(sock, "pause 1")
+		execute(sock, "pause 1")
 		receive_ok(sock)
 	case loop.Action_Req_Status:
 		request_status(sock)
