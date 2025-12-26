@@ -42,6 +42,6 @@ loop_push_action :: proc(loop: ^Event_Loop, action: Action) {
 loop_pop_action :: proc(loop: ^Event_Loop) -> Maybe(Action) {
 	sync.guard(&loop.actions_mutex)
 	if queue.len(loop.actions) == 0 {return nil}
-	action := queue.pop_back(&loop.actions)
+	action := queue.pop_front(&loop.actions)
 	return action
 }
