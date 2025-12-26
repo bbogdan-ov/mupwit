@@ -1,6 +1,8 @@
 package client
 
+import "core:fmt"
 import "core:net"
+import "core:strings"
 import "core:thread"
 import "core:time"
 import "vendor:raylib"
@@ -11,6 +13,7 @@ DEFAULT_PORT: int : 6600
 
 Error_Kind :: enum {
 	None = 0,
+	Parse_IP,
 	Cmd_Invalid_Size,
 	Response_Not_OK,
 	Response_Expected_String,
@@ -21,29 +24,6 @@ Error_Kind :: enum {
 Error :: union #shared_nil {
 	Error_Kind,
 	net.Network_Error,
-}
-
-error_trace :: proc(error: Error) {
-	if error == nil do return
-
-	switch e in error {
-	case Error_Kind:
-		switch e {
-		case .None:
-		case .Cmd_Invalid_Size:
-			raylib.TraceLog(.ERROR, "CLIENT: COMMAND: Sent invalid number of bytes")
-		case .Response_Not_OK:
-			raylib.TraceLog(.ERROR, "CLIENT: RESPONSE: Received response is not OK")
-		case .Response_Expected_String:
-			raylib.TraceLog(.ERROR, "CLIENT: RESPONSE: Expected a valid UTF-8 string")
-		case .Response_Invalid_Pair:
-			raylib.TraceLog(.ERROR, "CLIENT: RESPONSE: Invalid pair")
-		case .Respose_Pair_Expected_Number:
-			raylib.TraceLog(.ERROR, "CLIENT: RESPONSE: Pair value expected to be a number")
-		}
-	case net.Network_Error:
-		raylib.TraceLog(.ERROR, "CLIENT: Network error: %s", e)
-	}
 }
 
 @(private)
@@ -64,11 +44,9 @@ Client :: struct {
 }
 
 // Open a connection with the MPD server
-connect :: proc(loop: ^Event_Loop, ip := DEFAULT_IP, port := DEFAULT_PORT) {
+connect :: proc(loop: ^Event_Loop, ip := DEFAULT_IP, port := DEFAULT_PORT) -> Error {
 	addr, ok := net.parse_ip4_address(ip)
-	if !ok {
-		panic("TODO: catch error")
-	}
+	if !ok do return .Parse_IP
 
 	data := new(Connect_Data)
 	data.event_loop = loop
@@ -78,6 +56,8 @@ connect :: proc(loop: ^Event_Loop, ip := DEFAULT_IP, port := DEFAULT_PORT) {
 	t := thread.create(do_connect)
 	t.data = data
 	thread.start(t)
+
+	return nil
 }
 
 @(private)
@@ -88,7 +68,10 @@ do_connect :: proc(t: ^thread.Thread) {
 
 	sock, err := net.dial_tcp(data.addr, data.port)
 	if err != nil {
-		panic("TODO: catch error")
+		trace(.ERROR, "Unable to connect to the server: %s", err)
+
+		loop_push_event(data.event_loop, Event_State_Changed{.Error})
+		return
 	}
 
 	client := Client {
@@ -99,7 +82,7 @@ do_connect :: proc(t: ^thread.Thread) {
 	loop_push_event(data.event_loop, Event_State_Changed{.Ready})
 	receive_string(&client) // consume the MPD version message
 
-	raylib.TraceLog(.INFO, "Successfully connected")
+	trace(.INFO, "Successfully connected")
 
 	// Loop forever
 	for {
@@ -133,4 +116,36 @@ handle_action :: proc(client: ^Client, event_loop: ^Event_Loop, action: Action) 
 	}
 
 	return nil
+}
+
+error_trace :: proc(error: Error) {
+	if error == nil do return
+
+	switch e in error {
+	case Error_Kind:
+		switch e {
+		case .None:
+		case .Parse_IP:
+			trace(.ERROR, "Failed to parse IP")
+		case .Cmd_Invalid_Size:
+			trace(.ERROR, "COMMAND: Sent invalid number of bytes")
+		case .Response_Not_OK:
+			trace(.ERROR, "RESPONSE: Received response is not OK")
+		case .Response_Expected_String:
+			trace(.ERROR, "RESPONSE: Expected a valid UTF-8 string")
+		case .Response_Invalid_Pair:
+			trace(.ERROR, "RESPONSE: Invalid pair")
+		case .Respose_Pair_Expected_Number:
+			trace(.ERROR, "RESPONSE: Pair value expected to be a number")
+		}
+	case net.Network_Error:
+		trace(.ERROR, "Network error: %s", e)
+	}
+}
+
+trace :: proc(level: raylib.TraceLogLevel, msg: string, args: ..any) {
+	sb := strings.builder_make()
+	fmt.sbprint(&sb, "CLIENT: ")
+	fmt.sbprintf(&sb, msg, ..args)
+	raylib.TraceLog(level, strings.to_cstring(&sb))
 }

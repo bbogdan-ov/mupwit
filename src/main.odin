@@ -10,9 +10,13 @@ main :: proc() {
 	event_loop := client.loop_make()
 	defer client.loop_destroy(event_loop)
 
-	client.connect(event_loop)
-
 	state: client.State = .Connecting
+
+	err := client.connect(event_loop)
+	if err != nil {
+		client.error_trace(err)
+		state = .Error
+	}
 
 	raylib.InitWindow(256, 256, "hey")
 	raylib.SetTargetFPS(60)
@@ -27,6 +31,7 @@ main :: proc() {
 			case nil:
 				break events
 			case client.Event_State_Changed:
+				// TODO: display the error message if state is `.Error`
 				state = e.state
 			case client.Event_Status:
 				fmt.println(e.status)
@@ -52,6 +57,7 @@ main :: proc() {
 		case .Error:
 			raylib.DrawText("Error", 4, 4, 20, raylib.WHITE)
 		}
+
 
 		raylib.EndDrawing()
 	}
