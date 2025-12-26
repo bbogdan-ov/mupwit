@@ -30,41 +30,36 @@ request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 	res := receive(client) or_return
 	defer response_destroy(&res)
 
-	state: Playstate = .Stop
-	volume: int
-	cur_song_id: int
-	elapsed: time.Duration
-	duration: time.Duration
-
 	for {
-		maybe_pair := response_next_pair(&res) or_return
-		pair := maybe_pair.? or_break
+		pair, err := response_next_pair(&res)
+		if err == .End_Of_Response do break
+		else if err != nil do return Status{}, err
 
 		switch pair.name {
 		case "state":
 			switch pair.value {
 			case "play":
-				state = .Play
+				status.state = .Play
 			case "pause":
-				state = .Pause
+				status.state = .Pause
 			case "stop":
-				state = .Stop
+				status.state = .Stop
 			}
 
 		case "volume":
-			volume = pair_parse_int(pair) or_return
+			status.volume = pair_parse_int(pair) or_return
 
 		case "songid":
-			cur_song_id = pair_parse_int(pair) or_return
+			status.cur_song_id = pair_parse_int(pair) or_return
 
 		case "elapsed":
 			secs := pair_parse_f32(pair) or_return
-			elapsed = time.Duration(secs) * time.Second
+			status.elapsed = time.Duration(secs) * time.Second
 		case "duration":
 			secs := pair_parse_f32(pair) or_return
-			duration = time.Duration(secs) * time.Second
+			status.duration = time.Duration(secs) * time.Second
 		}
 	}
 
-	return Status{state, volume, cur_song_id, elapsed, duration}, nil
+	return
 }

@@ -18,7 +18,10 @@ Error_Kind :: enum {
 	Response_Not_OK,
 	Response_Expected_String,
 	Response_Invalid_Pair,
-	Respose_Pair_Expected_Number,
+	Response_Unexpected_Binary_Size,
+	Pair_Expected_Number,
+	Unexpected_Pair,
+	End_Of_Response,
 }
 
 Error :: union #shared_nil {
@@ -81,8 +84,15 @@ do_connect :: proc(t: ^thread.Thread) {
 	// Successfully connected
 	loop_push_event(data.event_loop, Event_State_Changed{.Ready})
 
-	res, _ := receive(&client)
-	response_next_string(&res) // consume the MPD version message
+	// Consume the MPD version message
+	{
+		res, err := receive(&client)
+		if err != nil {
+			error_trace(err)
+			return
+		}
+		response_next_string(&res)
+	}
 
 	trace(.INFO, "Successfully connected")
 
@@ -117,6 +127,8 @@ handle_action :: proc(client: ^Client, event_loop: ^Event_Loop, action: Action) 
 		loop_push_event(event_loop, Event_Status{status})
 
 	case Action_Req_Cover:
+		cover := request_cover(client, a.song_uri) or_return
+		loop_push_event(event_loop, Event_Cover{cover})
 	}
 
 	return nil
@@ -139,8 +151,14 @@ error_trace :: proc(error: Error) {
 			trace(.ERROR, "RESPONSE: Expected a valid UTF-8 string")
 		case .Response_Invalid_Pair:
 			trace(.ERROR, "RESPONSE: Invalid pair")
-		case .Respose_Pair_Expected_Number:
+		case .Response_Unexpected_Binary_Size:
+			trace(.ERROR, "RESPONSE: Binary response differs from the expected size")
+		case .Pair_Expected_Number:
 			trace(.ERROR, "RESPONSE: Pair value expected to be a number")
+		case .Unexpected_Pair:
+			trace(.ERROR, "RESPONSE: Unexpected pair")
+		case .End_Of_Response:
+			trace(.ERROR, "RESPONSE: Unexpected end of response")
 		}
 	case net.Network_Error:
 		trace(.ERROR, "Network error: %s", e)
