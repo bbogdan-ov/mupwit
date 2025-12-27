@@ -21,8 +21,7 @@ main :: proc() {
 	raylib.InitWindow(400, 600, "hey")
 	raylib.SetTargetFPS(60)
 
-	textures: [16]raylib.Texture
-	tex_cur := 0
+	textures: [dynamic]raylib.Texture
 
 	for !raylib.WindowShouldClose() {
 		raylib.BeginDrawing()
@@ -41,13 +40,10 @@ main :: proc() {
 			case client.Event_Cover:
 				defer client.cover_destroy(&e.cover)
 
-				if tex_cur < len(textures) {
-					tex := raylib.LoadTextureFromImage(e.cover.image)
-					textures[tex_cur] = tex
-					tex_cur += 1
+				tex := raylib.LoadTextureFromImage(e.cover.image)
+				append(&textures, tex)
 
-					raylib.TraceLog(.INFO, "Received album cover image")
-				}
+				raylib.TraceLog(.INFO, "Received album cover image")
 			}
 		}
 
