@@ -5,8 +5,8 @@ import "core:net"
 import "core:strings"
 
 // Execute a MPD command
-execute :: proc(client: ^Client, args: ..any, allocator := context.allocator) -> Error {
-	sb := strings.builder_make(allocator = allocator)
+execute :: proc(client: ^Client, args: ..any) -> Error {
+	sb := strings.builder_make()
 	fmt.sbprintln(&sb, ..args)
 	return cmd_send(client, strings.to_string(sb))
 }
