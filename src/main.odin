@@ -12,11 +12,7 @@ main :: proc() {
 
 	state: client.State = .Connecting
 
-	err := client.connect(event_loop)
-	if err != nil {
-		client.error_trace(err)
-		state = .Error
-	}
+	client.connect(event_loop)
 
 	raylib.InitWindow(400, 600, "hey")
 	raylib.SetTargetFPS(60)

@@ -13,6 +13,7 @@ DEFAULT_PORT: int : 6600
 
 Error_Kind :: enum {
 	None = 0,
+	Mpd_Error,
 	Parse_IP,
 	Cmd_Invalid_Size,
 	Response_Not_OK,
@@ -32,7 +33,7 @@ Error :: union #shared_nil {
 @(private)
 Connect_Data :: struct {
 	event_loop: ^Event_Loop,
-	addr:       net.IP4_Address,
+	ip:         string,
 	port:       int,
 }
 
@@ -43,57 +44,52 @@ State :: enum {
 }
 
 Client :: struct {
-	sock: net.TCP_Socket,
+	sock:      net.TCP_Socket,
+	error_msg: Maybe(string),
 }
 
 // Open a connection with the MPD server
-connect :: proc(loop: ^Event_Loop, ip := DEFAULT_IP, port := DEFAULT_PORT) -> Error {
-	addr, ok := net.parse_ip4_address(ip)
-	if !ok do return .Parse_IP
+connect :: proc(loop: ^Event_Loop, ip := DEFAULT_IP, port := DEFAULT_PORT) {
 
 	data := new(Connect_Data)
 	data.event_loop = loop
-	data.addr = addr
+	data.ip = ip
 	data.port = port
 
 	t := thread.create(do_connect)
 	t.data = data
 	thread.start(t)
-
-	return nil
 }
 
 @(private)
 do_connect :: proc(t: ^thread.Thread) {
 	data := (^Connect_Data)(t.data)
 
+	err := dial(data)
+	if err != nil {
+		loop_push_event(data.event_loop, Event_State_Changed{.Error})
+	}
+}
+
+@(private)
+dial :: proc(data: ^Connect_Data) -> Error {
+	addr, ok := net.parse_ip4_address(data.ip)
+	if !ok do return .Parse_IP
+
 	time.sleep(1 * time.Second)
 
-	sock, err := net.dial_tcp(data.addr, data.port)
-	if err != nil {
-		trace(.ERROR, "Unable to connect to the server: %s", err)
-
-		loop_push_event(data.event_loop, Event_State_Changed{.Error})
-		return
-	}
-
+	sock := net.dial_tcp(addr, data.port) or_return
 	client := Client {
-		sock = sock,
+		sock      = sock,
+		error_msg = nil,
 	}
+
+	// Consume the MPD version message
+	res := receive(&client) or_return
+	response_next_string(&res)
 
 	// Successfully connected
 	loop_push_event(data.event_loop, Event_State_Changed{.Ready})
-
-	// Consume the MPD version message
-	{
-		res, err := receive(&client)
-		if err != nil {
-			error_trace(err)
-			return
-		}
-		response_next_string(&res)
-	}
-
 	trace(.INFO, "Successfully connected")
 
 	// Loop forever
@@ -104,12 +100,14 @@ do_connect :: proc(t: ^thread.Thread) {
 				break action
 			case Action:
 				err := handle_action(&client, data.event_loop, a)
-				error_trace(err)
+				trace_error(&client, err)
 			}
 		}
 
 		time.sleep(30 * time.Millisecond)
 	}
+
+	return nil
 }
 
 @(private)
@@ -134,34 +132,57 @@ handle_action :: proc(client: ^Client, event_loop: ^Event_Loop, action: Action) 
 	return nil
 }
 
-error_trace :: proc(error: Error) {
+trace_error :: proc(client: ^Client, error: Error) {
 	if error == nil do return
+
+	sb := strings.builder_make()
+
+	fmt.sbprint(&sb, "CLIENT: ")
 
 	switch e in error {
 	case Error_Kind:
 		switch e {
 		case .None:
+		case .Mpd_Error:
+			fmt.sbprint(&sb, "MPD error")
 		case .Parse_IP:
-			trace(.ERROR, "Failed to parse IP")
+			fmt.sbprint(&sb, "Failed to parse IP")
 		case .Cmd_Invalid_Size:
-			trace(.ERROR, "COMMAND: Sent invalid number of bytes")
+			fmt.sbprint(&sb, "COMMAND: Sent invalid number of bytes")
 		case .Response_Not_OK:
-			trace(.ERROR, "RESPONSE: Received response is not OK")
+			fmt.sbprint(&sb, "RESPONSE: Received response is not OK")
 		case .Response_Expected_String:
-			trace(.ERROR, "RESPONSE: Expected a valid UTF-8 string")
+			fmt.sbprint(&sb, "RESPONSE: Expected a valid UTF-8 string")
 		case .Response_Invalid_Pair:
-			trace(.ERROR, "RESPONSE: Invalid pair")
+			fmt.sbprint(&sb, "RESPONSE: Invalid pair")
 		case .Response_Unexpected_Binary_Size:
-			trace(.ERROR, "RESPONSE: Binary response differs from the expected size")
+			fmt.sbprint(&sb, "RESPONSE: Binary response differs from the expected size")
 		case .Pair_Expected_Number:
-			trace(.ERROR, "RESPONSE: Pair value expected to be a number")
+			fmt.sbprint(&sb, "RESPONSE: Pair value expected to be a number")
 		case .Unexpected_Pair:
-			trace(.ERROR, "RESPONSE: Unexpected pair")
+			fmt.sbprint(&sb, "RESPONSE: Unexpected pair")
 		case .End_Of_Response:
-			trace(.ERROR, "RESPONSE: Unexpected end of response")
+			fmt.sbprint(&sb, "RESPONSE: Unexpected end of response")
 		}
 	case net.Network_Error:
-		trace(.ERROR, "Network error: %s", e)
+		fmt.sbprintf(&sb, "Network error: %s", e)
+	}
+
+	// Append error message if any
+	#partial switch msg in client.error_msg {
+	case string:
+		fmt.sbprintf(&sb, ": %s", msg)
+		clear_error(client)
+	}
+
+	raylib.TraceLog(.ERROR, strings.to_cstring(&sb))
+}
+
+clear_error :: proc(client: ^Client) {
+	#partial switch msg in client.error_msg {
+	case string:
+		delete(msg)
+		client.error_msg = nil
 	}
 }
 

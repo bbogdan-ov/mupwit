@@ -52,6 +52,13 @@ receive :: proc(client: ^Client) -> (res: Response, err: Error) {
 		bytes.buffer_truncate(&buffer, length - 1)
 	}
 
+	s := string(buffer.buf[:])
+	if strings.starts_with(s, "ACK") {
+		// Error response
+		client.error_msg = s
+		return Response{}, .Mpd_Error
+	}
+
 	return Response{buffer}, nil
 }
 
