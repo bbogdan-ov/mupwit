@@ -13,6 +13,10 @@ player_make :: proc() -> Player {
 	return Player{status = nil}
 }
 
+player_destroy :: proc(player: ^Player) {
+	if s, ok := &player.song.?; ok do mpd.song_destroy(s)
+}
+
 player_on_event :: proc(player: ^Player, client: ^mpd.Client, event: ^mpd.Event) {
 	#partial switch e in event {
 	case mpd.Event_Status:

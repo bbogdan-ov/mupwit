@@ -26,7 +26,8 @@ Status :: struct {
 
 Song :: struct {
 	id:       uint,
-	file:     string,
+	// Song file uri
+	uri:      string,
 	title:    Maybe(string),
 	artist:   Maybe(string),
 	album:    Maybe(string),
@@ -36,7 +37,7 @@ Song :: struct {
 song_destroy :: proc(song: ^Song) {
 	assert(song != nil)
 
-	delete(song.file)
+	delete(song.uri)
 	delete(song.title.? or_else "")
 	delete(song.artist.? or_else "")
 	delete(song.album.? or_else "")
@@ -123,7 +124,7 @@ _response_next_song :: proc(res: ^Response) -> (song: Song, err: Error) {
 
 		switch pair.name {
 		case "file":
-			song.file = strings.clone(pair.value)
+			song.uri = strings.clone(pair.value)
 		case "Title":
 			song.title = strings.clone(pair.value)
 		case "Artist":

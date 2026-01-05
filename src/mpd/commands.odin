@@ -7,6 +7,7 @@ import "core:strings"
 // Execute a MPD command
 execute :: proc(client: ^Client, args: ..any) -> Error {
 	sb := strings.builder_make()
+	defer strings.builder_destroy(&sb)
 	fmt.sbprintln(&sb, ..args)
 	return cmd_send(client, strings.to_string(sb))
 }

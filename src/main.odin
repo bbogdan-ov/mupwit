@@ -11,10 +11,15 @@ main :: proc() {
 	state: mpd.State = .Connecting
 
 	client := mpd.connect()
+	defer mpd.destroy(client)
+
 	player := player_make()
+	defer player_destroy(&player)
 
 	raylib.InitWindow(400, 600, "hey")
-	raylib.SetTargetFPS(60)
+	defer raylib.CloseWindow()
+
+	raylib.SetTargetFPS(120)
 
 	for !raylib.WindowShouldClose() {
 		raylib.BeginDrawing()
@@ -32,6 +37,7 @@ main :: proc() {
 
 			player_on_event(&player, client, &event)
 		}
+		mpd.free_events(client)
 
 		if raylib.IsKeyPressed(.P) {
 			mpd.push_action(client, mpd.Action_Play{})
@@ -61,6 +67,10 @@ main :: proc() {
 					sb := strings.builder_make()
 					fmt.sbprint(&sb, status.elapsed)
 					raylib.DrawText(strings.to_cstring(&sb), 4, 90, 20, raylib.WHITE)
+
+					strings.builder_reset(&sb)
+					fmt.sbprint(&sb, status.state)
+					raylib.DrawText(strings.to_cstring(&sb), 4, 110, 20, raylib.WHITE)
 				}
 			}
 

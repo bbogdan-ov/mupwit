@@ -1,5 +1,6 @@
 package mpd
 
+import "base:runtime"
 import "core:fmt"
 import "core:net"
 import "core:strings"
@@ -46,16 +47,24 @@ State :: enum {
 }
 
 Client :: struct {
-	sock:         net.TCP_Socket,
-	events:       mpsc.Queue(Event),
-	actions:      mpsc.Queue(Action),
-	error_msg:    Maybe(string),
-	prev_song_id: Maybe(uint),
+	sock:              net.TCP_Socket,
+	events:            mpsc.Queue(Event),
+	actions:           mpsc.Queue(Action),
+	error_msg:         Maybe(string),
+	prev_song_id:      Maybe(uint),
+	events_arena:      runtime.Arena,
+	actions_arena:     runtime.Arena,
+	events_allocator:  runtime.Allocator,
+	actions_allocator: runtime.Allocator,
 }
 
 // Open a connection with the MPD server
 connect :: proc(ip := DEFAULT_IP, port := DEFAULT_PORT) -> ^Client {
 	client := new(Client)
+
+	client.events_allocator = runtime.arena_allocator(&client.events_arena)
+	client.actions_allocator = runtime.arena_allocator(&client.actions_arena)
+
 	client.sock = 0
 	client.error_msg = nil
 	mpsc.init(&client.events)
@@ -71,6 +80,12 @@ connect :: proc(ip := DEFAULT_IP, port := DEFAULT_PORT) -> ^Client {
 	thread.start(t)
 
 	return client
+}
+
+destroy :: proc(client: ^Client) {
+	free_all(client.events_allocator)
+	free_all(client.actions_allocator)
+	free(client)
 }
 
 @(private)
@@ -180,7 +195,7 @@ _handle_action :: proc(client: ^Client, action: Action) -> Error {
 
 @(private)
 _push_event :: proc(client: ^Client, event: Event) {
-	node := new(mpsc.Node(Event))
+	node := new(mpsc.Node(Event), allocator = client.events_allocator)
 	node.value = event
 	mpsc.push(&client.events, node)
 }
@@ -188,14 +203,16 @@ pop_event :: proc(client: ^Client) -> Event {
 	state, node := mpsc.poll(&client.events)
 	if state == .Item {
 		assert(node != nil)
-		defer free(node)
 		return node.value // copy the event
 	}
 	return nil
 }
+free_events :: proc(client: ^Client) {
+	free_all(client.events_allocator)
+}
 
 push_action :: proc(client: ^Client, action: Action) {
-	node := new(mpsc.Node(Action))
+	node := new(mpsc.Node(Action), allocator = client.actions_allocator)
 	node.value = action
 	mpsc.push(&client.actions, node)
 }
@@ -204,10 +221,13 @@ _pop_action :: proc(client: ^Client) -> Maybe(Action) {
 	state, node := mpsc.poll(&client.actions)
 	if state == .Item {
 		assert(node != nil)
-		defer free(node)
 		return node.value // copy the action
 	}
 	return nil
+}
+@(private)
+_free_actions :: proc(client: ^Client) {
+	free_all(client.actions_allocator)
 }
 
 trace_error :: proc(client: ^Client, error: Error) {
