@@ -1,4 +1,4 @@
-package client
+package mpd
 
 request_queue_song_by_id :: proc(client: ^Client, id: int) -> (song: Maybe(Song), err: Error) {
 	if id < 0 do return

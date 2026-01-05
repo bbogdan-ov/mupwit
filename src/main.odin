@@ -4,16 +4,12 @@ import "core:math"
 import "core:strings"
 import "vendor:raylib"
 
-import "client"
+import "mpd"
 
 main :: proc() {
-	loop := client.loop_make()
-	defer client.loop_destroy(loop)
+	state: mpd.State = .Connecting
 
-	state: client.State = .Connecting
-
-	client.connect(loop)
-
+	client := mpd.connect()
 	player := player_make()
 
 	raylib.InitWindow(400, 600, "hey")
@@ -24,24 +20,24 @@ main :: proc() {
 		raylib.ClearBackground(raylib.BLACK)
 
 		events: for {
-			event := client.loop_pop_event(loop)
+			event := mpd.pop_event(client)
 			#partial switch &e in event {
 			case nil:
 				break events
-			case client.Event_State_Changed:
+			case mpd.Event_State_Changed:
 				// TODO: display the error message if state is `.Error`
 				state = e.state
 			}
 
-			player_on_event(&player, loop, &event)
+			player_on_event(&player, client, &event)
 		}
 
 		if raylib.IsKeyPressed(.P) {
-			client.loop_push_action(loop, client.Action_Play{})
+			mpd.push_action(client, mpd.Action_Play{})
 		} else if raylib.IsKeyPressed(.O) {
-			client.loop_push_action(loop, client.Action_Pause{})
+			mpd.push_action(client, mpd.Action_Pause{})
 		} else if raylib.IsKeyPressed(.SPACE) {
-			client.loop_push_action(loop, client.Action_Req_Song_And_Status{})
+			mpd.push_action(client, mpd.Action_Req_Song_And_Status{})
 		}
 
 		x := i32(math.sin(raylib.GetTime() * 10) * 20)
@@ -54,7 +50,7 @@ main :: proc() {
 			raylib.DrawText("Ready!", 4, 4, 20, raylib.WHITE)
 
 			#partial switch song in player.song {
-			case client.Song:
+			case mpd.Song:
 				title: string = song.title.? or_else "<unknown>"
 				artist: string = song.artist.? or_else "<unknown>"
 				album: string = song.album.? or_else "<unknown>"

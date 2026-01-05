@@ -1,33 +1,33 @@
 package mupwit
 
-import "client"
+import "mpd"
 
 Player :: struct {
 	// Current playback status
-	status: Maybe(client.Status),
+	status: Maybe(mpd.Status),
 	// Current song
-	song:   Maybe(client.Song),
+	song:   Maybe(mpd.Song),
 }
 
 player_make :: proc() -> Player {
 	return Player{status = nil}
 }
 
-player_on_event :: proc(player: ^Player, loop: ^client.Event_Loop, event: ^client.Event) {
+player_on_event :: proc(player: ^Player, client: ^mpd.Client, event: ^mpd.Event) {
 	#partial switch e in event {
-	case client.Event_Status:
+	case mpd.Event_Status:
 		player.status = e.status
 
 		event^ = nil
-	case client.Event_Song:
-		client.song_destroy(&player.song.? or_else nil)
+	case mpd.Event_Song:
+		mpd.song_destroy(&player.song.? or_else nil)
 		player.song = e.song
 
 		event^ = nil
-	case client.Event_Song_And_Status:
+	case mpd.Event_Song_And_Status:
 		player.status = e.status
 
-		client.song_destroy(&player.song.? or_else nil)
+		mpd.song_destroy(&player.song.? or_else nil)
 		player.song = e.song
 
 		event^ = nil

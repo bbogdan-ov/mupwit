@@ -1,4 +1,4 @@
-package client
+package mpd
 
 // Client state changed
 Event_State_Changed :: struct {

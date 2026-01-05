@@ -1,4 +1,4 @@
-package client
+package mpd
 
 import "core:fmt"
 import "core:net"

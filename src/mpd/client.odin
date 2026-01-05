@@ -1,4 +1,4 @@
-package client
+package mpd
 
 import "core:fmt"
 import "core:net"
@@ -6,6 +6,8 @@ import "core:strings"
 import "core:thread"
 import "core:time"
 import "vendor:raylib"
+
+import "../mpsc"
 
 DEFAULT_IP: string : "127.0.0.1"
 // MPD uses this port by default
@@ -31,10 +33,10 @@ Error :: union #shared_nil {
 }
 
 @(private)
-Connect_Data :: struct {
-	event_loop: ^Event_Loop,
-	ip:         string,
-	port:       int,
+_Connect_Data :: struct {
+	client: ^Client,
+	ip:     string,
+	port:   int,
 }
 
 State :: enum {
@@ -45,62 +47,66 @@ State :: enum {
 
 Client :: struct {
 	sock:      net.TCP_Socket,
+	events:    mpsc.Queue(Event),
+	actions:   mpsc.Queue(Action),
 	error_msg: Maybe(string),
 }
 
 // Open a connection with the MPD server
-connect :: proc(loop: ^Event_Loop, ip := DEFAULT_IP, port := DEFAULT_PORT) {
+connect :: proc(ip := DEFAULT_IP, port := DEFAULT_PORT) -> ^Client {
+	client := new(Client)
+	client.sock = 0
+	client.error_msg = nil
+	mpsc.init(&client.events)
+	mpsc.init(&client.actions)
 
-	data := new(Connect_Data)
-	data.event_loop = loop
+	data := new(_Connect_Data)
+	data.client = client
 	data.ip = ip
 	data.port = port
 
-	t := thread.create(do_connect)
+	t := thread.create(_do_connect)
 	t.data = data
 	thread.start(t)
+
+	return client
 }
 
 @(private)
-do_connect :: proc(t: ^thread.Thread) {
-	data := (^Connect_Data)(t.data)
+_do_connect :: proc(t: ^thread.Thread) {
+	data := (^_Connect_Data)(t.data)
 
-	err := dial(data)
+	err := _dial(data)
 	if err != nil {
-		loop_push_event(data.event_loop, Event_State_Changed{.Error})
+		_push_event(data.client, Event_State_Changed{.Error})
 	}
 }
 
 @(private)
-dial :: proc(data: ^Connect_Data) -> Error {
+_dial :: proc(data: ^_Connect_Data) -> Error {
 	addr, ok := net.parse_ip4_address(data.ip)
 	if !ok do return .Parse_IP
 
-	time.sleep(1 * time.Second)
-
-	sock := net.dial_tcp(addr, data.port) or_return
-	client := Client {
-		sock      = sock,
-		error_msg = nil,
-	}
+	client := data.client
+	client.sock = net.dial_tcp(addr, data.port) or_return
 
 	// Consume the MPD version message
-	res := receive(&client) or_return
+	res := receive(client) or_return
 	response_next_string(&res)
 
 	// Successfully connected
-	loop_push_event(data.event_loop, Event_State_Changed{.Ready})
+	_push_event(client, Event_State_Changed{.Ready})
 	trace(.INFO, "Successfully connected")
 
 	// Loop forever
 	for {
 		action: for {
-			switch a in loop_pop_action(data.event_loop) {
+			switch a in _pop_action(client) {
 			case nil:
 				break action
 			case Action:
-				err := handle_action(&client, data.event_loop, a)
-				trace_error(&client, err)
+				err := _handle_action(client, a)
+				trace_error(client, err)
 			}
 		}
 
@@ -111,7 +117,7 @@ dial :: proc(data: ^Connect_Data) -> Error {
 }
 
 @(private)
-handle_action :: proc(client: ^Client, event_loop: ^Event_Loop, action: Action) -> Error {
+_handle_action :: proc(client: ^Client, action: Action) -> Error {
 	switch a in action {
 	case Action_Play:
 		execute(client, "pause 0") or_return
@@ -122,23 +128,55 @@ handle_action :: proc(client: ^Client, event_loop: ^Event_Loop, action: Action) 
 
 	case Action_Req_Status:
 		status := request_status(client) or_return
-		loop_push_event(event_loop, Event_Status{status})
+		_push_event(client, Event_Status{status})
 
 	case Action_Req_Song_And_Status:
 		status := request_status(client) or_return
 		song := request_queue_song_by_id(client, status.cur_song_id.? or_else -1) or_return
 
-		loop_push_event(event_loop, Event_Song_And_Status{song, status})
+		_push_event(client, Event_Song_And_Status{song, status})
 
 	case Action_Req_Queue_Song:
 		song := request_queue_song_by_id(client, a.id) or_return
-		loop_push_event(event_loop, Event_Song{song})
+		_push_event(client, Event_Song{song})
 
 	case Action_Req_Cover:
 		cover := request_cover(client, a.song_uri) or_return
-		loop_push_event(event_loop, Event_Cover{cover})
+		_push_event(client, Event_Cover{cover})
 	}
 
+	return nil
+}
+
+@(private)
+_push_event :: proc(client: ^Client, event: Event) {
+	node := new(mpsc.Node(Event))
+	node.value = event
+	mpsc.push(&client.events, node)
+}
+pop_event :: proc(client: ^Client) -> Event {
+	state, node := mpsc.poll(&client.events)
+	if state == .Item {
+		assert(node != nil)
+		defer free(node)
+		return node.value // copy the event
+	}
+	return nil
+}
+
+push_action :: proc(client: ^Client, action: Action) {
+	node := new(mpsc.Node(Action))
+	node.value = action
+	mpsc.push(&client.actions, node)
+}
+@(private)
+_pop_action :: proc(client: ^Client) -> Maybe(Action) {
+	state, node := mpsc.poll(&client.actions)
+	if state == .Item {
+		assert(node != nil)
+		defer free(node)
+		return node.value // copy the action
+	}
 	return nil
 }
 

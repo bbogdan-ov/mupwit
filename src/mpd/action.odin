@@ -1,4 +1,4 @@
-package client
+package mpd
 
 Action_Play :: struct {}
 Action_Pause :: struct {}
