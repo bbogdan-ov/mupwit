@@ -125,7 +125,7 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 
 		status_fetch_timer -= elapsed
 
-		// Request current status and song periodically
+		// Fetch current status and song periodically
 		if status_fetch_timer <= 0 {
 			_fetch_status(client)
 			status_fetch_timer = STATUS_FETCH_INTERVAL
@@ -156,21 +156,24 @@ _fetch_status :: proc(client: ^Client) {
 		return
 	}
 
-	if status.cur_song_id != client.prev_song_id {
-		song: Maybe(Song) = nil
-
-		if id, ok := status.cur_song_id.?; ok {
-			song, err = request_queue_song_by_id(client, id)
-			if err != nil {
-				trace_error(client, err)
-				return
-			}
-		}
-
-		_push_event(client, Event_Status_And_Song{status, song})
-	} else {
+	if status.cur_song_id == client.prev_song_id {
+		// Song didn't change, simply send the up-to-date playback status
 		_push_event(client, Event_Status{status})
+		return
 	}
+
+	// Song did change, request its info
+	song: Maybe(Song) = nil
+
+	if id, ok := status.cur_song_id.?; ok {
+		song, err = request_queue_song_by_id(client, id)
+		if err != nil {
+			trace_error(client, err)
+			return
+		}
+	}
+
+	_push_event(client, Event_Status_And_Song{status, song})
 
 	client.prev_song_id = status.cur_song_id
 }
