@@ -1,5 +1,6 @@
 package mupwit
 
+import "core:fmt"
 import "core:math"
 import "core:strings"
 import "vendor:raylib"
@@ -47,14 +48,20 @@ main :: proc() {
 		case .Ready:
 			raylib.DrawText("Ready!", 4, 4, 20, raylib.WHITE)
 
-			if song, ok := player.song.?; ok {
-				title: string = song.title.? or_else "<unknown>"
-				artist: string = song.artist.? or_else "<unknown>"
-				album: string = song.album.? or_else "<unknown>"
+			if status, ok := player.status.?; ok {
+				if song, ok := player.song.?; ok {
+					title: string = song.title.? or_else "<unknown>"
+					artist: string = song.artist.? or_else "<unknown>"
+					album: string = song.album.? or_else "<unknown>"
 
-				raylib.DrawText(strings.clone_to_cstring(title), 4, 30, 20, raylib.WHITE)
-				raylib.DrawText(strings.clone_to_cstring(artist), 4, 50, 20, raylib.WHITE)
-				raylib.DrawText(strings.clone_to_cstring(album), 4, 70, 20, raylib.WHITE)
+					raylib.DrawText(strings.clone_to_cstring(title), 4, 30, 20, raylib.WHITE)
+					raylib.DrawText(strings.clone_to_cstring(artist), 4, 50, 20, raylib.WHITE)
+					raylib.DrawText(strings.clone_to_cstring(album), 4, 70, 20, raylib.WHITE)
+
+					sb := strings.builder_make()
+					fmt.sbprint(&sb, status.elapsed)
+					raylib.DrawText(strings.to_cstring(&sb), 4, 90, 20, raylib.WHITE)
+				}
 			}
 
 		case .Error:
