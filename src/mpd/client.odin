@@ -98,8 +98,27 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 	_push_event(client, Event_State_Changed{.Ready})
 	trace(.INFO, "Successfully connected")
 
+	start := time.now()
+
+	STATUS_FETCH_INTERVAL: time.Duration : 250 * time.Millisecond
+	status_fetch_timer := time.Duration(0)
+
 	// Loop forever
 	for {
+		elapsed := time.since(start)
+
+		status_fetch_timer -= elapsed
+
+		if status_fetch_timer <= 0 {
+			status, song, err := request_status_and_song(client)
+			if err == nil {
+				_push_event(client, Event_Status_And_Song{status, song})
+			} else {
+				trace_error(client, err)
+			}
+			status_fetch_timer = STATUS_FETCH_INTERVAL
+		}
+
 		action: for {
 			switch a in _pop_action(client) {
 			case nil:
@@ -111,6 +130,7 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 		}
 
 		time.sleep(30 * time.Millisecond)
+		start = time.now()
 	}
 
 	return nil
@@ -125,16 +145,6 @@ _handle_action :: proc(client: ^Client, action: Action) -> Error {
 	case Action_Pause:
 		execute(client, "pause 1") or_return
 		receive_ok(client) or_return
-
-	case Action_Req_Status:
-		status := request_status(client) or_return
-		_push_event(client, Event_Status{status})
-
-	case Action_Req_Song_And_Status:
-		status := request_status(client) or_return
-		song := request_queue_song_by_id(client, status.cur_song_id.? or_else -1) or_return
-
-		_push_event(client, Event_Song_And_Status{song, status})
 
 	case Action_Req_Queue_Song:
 		song := request_queue_song_by_id(client, a.id) or_return
@@ -217,8 +227,7 @@ trace_error :: proc(client: ^Client, error: Error) {
 	}
 
 	// Append error message if any
-	#partial switch msg in client.error_msg {
-	case string:
+	if msg, ok := client.error_msg.?; ok {
 		fmt.sbprintf(&sb, ": %s", msg)
 		clear_error(client)
 	}
@@ -227,8 +236,7 @@ trace_error :: proc(client: ^Client, error: Error) {
 }
 
 clear_error :: proc(client: ^Client) {
-	#partial switch msg in client.error_msg {
-	case string:
+	if msg, ok := client.error_msg.?; ok {
 		delete(msg)
 		client.error_msg = nil
 	}

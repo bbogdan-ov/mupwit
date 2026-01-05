@@ -13,10 +13,10 @@ Status :: struct {
 	state:       Playstate,
 
 	// Volume in range 0..=100
-	volume:      int,
+	volume:      uint,
 
 	// Id of the currently playing song
-	cur_song_id: Maybe(int),
+	cur_song_id: Maybe(uint),
 
 	// Time elapsed within the current song
 	elapsed:     time.Duration,
@@ -25,7 +25,7 @@ Status :: struct {
 }
 
 Song :: struct {
-	id:       int,
+	id:       uint,
 	file:     string,
 	title:    Maybe(string),
 	artist:   Maybe(string),
@@ -47,6 +47,22 @@ request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 	if err != nil {
 		client.error_msg = "Unable to request current playback status"
 	}
+	return
+}
+
+request_status_and_song :: proc(
+	client: ^Client,
+) -> (
+	status: Status,
+	song: Maybe(Song),
+	err: Error,
+) {
+	status = request_status(client) or_return
+
+	if id, ok := status.cur_song_id.?; ok {
+		song = request_queue_song_by_id(client, id) or_return
+	}
+
 	return
 }
 
@@ -75,10 +91,10 @@ _request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 			}
 
 		case "volume":
-			status.volume = pair_parse_int(pair) or_return
+			status.volume = uint(pair_parse_int(pair) or_return)
 
 		case "songid":
-			status.cur_song_id = pair_parse_int(pair) or_return
+			status.cur_song_id = uint(pair_parse_int(pair) or_return)
 
 		case "elapsed":
 			secs := pair_parse_f32(pair) or_return

@@ -30,8 +30,7 @@ request_cover :: proc(client: ^Client, song_uri: string) -> (cover: Cover_Data, 
 
 		// Parse `type` field
 		maybe_pair := response_optional_pair(&res, "type") or_return
-		#partial switch p in maybe_pair {
-		case Pair:
+		if p, ok := maybe_pair.?; ok {
 			switch p.value {
 			case "image/png":
 				filetype = ".png"

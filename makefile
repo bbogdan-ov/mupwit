@@ -25,4 +25,4 @@ clean:
 	rm -r build
 
 check:
-	@odin check src $(FLAGS)
+	@odin check src $(FLAGS) -terse-errors

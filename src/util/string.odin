@@ -14,9 +14,7 @@ split_once :: proc(s: string, sep: rune) -> (left, right: string, ok: bool) {
 }
 
 maybe_str_delete :: proc(str: Maybe(string)) {
-	switch s in str {
-	case nil:
-	case string:
+	if s, ok := str.?; ok {
 		delete(s)
 	}
 }

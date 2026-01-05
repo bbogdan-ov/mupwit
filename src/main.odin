@@ -36,8 +36,6 @@ main :: proc() {
 			mpd.push_action(client, mpd.Action_Play{})
 		} else if raylib.IsKeyPressed(.O) {
 			mpd.push_action(client, mpd.Action_Pause{})
-		} else if raylib.IsKeyPressed(.SPACE) {
-			mpd.push_action(client, mpd.Action_Req_Song_And_Status{})
 		}
 
 		x := i32(math.sin(raylib.GetTime() * 10) * 20)
@@ -49,8 +47,7 @@ main :: proc() {
 		case .Ready:
 			raylib.DrawText("Ready!", 4, 4, 20, raylib.WHITE)
 
-			#partial switch song in player.song {
-			case mpd.Song:
+			if song, ok := player.song.?; ok {
 				title: string = song.title.? or_else "<unknown>"
 				artist: string = song.artist.? or_else "<unknown>"
 				album: string = song.album.? or_else "<unknown>"
