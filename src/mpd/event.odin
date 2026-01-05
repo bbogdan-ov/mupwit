@@ -5,9 +5,8 @@ Event_State_Changed :: struct {
 	state: State,
 }
 
-// Song received
-Event_Song :: struct {
-	song: Maybe(Song),
+Event_Status :: struct {
+	status: Status,
 }
 
 Event_Status_And_Song :: struct {
@@ -22,7 +21,7 @@ Event_Cover :: struct {
 
 Event :: union {
 	Event_State_Changed,
-	Event_Song,
+	Event_Status,
 	Event_Status_And_Song,
 	Event_Cover,
 }

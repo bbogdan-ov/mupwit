@@ -34,7 +34,7 @@ Song :: struct {
 }
 
 song_destroy :: proc(song: ^Song) {
-	if song == nil do return
+	assert(song != nil)
 
 	delete(song.file)
 	delete(song.title.? or_else "")

@@ -46,10 +46,11 @@ State :: enum {
 }
 
 Client :: struct {
-	sock:      net.TCP_Socket,
-	events:    mpsc.Queue(Event),
-	actions:   mpsc.Queue(Action),
-	error_msg: Maybe(string),
+	sock:         net.TCP_Socket,
+	events:       mpsc.Queue(Event),
+	actions:      mpsc.Queue(Action),
+	error_msg:    Maybe(string),
+	prev_song_id: Maybe(uint),
 }
 
 // Open a connection with the MPD server
@@ -109,13 +110,9 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 
 		status_fetch_timer -= elapsed
 
+		// Request current status and song periodically
 		if status_fetch_timer <= 0 {
-			status, song, err := request_status_and_song(client)
-			if err == nil {
-				_push_event(client, Event_Status_And_Song{status, song})
-			} else {
-				trace_error(client, err)
-			}
+			_fetch_status(client)
 			status_fetch_timer = STATUS_FETCH_INTERVAL
 		}
 
@@ -137,6 +134,33 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 }
 
 @(private)
+_fetch_status :: proc(client: ^Client) {
+	status, err := request_status(client)
+	if err != nil {
+		trace_error(client, err)
+		return
+	}
+
+	if status.cur_song_id != client.prev_song_id {
+		song: Maybe(Song) = nil
+
+		if id, ok := status.cur_song_id.?; ok {
+			song, err = request_queue_song_by_id(client, id)
+			if err != nil {
+				trace_error(client, err)
+				return
+			}
+		}
+
+		_push_event(client, Event_Status_And_Song{status, song})
+	} else {
+		_push_event(client, Event_Status{status})
+	}
+
+	client.prev_song_id = status.cur_song_id
+}
+
+@(private)
 _handle_action :: proc(client: ^Client, action: Action) -> Error {
 	switch a in action {
 	case Action_Play:
@@ -145,10 +169,6 @@ _handle_action :: proc(client: ^Client, action: Action) -> Error {
 	case Action_Pause:
 		execute(client, "pause 1") or_return
 		receive_ok(client) or_return
-
-	case Action_Req_Queue_Song:
-		song := request_queue_song_by_id(client, a.id) or_return
-		_push_event(client, Event_Song{song})
 
 	case Action_Req_Cover:
 		cover := request_cover(client, a.song_uri) or_return
