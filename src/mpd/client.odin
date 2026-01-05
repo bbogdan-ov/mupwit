@@ -129,8 +129,8 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 			}
 		}
 
-		time.sleep(30 * time.Millisecond)
 		start = time.now()
+		time.sleep(30 * time.Millisecond)
 	}
 
 	return nil
