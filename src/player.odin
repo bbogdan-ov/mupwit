@@ -1,22 +1,35 @@
 package mupwit
 
 import "client"
-import "core:fmt"
 
 Player :: struct {
+	// Current playback status
 	status: Maybe(client.Status),
+	// Current song
+	song:   Maybe(client.Song),
 }
 
 player_make :: proc() -> Player {
 	return Player{status = nil}
 }
 
-player_on_event :: proc(player: ^Player, event: ^client.Event) {
+player_on_event :: proc(player: ^Player, loop: ^client.Event_Loop, event: ^client.Event) {
 	#partial switch e in event {
 	case client.Event_Status:
 		player.status = e.status
-		fmt.println("Player updated")
-		fmt.println(player.status)
+
+		event^ = nil
+	case client.Event_Song:
+		client.song_destroy(&player.song.? or_else nil)
+		player.song = e.song
+
+		event^ = nil
+	case client.Event_Song_And_Status:
+		player.status = e.status
+
+		client.song_destroy(&player.song.? or_else nil)
+		player.song = e.song
+
 		event^ = nil
 	}
 }

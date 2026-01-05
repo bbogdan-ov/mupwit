@@ -6,15 +6,24 @@ import "core:strconv"
 import "core:strings"
 import "core:unicode/utf8"
 
+import "../util"
+
 Pair :: struct {
+	// Slice of `Response.buffer`
 	name:  string,
+	// Slice of `Response.buffer`
 	value: string,
 }
 
-Pairs :: struct {
-	// All pairs will take a view from this string for their names and values
-	str:  string,
-	list: [dynamic]Pair,
+pair_parse_int :: proc(pair: Pair) -> (number: int, err: Error) {
+	num, ok := strconv.parse_int(string(pair.value))
+	if !ok do return 0, .Pair_Expected_Number
+	return num, nil
+}
+pair_parse_f32 :: proc(pair: Pair) -> (number: f32, err: Error) {
+	num, ok := strconv.parse_f32(string(pair.value))
+	if !ok do return 0, .Pair_Expected_Number
+	return num, nil
 }
 
 Response :: struct {
@@ -110,13 +119,13 @@ response_next_pair :: proc(res: ^Response) -> (pair: Pair, err: Error) {
 
 	if s == "OK" do return Pair{}, .End_Of_Response
 
-	parts := strings.split_n(s, ":", 2)
-	if len(parts) != 2 do return Pair{}, .Response_Invalid_Pair
+	left, right, ok := util.split_once(s, ':')
+	if !ok do return Pair{}, .Response_Invalid_Pair
 
-	name := strings.trim_space(parts[0])
-	value := strings.trim_space(parts[1])
+	pair.name = strings.trim_space(left)
+	pair.value = strings.trim_space(right)
 
-	return Pair{name, value}, nil
+	return
 }
 
 response_expect_pair :: #force_inline proc(
@@ -127,7 +136,7 @@ response_expect_pair :: #force_inline proc(
 	err: Error,
 ) {
 	p := response_next_pair(res) or_return
-	if p.name != name do return Pair{}, .Unexpected_Pair
+	if string(p.name) != name do return Pair{}, .Unexpected_Pair
 	return p, nil
 }
 
@@ -140,21 +149,10 @@ response_optional_pair :: #force_inline proc(
 ) {
 	last_offset := res.buffer.off
 	p := response_next_pair(res) or_return
-	if p.name == name {
+	if string(p.name) == name {
 		return p, nil
 	} else {
 		res.buffer.off = last_offset
 		return nil, nil
 	}
-}
-
-pair_parse_int :: proc(pair: Pair) -> (number: int, err: Error) {
-	num, ok := strconv.parse_int(pair.value)
-	if !ok do return 0, .Pair_Expected_Number
-	return num, nil
-}
-pair_parse_f32 :: proc(pair: Pair) -> (number: f32, err: Error) {
-	num, ok := strconv.parse_f32(pair.value)
-	if !ok do return 0, .Pair_Expected_Number
-	return num, nil
 }

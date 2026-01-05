@@ -1,17 +1,18 @@
 package mupwit
 
 import "core:math"
+import "core:strings"
 import "vendor:raylib"
 
 import "client"
 
 main :: proc() {
-	event_loop := client.loop_make()
-	defer client.loop_destroy(event_loop)
+	loop := client.loop_make()
+	defer client.loop_destroy(loop)
 
 	state: client.State = .Connecting
 
-	client.connect(event_loop)
+	client.connect(loop)
 
 	player := player_make()
 
@@ -23,7 +24,7 @@ main :: proc() {
 		raylib.ClearBackground(raylib.BLACK)
 
 		events: for {
-			event := client.loop_pop_event(event_loop)
+			event := client.loop_pop_event(loop)
 			#partial switch &e in event {
 			case nil:
 				break events
@@ -32,15 +33,15 @@ main :: proc() {
 				state = e.state
 			}
 
-			player_on_event(&player, &event)
+			player_on_event(&player, loop, &event)
 		}
 
 		if raylib.IsKeyPressed(.P) {
-			client.loop_push_action(event_loop, client.Action_Play{})
+			client.loop_push_action(loop, client.Action_Play{})
 		} else if raylib.IsKeyPressed(.O) {
-			client.loop_push_action(event_loop, client.Action_Pause{})
+			client.loop_push_action(loop, client.Action_Pause{})
 		} else if raylib.IsKeyPressed(.SPACE) {
-			client.loop_push_action(event_loop, client.Action_Req_Status{})
+			client.loop_push_action(loop, client.Action_Req_Song_And_Status{})
 		}
 
 		x := i32(math.sin(raylib.GetTime() * 10) * 20)
@@ -51,10 +52,21 @@ main :: proc() {
 			raylib.DrawText("Connecting...", 4, 4, 20, raylib.WHITE)
 		case .Ready:
 			raylib.DrawText("Ready!", 4, 4, 20, raylib.WHITE)
+
+			#partial switch song in player.song {
+			case client.Song:
+				title: string = song.title.? or_else "<unknown>"
+				artist: string = song.artist.? or_else "<unknown>"
+				album: string = song.album.? or_else "<unknown>"
+
+				raylib.DrawText(strings.clone_to_cstring(title), 4, 30, 20, raylib.WHITE)
+				raylib.DrawText(strings.clone_to_cstring(artist), 4, 50, 20, raylib.WHITE)
+				raylib.DrawText(strings.clone_to_cstring(album), 4, 70, 20, raylib.WHITE)
+			}
+
 		case .Error:
 			raylib.DrawText("Error", 4, 4, 20, raylib.WHITE)
 		}
-
 
 		raylib.EndDrawing()
 	}

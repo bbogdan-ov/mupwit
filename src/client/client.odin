@@ -124,6 +124,16 @@ handle_action :: proc(client: ^Client, event_loop: ^Event_Loop, action: Action) 
 		status := request_status(client) or_return
 		loop_push_event(event_loop, Event_Status{status})
 
+	case Action_Req_Song_And_Status:
+		status := request_status(client) or_return
+		song := request_queue_song_by_id(client, status.cur_song_id.? or_else -1) or_return
+
+		loop_push_event(event_loop, Event_Song_And_Status{song, status})
+
+	case Action_Req_Queue_Song:
+		song := request_queue_song_by_id(client, a.id) or_return
+		loop_push_event(event_loop, Event_Song{song})
+
 	case Action_Req_Cover:
 		cover := request_cover(client, a.song_uri) or_return
 		loop_push_event(event_loop, Event_Cover{cover})

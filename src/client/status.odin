@@ -9,17 +9,19 @@ Playstate :: enum {
 	Pause,
 }
 
-// TODO: current song info should be `nil` if current song is unknown
 Status :: struct {
-	state:    Playstate,
+	state:       Playstate,
 
 	// Volume in range 0..=100
-	volume:   int,
+	volume:      int,
 
-	// Currently playing song
-	cur_song: Maybe(Song),
+	// Id of the currently playing song
+	cur_song_id: Maybe(int),
+
 	// Time elapsed within the current song
-	elapsed:  time.Duration,
+	elapsed:     time.Duration,
+	// Duration of the current song
+	duration:    time.Duration,
 }
 
 Song :: struct {
@@ -29,6 +31,15 @@ Song :: struct {
 	artist:   Maybe(string),
 	album:    Maybe(string),
 	duration: time.Duration,
+}
+
+song_destroy :: proc(song: ^Song) {
+	if song == nil do return
+
+	delete(song.file)
+	delete(song.title.? or_else "")
+	delete(song.artist.? or_else "")
+	delete(song.album.? or_else "")
 }
 
 request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
@@ -46,8 +57,6 @@ _request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 	// Receive status data
 	res := receive(client) or_return
 	defer response_destroy(&res)
-
-	song_id := -1
 
 	for {
 		pair, err := response_next_pair(&res)
@@ -69,17 +78,12 @@ _request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 			status.volume = pair_parse_int(pair) or_return
 
 		case "songid":
-			song_id = pair_parse_int(pair) or_return
+			status.cur_song_id = pair_parse_int(pair) or_return
 
 		case "elapsed":
 			secs := pair_parse_f32(pair) or_return
 			status.elapsed = time.Duration(secs) * time.Second
 		}
-	}
-
-	if song_id >= 0 {
-		// Request currently playing song
-		status.cur_song = request_queue_song_by_id(client, song_id) or_return
 	}
 
 	return

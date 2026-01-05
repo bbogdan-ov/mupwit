@@ -1,6 +1,8 @@
 package client
 
-request_queue_song_by_id :: proc(client: ^Client, id: int) -> (song: Song, err: Error) {
+request_queue_song_by_id :: proc(client: ^Client, id: int) -> (song: Maybe(Song), err: Error) {
+	if id < 0 do return
+
 	song, err = #force_inline _request_queue_song_by_id(client, id)
 	if err != nil {
 		client.error_msg = "Unable to request a song by id from the queue"
