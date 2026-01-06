@@ -2,6 +2,8 @@ package mpd
 
 import "vendor:raylib"
 
+import "../util"
+
 Cover_Data :: struct {
 	image: raylib.Image,
 }
@@ -10,11 +12,15 @@ request_cover :: proc(client: ^Client, song_uri: string) -> (cover: Cover_Data, 
 	offset := 0
 
 	res: Response
+	defer response_destroy(&res)
+
 	bytes: [dynamic]byte = nil
 	filetype: cstring = ".png"
 
+	uri := util.quote(song_uri)
+
 	for {
-		execute(client, "readpicture", song_uri, offset) or_return
+		executef(client, "readpicture %s %d", uri, offset) or_return
 
 		response_destroy(&res) // free previous response
 		res = receive(client) or_return
@@ -29,25 +35,22 @@ request_cover :: proc(client: ^Client, song_uri: string) -> (cover: Cover_Data, 
 		}
 
 		// Parse `type` field
-		maybe_pair := response_optional_pair(&res, "type") or_return
-		if p, ok := maybe_pair.?; ok {
-			switch p.value {
-			case "image/png":
-				filetype = ".png"
-			case "image/jpg":
-				fallthrough
-			case "image/jpeg":
-				filetype = ".jpg"
-			case "image/webp":
-				filetype = ".webp"
-			}
+		pair = response_expect_pair(&res, "type") or_return
+		switch pair.value {
+		case "image/png":
+			filetype = ".png"
+		case "image/jpg":
+			fallthrough
+		case "image/jpeg":
+			filetype = ".jpg"
+		case "image/webp":
+			filetype = ".webp"
 		}
 
 		// Parse binary
 		b := response_next_binary(&res) or_return
 		copy(bytes[offset:], b[:])
 		offset += len(b)
-		delete(b)
 
 		response_expect_ok(&res) or_return
 

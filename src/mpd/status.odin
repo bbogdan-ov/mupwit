@@ -25,7 +25,6 @@ Status :: struct {
 }
 
 Song :: struct {
-	id:       uint,
 	// Song file uri
 	uri:      string,
 	title:    Maybe(string),
@@ -46,7 +45,7 @@ song_destroy :: proc(song: ^Song) {
 request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 	status, err = #force_inline _request_status(client)
 	if err != nil {
-		client.error_msg = "Unable to request current playback status"
+		set_error(client, "Unable to request current playback status")
 	}
 	return
 }
@@ -69,16 +68,15 @@ request_status_and_song :: proc(
 
 @(private)
 _request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
-	execute(client, "status") or_return
+	executef(client, "status") or_return
 
 	// Receive status data
 	res := receive(client) or_return
 	defer response_destroy(&res)
 
 	for {
-		pair, err := response_next_pair(&res)
-		if err == .End_Of_Response do break
-		else if err != nil do return Status{}, err
+		maybe_pair := response_next_pair(&res) or_return
+		pair := maybe_pair.? or_break
 
 		switch pair.name {
 		case "state":
@@ -107,35 +105,40 @@ _request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 }
 
 // Parse the next song info the `Response`
-response_next_song :: proc(client: ^Client, res: ^Response) -> (song: Song, err: Error) {
+response_next_song :: proc(client: ^Client, res: ^Response) -> (song: Maybe(Song), err: Error) {
 	song, err = _response_next_song(res)
 	if err != nil {
-		client.error_msg = "Unable to parse the next song from the response"
+		set_error(client, "Unable to parse the next song from the response")
 	}
 	return
 }
 
 @(private)
-_response_next_song :: proc(res: ^Response) -> (song: Song, err: Error) {
+_response_next_song :: proc(res: ^Response) -> (song: Maybe(Song), err: Error) {
+	s: Song
+
 	for {
-		pair, err := response_next_pair(res)
-		if err == .End_Of_Response do break
-		else if err != nil do return Song{}, err
+		maybe_pair := response_next_pair(res) or_return
+		pair := maybe_pair.? or_break
 
 		switch pair.name {
 		case "file":
-			song.uri = strings.clone(pair.value)
+			s.uri = strings.clone(pair.value)
 		case "Title":
-			song.title = strings.clone(pair.value)
+			s.title = strings.clone(pair.value)
 		case "Artist":
-			song.artist = strings.clone(pair.value)
+			s.artist = strings.clone(pair.value)
 		case "Album":
-			song.album = strings.clone(pair.value)
+			s.album = strings.clone(pair.value)
 		case "duration":
 			secs := pair_parse_f32(pair) or_return
-			song.duration = time.Duration(secs) * time.Second
+			s.duration = time.Duration(secs) * time.Second
 		}
 	}
 
-	return
+	if len(s.uri) > 0 {
+		return s, nil
+	} else {
+		return nil, nil
+	}
 }

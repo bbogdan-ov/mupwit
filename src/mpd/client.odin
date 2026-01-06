@@ -23,6 +23,7 @@ Error_Kind :: enum {
 	Response_Expected_String,
 	Response_Invalid_Pair,
 	Response_Unexpected_Binary_Size,
+	Response_Expected_Song_Info,
 	Pair_Expected_Number,
 	Unexpected_Pair,
 	End_Of_Response,
@@ -50,7 +51,14 @@ Client :: struct {
 	sock:              net.TCP_Socket,
 	events:            mpsc.Queue(Event),
 	actions:           mpsc.Queue(Action),
+	// Current error message.
+	// It may be set by a function that returned `mpd.Error`.
+	// Should be a static string.
 	error_msg:         Maybe(string),
+	// Location where the `error_msg` was set.
+	error_loc:         runtime.Source_Code_Location,
+	// Id of the previous currently playing song.
+	// Used to check whether the current song has changed.
 	prev_song_id:      Maybe(uint),
 	events_arena:      runtime.Arena,
 	actions_arena:     runtime.Arena,
@@ -65,8 +73,6 @@ connect :: proc(ip := DEFAULT_IP, port := DEFAULT_PORT) -> ^Client {
 	client.events_allocator = runtime.arena_allocator(&client.events_arena)
 	client.actions_allocator = runtime.arena_allocator(&client.actions_arena)
 
-	client.sock = 0
-	client.error_msg = nil
 	mpsc.init(&client.events)
 	mpsc.init(&client.actions)
 
@@ -107,8 +113,11 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 	client.sock = net.dial_tcp(addr, data.port) or_return
 
 	// Consume the MPD version message
-	res := receive(client) or_return
-	response_next_string(&res)
+	{
+		res := receive(client) or_return
+		response_next_string(&res)
+		response_destroy(&res)
+	}
 
 	// Successfully connected
 	_push_event(client, Event_State_Changed{.Ready})
@@ -182,15 +191,20 @@ _fetch_status :: proc(client: ^Client) {
 _handle_action :: proc(client: ^Client, action: Action) -> Error {
 	switch a in action {
 	case Action_Play:
-		execute(client, "pause 0") or_return
+		executef(client, "pause 0") or_return
 		receive_ok(client) or_return
 	case Action_Pause:
-		execute(client, "pause 1") or_return
+		executef(client, "pause 1") or_return
 		receive_ok(client) or_return
 
 	case Action_Req_Cover:
 		cover := request_cover(client, a.song_uri) or_return
-		_push_event(client, Event_Cover{cover})
+		_push_event(client, Event_Cover{a.id, cover})
+
+	case Action_Req_Albums:
+		albums := make([dynamic]Album, len = 0, cap = 20)
+		request_albums(client, &albums) or_return
+		_push_event(client, Event_Albums{albums})
 	}
 
 	return nil
@@ -233,12 +247,23 @@ _free_actions :: proc(client: ^Client) {
 	free_all(client.actions_allocator)
 }
 
+set_error :: proc(client: ^Client, msg: string, loc := #caller_location) {
+	client.error_msg = msg
+	client.error_loc = loc
+}
+
 trace_error :: proc(client: ^Client, error: Error) {
 	if error == nil do return
 
 	sb := strings.builder_make()
 
 	fmt.sbprint(&sb, "CLIENT: ")
+
+	// Prepend error message if any
+	if msg, ok := client.error_msg.?; ok {
+		fmt.sbprintf(&sb, "%s %s: ", client.error_loc, msg)
+		client.error_msg = nil
+	}
 
 	switch e in error {
 	case Error_Kind:
@@ -258,6 +283,8 @@ trace_error :: proc(client: ^Client, error: Error) {
 			fmt.sbprint(&sb, "RESPONSE: Invalid pair")
 		case .Response_Unexpected_Binary_Size:
 			fmt.sbprint(&sb, "RESPONSE: Binary response differs from the expected size")
+		case .Response_Expected_Song_Info:
+			fmt.sbprint(&sb, "RESPONSE: Expected song info")
 		case .Pair_Expected_Number:
 			fmt.sbprint(&sb, "RESPONSE: Pair value expected to be a number")
 		case .Unexpected_Pair:
@@ -269,20 +296,7 @@ trace_error :: proc(client: ^Client, error: Error) {
 		fmt.sbprintf(&sb, "Network error: %s", e)
 	}
 
-	// Append error message if any
-	if msg, ok := client.error_msg.?; ok {
-		fmt.sbprintf(&sb, ": %s", msg)
-		clear_error(client)
-	}
-
 	raylib.TraceLog(.ERROR, strings.to_cstring(&sb))
-}
-
-clear_error :: proc(client: ^Client) {
-	if msg, ok := client.error_msg.?; ok {
-		delete(msg)
-		client.error_msg = nil
-	}
 }
 
 trace :: proc(level: raylib.TraceLogLevel, msg: string, args: ..any) {
