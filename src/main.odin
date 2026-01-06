@@ -3,7 +3,7 @@ package mupwit
 import "core:fmt"
 import "core:math"
 import "core:strings"
-import "vendor:raylib"
+import rl "vendor:raylib"
 
 import "mpd"
 
@@ -16,22 +16,22 @@ main :: proc() {
 	player := player_make()
 	defer player_destroy(&player)
 
-	raylib.InitWindow(400, 600, "hey")
-	defer raylib.CloseWindow()
+	rl.InitWindow(400, 600, "hey")
+	defer rl.CloseWindow()
 
-	raylib.SetTargetFPS(120)
+	rl.SetTargetFPS(120)
 
 	albums: [dynamic]mpd.Album // let it leak
-	albums_covers: [dynamic]raylib.Texture // let it leak
+	albums_covers: [dynamic]rl.Texture // let it leak
 
-	camera := raylib.Camera2D {
+	camera := rl.Camera2D {
 		zoom = 1.0,
 	}
 
-	for !raylib.WindowShouldClose() {
-		raylib.BeginDrawing()
-		raylib.BeginMode2D(camera)
-		raylib.ClearBackground({20, 20, 20, 255})
+	for !rl.WindowShouldClose() {
+		rl.BeginDrawing()
+		rl.BeginMode2D(camera)
+		rl.ClearBackground({20, 20, 20, 255})
 
 		events: for {
 			event := mpd.pop_event(client)
@@ -43,12 +43,12 @@ main :: proc() {
 				state = e.state
 			case mpd.Event_Albums:
 				for &album in albums do mpd.album_destroy(&album)
-				for &tex in albums_covers do raylib.UnloadTexture(tex)
+				for &tex in albums_covers do rl.UnloadTexture(tex)
 				delete(albums)
 				resize(&albums_covers, len(e.albums))
 
 				albums = e.albums
-				raylib.TraceLog(.INFO, "Received albums list (%d)", len(e.albums))
+				rl.TraceLog(.INFO, "Received albums list (%d)", len(e.albums))
 
 				for album, idx in e.albums {
 					mpd.push_action(client, mpd.Action_Req_Cover{idx, album.first_song.uri})
@@ -56,29 +56,29 @@ main :: proc() {
 			case mpd.Event_Cover:
 				tex := &albums_covers[e.id]
 				assert(tex.id == 0)
-				tex^ = raylib.LoadTextureFromImage(e.cover.image)
-				raylib.UnloadImage(e.cover.image)
+				tex^ = rl.LoadTextureFromImage(e.cover.image)
+				rl.UnloadImage(e.cover.image)
 			}
 
 			player_on_event(&player, client, &event)
 		}
 		mpd.free_events(client)
 
-		camera.offset.y += raylib.GetMouseWheelMove() * 20
+		camera.offset.y += rl.GetMouseWheelMove() * 20
 
-		if raylib.IsKeyPressed(.P) {
+		if rl.IsKeyPressed(.P) {
 			mpd.push_action(client, mpd.Action_Play{})
-		} else if raylib.IsKeyPressed(.O) {
+		} else if rl.IsKeyPressed(.O) {
 			mpd.push_action(client, mpd.Action_Pause{})
-		} else if raylib.IsKeyPressed(.A) {
+		} else if rl.IsKeyPressed(.A) {
 			mpd.push_action(client, mpd.Action_Req_Albums{})
 		}
 
 		switch state {
 		case .Connecting:
-			raylib.DrawText("Connecting...", 4, 4, 20, raylib.WHITE)
+			rl.DrawText("Connecting...", 4, 4, 20, rl.WHITE)
 		case .Ready:
-			raylib.DrawText("Ready!", 4, 4, 20, raylib.WHITE)
+			rl.DrawText("Ready!", 4, 4, 20, rl.WHITE)
 
 			if status, ok := player.status.?; ok {
 				if song, ok := player.song.?; ok {
@@ -89,17 +89,17 @@ main :: proc() {
 					artist := strings.clone_to_cstring(artist_, context.temp_allocator)
 					album := strings.clone_to_cstring(album_, context.temp_allocator)
 
-					raylib.DrawText(title, 4, 30, 20, raylib.WHITE)
-					raylib.DrawText(artist, 4, 50, 20, raylib.WHITE)
-					raylib.DrawText(album, 4, 70, 20, raylib.WHITE)
+					rl.DrawText(title, 4, 30, 20, rl.WHITE)
+					rl.DrawText(artist, 4, 50, 20, rl.WHITE)
+					rl.DrawText(album, 4, 70, 20, rl.WHITE)
 
 					sb := strings.builder_make()
 					fmt.sbprint(&sb, status.elapsed)
-					raylib.DrawText(strings.to_cstring(&sb), 4, 90, 20, raylib.WHITE)
+					rl.DrawText(strings.to_cstring(&sb), 4, 90, 20, rl.WHITE)
 
 					strings.builder_reset(&sb)
 					fmt.sbprint(&sb, status.state)
-					raylib.DrawText(strings.to_cstring(&sb), 4, 110, 20, raylib.WHITE)
+					rl.DrawText(strings.to_cstring(&sb), 4, 110, 20, rl.WHITE)
 				}
 			}
 
@@ -111,25 +111,25 @@ main :: proc() {
 
 				if albums_covers[idx].id != 0 {
 					tex := albums_covers[idx]
-					source := raylib.Rectangle{0, 0, f32(tex.width), f32(tex.height)}
-					dest := raylib.Rectangle{200, f32(y), 64, 64}
-					raylib.DrawTexturePro(tex, source, dest, {}, 0, raylib.WHITE)
+					source := rl.Rectangle{0, 0, f32(tex.width), f32(tex.height)}
+					dest := rl.Rectangle{200, f32(y), 64, 64}
+					rl.DrawTexturePro(tex, source, dest, {}, 0, rl.WHITE)
 				}
-				raylib.DrawText(title, 4, y, 10, raylib.WHITE)
+				rl.DrawText(title, 4, y, 10, rl.WHITE)
 			}
 
 		case .Error:
-			raylib.DrawText("Error", 4, 4, 20, raylib.WHITE)
+			rl.DrawText("Error", 4, 4, 20, rl.WHITE)
 		}
 
-		raylib.EndMode2D()
+		rl.EndMode2D()
 
-		x := i32(math.sin(raylib.GetTime() * 10) * 20) + 20
-		raylib.DrawRectangle(x, 16, 32, 32, raylib.RED)
+		x := i32(math.sin(rl.GetTime() * 10) * 20) + 20
+		rl.DrawRectangle(x, 16, 32, 32, rl.RED)
 
-		raylib.EndDrawing()
+		rl.EndDrawing()
 		free_all(context.temp_allocator)
 	}
 
-	raylib.TraceLog(.INFO, "Bye")
+	rl.TraceLog(.INFO, "Bye")
 }
