@@ -7,6 +7,8 @@ import rl "vendor:raylib"
 
 import "mpd"
 
+import asset_files "../build/assets"
+
 main :: proc() {
 	state: mpd.State = .Connecting
 
@@ -28,10 +30,13 @@ main :: proc() {
 		zoom = 1.0,
 	}
 
+	pixel_font := asset_files.font_load_kaplimono_regular()
+	defer rl.UnloadTexture(pixel_font.texture)
+
 	for !rl.WindowShouldClose() {
 		rl.BeginDrawing()
 		rl.BeginMode2D(camera)
-		rl.ClearBackground({20, 20, 20, 255})
+		rl.ClearBackground({60, 60, 60, 255})
 
 		events: for {
 			event := mpd.pop_event(client)
@@ -64,7 +69,7 @@ main :: proc() {
 		}
 		mpd.free_events(client)
 
-		camera.offset.y += rl.GetMouseWheelMove() * 20
+		camera.offset.y += rl.GetMouseWheelMove() * 40
 
 		if rl.IsKeyPressed(.P) {
 			mpd.push_action(client, mpd.Action_Play{})
@@ -76,9 +81,9 @@ main :: proc() {
 
 		switch state {
 		case .Connecting:
-			rl.DrawText("Connecting...", 4, 4, 20, rl.WHITE)
+			rl.DrawTextEx(pixel_font, "Connecting...", {4, 4}, 16, 0, rl.WHITE)
 		case .Ready:
-			rl.DrawText("Ready!", 4, 4, 20, rl.WHITE)
+			rl.DrawTextEx(pixel_font, "Ready!", {4, 4}, 16, 0, rl.WHITE)
 
 			if status, ok := player.status.?; ok {
 				if song, ok := player.song.?; ok {
@@ -89,17 +94,17 @@ main :: proc() {
 					artist := strings.clone_to_cstring(artist_, context.temp_allocator)
 					album := strings.clone_to_cstring(album_, context.temp_allocator)
 
-					rl.DrawText(title, 4, 30, 20, rl.WHITE)
-					rl.DrawText(artist, 4, 50, 20, rl.WHITE)
-					rl.DrawText(album, 4, 70, 20, rl.WHITE)
+					rl.DrawTextEx(pixel_font, title, {4, 30}, 16, 0, rl.WHITE)
+					rl.DrawTextEx(pixel_font, artist, {4, 50}, 16, 0, rl.WHITE)
+					rl.DrawTextEx(pixel_font, album, {4, 70}, 16, 0, rl.WHITE)
 
 					sb := strings.builder_make()
 					fmt.sbprint(&sb, status.elapsed)
-					rl.DrawText(strings.to_cstring(&sb), 4, 90, 20, rl.WHITE)
+					rl.DrawTextEx(pixel_font, strings.to_cstring(&sb), {4, 90}, 16, 0, rl.WHITE)
 
 					strings.builder_reset(&sb)
 					fmt.sbprint(&sb, status.state)
-					rl.DrawText(strings.to_cstring(&sb), 4, 110, 20, rl.WHITE)
+					rl.DrawTextEx(pixel_font, strings.to_cstring(&sb), {4, 110}, 16, 0, rl.WHITE)
 				}
 			}
 
@@ -107,19 +112,19 @@ main :: proc() {
 				title_ := album.title.? or_else "<unknown>"
 				title := strings.clone_to_cstring(title_, context.temp_allocator)
 
-				y := 130 + i32(idx) * 32
+				y := 130 + f32(idx) * 32
 
 				if albums_covers[idx].id != 0 {
 					tex := albums_covers[idx]
 					source := rl.Rectangle{0, 0, f32(tex.width), f32(tex.height)}
-					dest := rl.Rectangle{200, f32(y), 64, 64}
+					dest := rl.Rectangle{200, y, 64, 64}
 					rl.DrawTexturePro(tex, source, dest, {}, 0, rl.WHITE)
 				}
-				rl.DrawText(title, 4, y, 10, rl.WHITE)
+				rl.DrawTextEx(pixel_font, title, {4, y}, 16, 0, rl.WHITE)
 			}
 
 		case .Error:
-			rl.DrawText("Error", 4, 4, 20, rl.WHITE)
+			rl.DrawTextEx(pixel_font, "Error", {4, 4}, 16, 0, rl.WHITE)
 		}
 
 		rl.EndMode2D()
