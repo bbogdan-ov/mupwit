@@ -2,7 +2,7 @@ package mupwit
 
 import "mpd"
 
-Player :: struct {
+Player :: struct #all_or_none {
 	// Current playback status
 	status: Maybe(mpd.Status),
 	// Current song
@@ -10,31 +10,19 @@ Player :: struct {
 }
 
 player_make :: proc() -> Player {
-	return Player{status = nil}
+	return Player{status = nil, song = nil}
 }
-
-player_destroy :: proc(player: ^Player) {
+player_destroy :: proc() {
 	if s, ok := &player.song.?; ok do mpd.song_destroy(s)
 }
 
-player_on_event :: proc(player: ^Player, client: ^mpd.Client, event: ^mpd.Event) {
-	#partial switch e in event {
-	case mpd.Event_Status:
-		player.status = e.status
-
-		event^ = nil
-	case mpd.Event_Status_And_Song:
-		player.status = e.status
-		_set_song(player, e.song)
-
-		event^ = nil
-	}
+player_on_status :: proc(status: mpd.Status) {
+	player.status = status
 }
+player_on_status_and_song :: proc(status: mpd.Status, song: Maybe(mpd.Song)) {
+	player.status = status
 
-@(private)
-_set_song :: proc(player: ^Player, song: Maybe(mpd.Song)) {
 	s, ok := &player.song.?
 	if ok do mpd.song_destroy(s)
-
 	player.song = song
 }

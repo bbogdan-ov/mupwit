@@ -3,6 +3,7 @@ BUILD_SOURCES := $(shell find build_src/ -type f -name '*.odin')
 ASSETS        := $(shell find assets/    -type f)
 
 FLAGS := \
+	-terse-errors \
 	-error-pos-style:unix \
 	-strict-style \
 	-vet-tabs \
@@ -37,4 +38,4 @@ clean:
 	rm -r build
 
 check:
-	@odin check src $(FLAGS) -terse-errors
+	@odin check src $(FLAGS)
