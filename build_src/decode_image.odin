@@ -21,6 +21,12 @@ decode_png :: proc(assets_file: os.Handle, name: string, channels: int) -> (ok: 
 		return
 	}
 
+	if image.depth != 8 {
+		MSG :: "Only depth of %d bits is supported, got %d for %s"
+		fmt.eprintfln(MSG, 8, image.depth, path)
+		return
+	}
+
 	{
 		// Write raw image data
 		outpath := fmt.aprintf(BUILD_IMAGES_URI + "%s.rawimage.bin", name)
