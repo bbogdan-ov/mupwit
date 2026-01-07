@@ -4,11 +4,10 @@ import "base:runtime"
 import "core:fmt"
 import "core:net"
 import "core:strings"
+import "core:sync/chan"
 import "core:thread"
 import "core:time"
 import "vendor:raylib"
-
-import "../mpsc"
 
 DEFAULT_IP: string : "127.0.0.1"
 // MPD uses this port by default
@@ -48,33 +47,29 @@ State :: enum {
 }
 
 Client :: struct {
-	sock:              net.TCP_Socket,
-	events:            mpsc.Queue(Event),
-	actions:           mpsc.Queue(Action),
+	sock:         net.TCP_Socket,
+	events:       chan.Chan(Event),
+	actions:      chan.Chan(Action),
 	// Current error message.
 	// It may be set by a function that returned `mpd.Error`.
 	// Should be a static string.
-	error_msg:         Maybe(string),
+	error_msg:    Maybe(string),
 	// Location where the `error_msg` was set.
-	error_loc:         runtime.Source_Code_Location,
+	error_loc:    runtime.Source_Code_Location,
 	// Id of the previous currently playing song.
 	// Used to check whether the current song has changed.
-	prev_song_id:      Maybe(uint),
-	events_arena:      runtime.Arena,
-	actions_arena:     runtime.Arena,
-	events_allocator:  runtime.Allocator,
-	actions_allocator: runtime.Allocator,
+	prev_song_id: Maybe(uint),
 }
 
 // Open a connection with the MPD server
 connect :: proc(ip := DEFAULT_IP, port := DEFAULT_PORT) -> ^Client {
 	client := new(Client)
 
-	client.events_allocator = runtime.arena_allocator(&client.events_arena)
-	client.actions_allocator = runtime.arena_allocator(&client.actions_arena)
-
-	mpsc.init(&client.events)
-	mpsc.init(&client.actions)
+	err: runtime.Allocator_Error
+	client.events, err = chan.create_buffered(chan.Chan(Event), 16, context.allocator)
+	assert(err == nil)
+	client.actions, err = chan.create_buffered(chan.Chan(Action), 16, context.allocator)
+	assert(err == nil)
 
 	data := new(_Connect_Data)
 	data.client = client
@@ -89,8 +84,8 @@ connect :: proc(ip := DEFAULT_IP, port := DEFAULT_PORT) -> ^Client {
 }
 
 destroy :: proc(client: ^Client) {
-	free_all(client.events_allocator)
-	free_all(client.actions_allocator)
+	chan.destroy(client.events)
+	chan.destroy(client.actions)
 	free(client)
 }
 
@@ -212,39 +207,24 @@ _handle_action :: proc(client: ^Client, action: Action) -> Error {
 
 @(private)
 _push_event :: proc(client: ^Client, event: Event) {
-	node := new(mpsc.Node(Event), allocator = client.events_allocator)
-	node.value = event
-	mpsc.push(&client.events, node)
+	ok := chan.send(client.events, event)
+	assert(ok)
 }
 pop_event :: proc(client: ^Client) -> Event {
-	state, node := mpsc.poll(&client.events)
-	if state == .Item {
-		assert(node != nil)
-		return node.value // copy the event
-	}
-	return nil
-}
-free_events :: proc(client: ^Client) {
-	free_all(client.events_allocator)
+	event, ok := chan.try_recv(client.events)
+	if !ok do return nil
+	return event
 }
 
 push_action :: proc(client: ^Client, action: Action) {
-	node := new(mpsc.Node(Action), allocator = client.actions_allocator)
-	node.value = action
-	mpsc.push(&client.actions, node)
+	ok := chan.send(client.actions, action)
+	assert(ok)
 }
 @(private)
 _pop_action :: proc(client: ^Client) -> Maybe(Action) {
-	state, node := mpsc.poll(&client.actions)
-	if state == .Item {
-		assert(node != nil)
-		return node.value // copy the action
-	}
-	return nil
-}
-@(private)
-_free_actions :: proc(client: ^Client) {
-	free_all(client.actions_allocator)
+	action, ok := chan.try_recv(client.actions)
+	if !ok do return nil
+	return action
 }
 
 set_error :: proc(client: ^Client, msg: string, loc := #caller_location) {

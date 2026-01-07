@@ -70,7 +70,6 @@ main :: proc() {
 
 			player_on_event(&player, client, &event)
 		}
-		mpd.free_events(client)
 
 		camera.offset.y += rl.GetMouseWheelMove() * 40
 
