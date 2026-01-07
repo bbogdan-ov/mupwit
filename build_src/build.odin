@@ -1,4 +1,4 @@
-package decode_assets
+package build
 
 import "core:fmt"
 import "core:math/bits"
