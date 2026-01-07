@@ -42,10 +42,10 @@ song_destroy :: proc(song: ^Song) {
 	delete(song.album.? or_else "")
 }
 
-request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
+request_status :: proc(client: ^Client, loc := #caller_location) -> (status: Status, err: Error) {
 	status, err = #force_inline _request_status(client)
 	if err != nil {
-		set_error(client, "Unable to request current playback status")
+		set_error(client, "Unable to request current playback status", loc)
 	}
 	return
 }

@@ -83,7 +83,17 @@ connect :: proc(ip := DEFAULT_IP, port := DEFAULT_PORT) -> ^Client {
 	return client
 }
 
-destroy :: proc(client: ^Client) {
+// Carefuly close the connection and free the memory owned by the client.
+close :: proc(client: ^Client) {
+	push_action(client, Action_Close{})
+	wait_for_close: for {
+		event := pop_event(client)
+		if _, ok := event.(Event_Closed); ok {
+			trace(.INFO, "Connection closed, destroying the client")
+			break wait_for_close
+		}
+	}
+
 	chan.destroy(client.events)
 	chan.destroy(client.actions)
 	free(client)
@@ -124,7 +134,7 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 	status_fetch_timer := time.Duration(0)
 
 	// Loop forever
-	for {
+	loop: for {
 		elapsed := time.since(start)
 
 		status_fetch_timer -= elapsed
@@ -140,14 +150,22 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 			case nil:
 				break action
 			case Action:
-				err := _handle_action(client, a)
+				close, err := _handle_action(client, a)
 				trace_error(client, err)
+
+				if close {
+					trace(.INFO, "Closing the connection...")
+					break loop
+				}
 			}
 		}
 
 		start = time.now()
 		time.sleep(30 * time.Millisecond)
 	}
+
+	net.close(client.sock)
+	_push_event(client, Event_Closed{})
 
 	return nil
 }
@@ -183,7 +201,7 @@ _fetch_status :: proc(client: ^Client) {
 }
 
 @(private)
-_handle_action :: proc(client: ^Client, action: Action) -> Error {
+_handle_action :: proc(client: ^Client, action: Action) -> (close: bool, err: Error) {
 	switch a in action {
 	case Action_Play:
 		executef(client, "pause 0") or_return
@@ -200,9 +218,12 @@ _handle_action :: proc(client: ^Client, action: Action) -> Error {
 		albums := make([dynamic]Album, len = 0, cap = 20)
 		request_albums(client, &albums) or_return
 		_push_event(client, Event_Albums{albums})
+
+	case Action_Close:
+		close = true
 	}
 
-	return nil
+	return
 }
 
 @(private)

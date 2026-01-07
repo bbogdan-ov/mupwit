@@ -24,16 +24,16 @@ main :: proc() {
 	}
 
 	player_destroy()
-	mpd.destroy(client)
 	ui.assets_destroy()
-
 	rl.CloseWindow()
+
+	mpd.close(client)
 
 	rl.TraceLog(.INFO, "Bye")
 }
 
 update :: #force_inline proc() {
-	// Handle events
+	// Handle incoming events
 	events: for {
 		event := mpd.pop_event(client)
 		switch &e in event {
@@ -53,6 +53,9 @@ update :: #force_inline proc() {
 
 		case mpd.Event_Cover:
 			mpd.cover_destroy(&e.cover)
+
+		case mpd.Event_Closed:
+			panic("TODO: handle closing of the connection in the middle of app execution")
 		}
 	}
 }
