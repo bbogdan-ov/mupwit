@@ -30,7 +30,7 @@ build/assets/assets.odin: build/decode_assets $(ASSETS)
 
 build/decode_assets: $(BUILD_SOURCES)
 	@echo "INFO: Compiling assets decoder..."
-	@odin build build_src/decode_assets.odin -out:build/decode_assets -file $(FLAGS)
+	@odin build build_src/ -out:build/decode_assets $(FLAGS)
 
 clean:
 	rm -r build

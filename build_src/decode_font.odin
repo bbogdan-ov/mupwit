@@ -27,26 +27,27 @@ Glyph :: struct #all_or_none {
 	bitmap:    [dynamic]u32,
 }
 
-decode_bdf :: proc(assets_file: os.Handle, name: string) {
+decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 	path := fmt.aprintf(FONTS_URI + "%s.bdf", name)
 	defer delete(path)
 
 	font_bbx := bbx()
-	glyphs: [dynamic]Glyph
+	glyphs := make([dynamic]Glyph, len = 0, cap = 256)
 	defer delete(glyphs)
 	{
+		// Parsing the BDF file and collect all the glyphs
 		data, err := os.read_entire_file_from_filename_or_err(path)
-		if err != nil do panic(fmt.tprintf("Unable to read font file %s: %s", path, err))
+		if err != nil {
+			fmt.eprintfln("Unable to read font file %s: %s", path, err)
+			return
+		}
 
 		text := string(data)
 		defer delete(data)
 
-		glyphs = make([dynamic]Glyph, len = 0, cap = 256)
-
 		cur_glyph: Maybe(Glyph) = nil
 		is_bitmap := false
 
-		// Parsing the BDF file and collect all the glyphs
 		for line in strings.split_lines_iterator(&text) {
 			parts := strings.split(line, " ")
 			defer delete(parts)
@@ -61,23 +62,24 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) {
 					is_bitmap = false
 				} else if parts[0] == "ENCODING" {
 					assert(len(parts) >= 2)
-					glyph.codepoint = rune(parse_int(parts[1]))
+					glyph.codepoint = rune(parse_int(parts[1]).? or_return)
 				} else if parts[0] == "DWIDTH" {
 					assert(len(parts) >= 2)
-					glyph.advance_x = parse_int(parts[1])
+					glyph.advance_x = parse_int(parts[1]).? or_return
 					assert(glyph.advance_x >= 0)
 				} else if parts[0] == "BBX" {
 					assert(len(parts) >= 5)
-					glyph.bbx.width = parse_int(parts[1])
-					glyph.bbx.height = parse_int(parts[2])
-					glyph.bbx.x = parse_int(parts[3])
-					glyph.bbx.y = parse_int(parts[4]) - (font_bbx.height - glyph.bbx.height)
+					glyph.bbx.width = parse_int(parts[1]).? or_return
+					glyph.bbx.height = parse_int(parts[2]).? or_return
+					glyph.bbx.x = parse_int(parts[3]).? or_return
+					glyph.bbx.y = parse_int(parts[4]).? or_return
+					glyph.bbx.y -= font_bbx.height - glyph.bbx.height
 				} else if parts[0] == "BITMAP" {
 					is_bitmap = true
 				} else if is_bitmap {
 					assert(glyph.bbx.width >= 0)
 
-					n := u32(parse_int(line, 16))
+					n := u32(parse_int(line, 16).? or_return)
 
 					if glyph.bbx.width <= 8 do assert(n <= 255)
 					else if glyph.bbx.width <= 16 do assert(n <= 65535)
@@ -94,10 +96,10 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) {
 				}
 			} else if parts[0] == "FONTBOUNDINGBOX" {
 				assert(len(parts) >= 5)
-				font_bbx.width = parse_int(parts[1])
-				font_bbx.height = parse_int(parts[2])
-				font_bbx.x = parse_int(parts[3])
-				font_bbx.y = parse_int(parts[4])
+				font_bbx.width = parse_int(parts[1]).? or_return
+				font_bbx.height = parse_int(parts[2]).? or_return
+				font_bbx.x = parse_int(parts[3]).? or_return
+				font_bbx.y = parse_int(parts[4]).? or_return
 
 				assert(font_bbx.x >= 0)
 				assert(font_bbx.width > 0)
@@ -156,7 +158,7 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) {
 	{
 		// Write raw image data
 		outpath := fmt.aprintf(BUILD_FONTS_URI + "%s.rawimage.bin", name)
-		file := create_file(outpath)
+		file := create_file(outpath) or_return
 
 		_, err := os.write(file, pixels[:])
 		if err != nil {
@@ -178,7 +180,7 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) {
 	{
 		// Write glyphs info
 		outpath := fmt.aprintf(BUILD_FONTS_URI + "%s.glyphs.bin", name)
-		file := create_file(outpath)
+		file := create_file(outpath) or_return
 
 		for codepoint in 0 ..= last_codepoint {
 			glyph := &glyph_map[codepoint]
@@ -214,7 +216,7 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) {
 	{
 		// Write glyphs rectangles
 		outpath := fmt.aprintf(BUILD_FONTS_URI + "%s.rects.bin", name)
-		file := create_file(outpath)
+		file := create_file(outpath) or_return
 
 		for codepoint in 0 ..= last_codepoint {
 			glyph := &glyph_map[codepoint]
@@ -271,6 +273,8 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) {
 		putline(f, "\t}}")
 		putline(f, "}}")
 	}
+
+	return true
 }
 
 // Output rendered glyphs into the PBM image for debug purposes.
