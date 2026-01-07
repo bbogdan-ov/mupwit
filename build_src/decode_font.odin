@@ -162,7 +162,7 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 
 		_, err := os.write(file, pixels[:])
 		if err != nil {
-			fmt.eprintln("Unable to write decoded font data:", err)
+			fmt.eprintln("Unable to write decoded font raw image data:", err)
 			return
 		}
 
@@ -240,7 +240,7 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 	}
 
 	{
-		// Write info about the font
+		// Write font info and helper functions
 		sheet_height := len(glyphs) * glyphs_height
 
 		f := assets_file

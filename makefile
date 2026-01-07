@@ -19,13 +19,14 @@ all: build build/assets/assets.odin build/mupwit
 build:
 	mkdir -p build
 
-build/mupwit: $(SOURCES)
+build/mupwit: $(SOURCES) build/assets/assets.odin
 	@echo "INFO: Compiling MUPWIT..."
 	@odin build src -out:build/mupwit -debug $(FLAGS)
 
 build/assets/assets.odin: build/decode_assets $(ASSETS)
 	@echo "INFO: Decoding assets..."
 	@mkdir -p build/assets/fonts
+	@mkdir -p build/assets/images
 	@./build/decode_assets
 
 build/decode_assets: $(BUILD_SOURCES)

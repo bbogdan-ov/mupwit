@@ -33,6 +33,9 @@ main :: proc() {
 	pixel_font := asset_files.font_load_kaplimono_regular()
 	defer rl.UnloadTexture(pixel_font.texture)
 
+	boxes_texture := asset_files.image_load_boxes()
+	defer rl.UnloadTexture(boxes_texture)
+
 	for !rl.WindowShouldClose() {
 		rl.BeginDrawing()
 		rl.BeginMode2D(camera)
@@ -131,6 +134,23 @@ main :: proc() {
 
 		x := i32(math.sin(rl.GetTime() * 10) * 20) + 20
 		rl.DrawRectangle(x, 16, 32, 32, rl.RED)
+
+		npatch := rl.NPatchInfo {
+			source = {18 * 0, 0, 18, 18},
+			left   = 6,
+			top    = 6,
+			right  = 6,
+			bottom = 6,
+			layout = .NINE_PATCH,
+		}
+		rl.DrawTextureNPatch(
+			boxes_texture,
+			npatch,
+			{-3, -3, f32(rl.GetMouseX()) + 6, f32(rl.GetMouseY()) + 6},
+			{},
+			0,
+			rl.WHITE,
+		)
 
 		rl.EndDrawing()
 		free_all(context.temp_allocator)
