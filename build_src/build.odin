@@ -34,6 +34,8 @@ decode :: proc() -> (ok: bool) {
 	putline(f, "// ==============================\n")
 
 	decode_png(f, "boxes", 2) or_return
+	decode_png(f, "dummy_artwork", 3) or_return
+	decode_png(f, "icons", 2) or_return
 
 	decode_bdf(f, "kaplimono_regular") or_return
 
