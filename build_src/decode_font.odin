@@ -32,6 +32,7 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 	defer delete(path)
 
 	font_bbx := bbx()
+	font_pixe_size := -1
 	glyphs := make([dynamic]Glyph, len = 0, cap = 256)
 	defer delete(glyphs)
 	{
@@ -79,12 +80,12 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 				} else if is_bitmap {
 					assert(glyph.bbx.width >= 0)
 
-					n := u32(parse_int(line, 16).? or_return)
+					bits := u32(parse_int(line, 16).? or_return)
 
-					if glyph.bbx.width <= 8 do assert(n <= 255)
-					else if glyph.bbx.width <= 16 do assert(n <= 65535)
+					if glyph.bbx.width <= 8 do assert(bits <= 255)
+					else if glyph.bbx.width <= 16 do assert(bits <= 65535)
 
-					append(&glyph.bitmap, n)
+					append(&glyph.bitmap, bits)
 				}
 			} else if parts[0] == "STARTCHAR" {
 				cur_glyph = Glyph {
@@ -100,15 +101,21 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 				font_bbx.height = parse_int(parts[2]).? or_return
 				font_bbx.x = parse_int(parts[3]).? or_return
 				font_bbx.y = parse_int(parts[4]).? or_return
-
-				assert(font_bbx.x >= 0)
-				assert(font_bbx.width > 0)
-				assert(font_bbx.height > 0)
+			} else if parts[0] == "PIXEL_SIZE" {
+				assert(len(parts) >= 2)
+				font_pixe_size = parse_int(parts[1]).? or_return
 			}
 		}
-
-		assert(glyphs[0].codepoint == 0)
 	}
+
+	assert(glyphs[0].codepoint == 0)
+
+	// NOTE: it is ok if `font_bbx.y` is < 0
+	assert(font_bbx.x >= 0)
+	assert(font_bbx.width > 0)
+	assert(font_bbx.height > 0)
+
+	assert(font_pixe_size > 0)
 
 	// Render glyphs into the pixels buffer
 	PADDING :: 1
@@ -264,7 +271,7 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 		putline(f, "\ttexture := rl.LoadTextureFromImage(image)")
 		putline(f, "")
 		putline(f, "\treturn rl.Font {{")
-		putline(f, "\t\tbaseSize     = %d,", 16)
+		putline(f, "\t\tbaseSize     = %d,", font_pixe_size)
 		putline(f, "\t\tglyphCount   = %d,", len(glyphs))
 		putline(f, "\t\tglyphPadding = %d,", PADDING)
 		putline(f, "\t\ttexture      = texture,")
@@ -278,8 +285,12 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 }
 
 // Output rendered glyphs into the PBM image for debug purposes.
-render_to_image :: proc(pixels: []byte, glyphs_width: int) {
-	file, err := os.open("build/glyphs.pbm", os.O_WRONLY | os.O_CREATE | os.O_TRUNC, 0o644)
+render_to_image :: proc(name: string, pixels: []byte, glyphs_width: int) {
+	file, err := os.open(
+		fmt.tprintf("build/%s.pbm", name),
+		os.O_WRONLY | os.O_CREATE | os.O_TRUNC,
+		0o644,
+	)
 	assert(err == nil)
 
 	putline(file, "P1")

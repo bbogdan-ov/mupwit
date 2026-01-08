@@ -17,10 +17,9 @@ assets: Assets
 assets_load :: proc() {
 	assert(rl.IsWindowReady())
 
-	normal_font := raw.font_load_kaplimono_regular()
 	assets = Assets {
-		normal_font   = normal_font,
-		italic_font   = normal_font,
+		normal_font   = raw.font_load_kaplimono_regular(),
+		italic_font   = raw.font_load_kapli_italic(),
 		boxes         = raw.image_load_boxes(),
 		icons         = raw.image_load_icons(),
 		dummy_artwork = raw.image_load_dummy_artwork(),
