@@ -1,6 +1,6 @@
-package wheel
+package mupwit
 
-import "../mpd"
+import "mpd"
 
 Player :: struct #all_or_none {
 	// Current playback status

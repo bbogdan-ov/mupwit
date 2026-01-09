@@ -1,12 +1,16 @@
 package ui
 
-import rl "vendor:raylib"
-
+WINDOW_TITLE :: "MUPWIT"
 WINDOW_WIDTH :: 360
 WINDOW_HEIGHT :: 540
+TARGET_FPS :: 120
 
-WHITE :: rl.Color{0xdb, 0xdc, 0xe5, 0xff}
-BLACK :: rl.Color{0x11, 0x11, 0x11, 0xff}
-GRAY :: rl.Color{BLACK.r, BLACK.g, BLACK.b, 0xb2}
+WHITE :: Color{255, 255, 255, 255}
+BLACK :: Color{0, 0, 0, 255}
+RED :: Color{255, 0, 0, 255}
 
-BACKGROUND :: WHITE
+THEME_WHITE :: Color{0xdb, 0xdc, 0xe5, 0xff}
+THEME_BLACK :: Color{0x11, 0x11, 0x11, 0xff}
+THEME_GRAY :: Color{THEME_BLACK.r, THEME_BLACK.g, THEME_BLACK.b, 0xb2}
+
+BACKGROUND :: THEME_WHITE

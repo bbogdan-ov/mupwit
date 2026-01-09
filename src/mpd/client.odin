@@ -7,7 +7,6 @@ import "core:strings"
 import "core:sync/chan"
 import "core:thread"
 import "core:time"
-import "vendor:raylib"
 
 DEFAULT_IP: string : "127.0.0.1"
 // MPD uses this port by default
@@ -89,7 +88,7 @@ close :: proc(client: ^Client) {
 	push_action(client, Action_Close{})
 
 	thread.destroy(client.thread)
-	trace(.INFO, "Connection closed, destroying the client")
+	trace("Connection closed, destroying the client")
 
 	chan.destroy(client.events)
 	chan.destroy(client.actions)
@@ -124,7 +123,7 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 
 	// Successfully connected
 	_push_event(client, Event_State_Changed{.Ready})
-	trace(.INFO, "Successfully connected")
+	trace("Successfully connected")
 
 	start := time.now()
 
@@ -152,7 +151,7 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 				trace_error(client, err)
 
 				if close {
-					trace(.INFO, "Closing the connection...")
+					trace("Closing the connection...")
 					break loop
 				}
 			}
@@ -294,12 +293,14 @@ trace_error :: proc(client: ^Client, error: Error) {
 		fmt.sbprintf(&sb, "Network error: %s", e)
 	}
 
-	raylib.TraceLog(.ERROR, strings.to_cstring(&sb))
+	// TODO: log the error to the context.logger
+	fmt.eprint(strings.to_string(sb))
 }
 
-trace :: proc(level: raylib.TraceLogLevel, msg: string, args: ..any) {
+trace :: proc(msg: string, args: ..any) {
 	sb := strings.builder_make()
 	fmt.sbprint(&sb, "CLIENT: ")
 	fmt.sbprintf(&sb, msg, ..args)
-	raylib.TraceLog(level, strings.to_cstring(&sb))
+	// TODO: log the error to the context.logger
+	fmt.print(strings.to_string(sb))
 }

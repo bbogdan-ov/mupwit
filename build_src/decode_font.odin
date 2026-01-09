@@ -1,11 +1,11 @@
 package build
 
 import "core:fmt"
+import "core:math"
 import "core:os"
-import "core:slice"
 import "core:strings"
 
-import rl "vendor:raylib"
+import "../src/ui"
 
 Bbx :: struct #all_or_none {
 	width:  int,
@@ -31,6 +31,7 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 	path := fmt.aprintf(FONTS_URI + "%s.bdf", name)
 	defer delete(path)
 
+	max_codepoint: rune = -1
 	font_bbx := bbx()
 	font_pixe_size := -1
 	glyphs := make([dynamic]Glyph, len = 0, cap = 256)
@@ -63,7 +64,9 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 					is_bitmap = false
 				} else if parts[0] == "ENCODING" {
 					assert(len(parts) >= 2)
-					glyph.codepoint = rune(parse_int(parts[1]).? or_return)
+					code := rune(parse_int(parts[1]).? or_return)
+					max_codepoint = math.max(code, max_codepoint)
+					glyph.codepoint = code
 				} else if parts[0] == "DWIDTH" {
 					assert(len(parts) >= 2)
 					glyph.advance_x = parse_int(parts[1]).? or_return
@@ -74,7 +77,7 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 					glyph.bbx.height = parse_int(parts[2]).? or_return
 					glyph.bbx.x = parse_int(parts[3]).? or_return
 					glyph.bbx.y = parse_int(parts[4]).? or_return
-					glyph.bbx.y -= font_bbx.height - glyph.bbx.height
+					glyph.bbx.y -= font_pixe_size - glyph.bbx.height
 				} else if parts[0] == "BITMAP" {
 					is_bitmap = true
 				} else if is_bitmap {
@@ -139,27 +142,26 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 		// Add empty rows for padding
 		for _ in 0 ..< glyphs_width * PADDING do append(&pixels, 255, 0)
 
-		glyph.rect_pos.x += 1
+		glyph.rect_pos.x = PADDING
 		glyph.rect_pos.y = offset_y
 		offset_y += glyph.bbx.height + PADDING
 	}
 
 	// Generate glyph map
 	null_glyph := glyphs[0]
-	last_codepoint := slice.last(glyphs[:]).codepoint
 
-	glyph_map := make(map[rune]Glyph, capacity = last_codepoint)
-	defer delete(glyph_map)
+	all_glyphs := make([dynamic]Glyph, len = 0, cap = max_codepoint)
+	defer delete(all_glyphs)
 
 	// Fill glyph map with null characters
-	for codepoint in 0 ..= last_codepoint {
-		glyph_map[codepoint] = null_glyph
+	for _ in 0 ..= max_codepoint {
+		append(&all_glyphs, null_glyph)
 	}
 	for glyph in glyphs {
 		assert(glyph.rect_pos.x >= 0)
 		assert(glyph.rect_pos.y >= 0)
 
-		glyph_map[glyph.codepoint] = glyph
+		all_glyphs[glyph.codepoint] = glyph
 	}
 
 	{
@@ -189,57 +191,36 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 		outpath := fmt.aprintf(BUILD_FONTS_URI + "%s.glyphs.bin", name)
 		file := create_file(outpath) or_return
 
-		for codepoint in 0 ..= last_codepoint {
-			glyph := &glyph_map[codepoint]
+		for codepoint in 0 ..= max_codepoint {
+			glyph := &all_glyphs[codepoint]
 
-			// FIXME: i'm not sure if byte conversion will work on all machine (especially on 32-bit ones).
-			// `rl.GlyphInfo` uses `int`s size of which is tied to the host machine.
-			codepoint_bytes := u32_to_bytes(u32(codepoint))
-			x_bytes := i32_to_bytes(i32(glyph.bbx.x))
-			y_bytes := i32_to_bytes(i32(-glyph.bbx.y))
 			advance_x_bytes := i32_to_bytes(i32(glyph.advance_x))
+			off_x_bytes := i32_to_bytes(i32(glyph.bbx.x))
+			off_y_bytes := i32_to_bytes(i32(-glyph.bbx.y))
+
+			rx_bytes := f32_to_bytes(f32(glyph.rect_pos.x))
+			ry_bytes := f32_to_bytes(f32(glyph.rect_pos.y))
+			rw_bytes := f32_to_bytes(f32(glyph.bbx.width))
+			rh_bytes := f32_to_bytes(f32(glyph.bbx.height))
 
 			size :=
-				size_of(codepoint_bytes) +
-				size_of(x_bytes) +
-				size_of(y_bytes) +
+				size_of(off_x_bytes) +
+				size_of(off_y_bytes) +
 				size_of(advance_x_bytes) +
-				size_of(rl.Image)
-			assert(size == size_of(rl.GlyphInfo))
+				size_of(rx_bytes) +
+				size_of(ry_bytes) +
+				size_of(rw_bytes) +
+				size_of(rh_bytes)
+			assert(size == size_of(ui.Glyph))
 
-			os.write(file, codepoint_bytes[:])
-			os.write(file, x_bytes[:])
-			os.write(file, y_bytes[:])
 			os.write(file, advance_x_bytes[:])
-			for _ in 0 ..< size_of(rl.Image) {
-				os.write_byte(file, 0)
-			}
-		}
+			os.write(file, off_x_bytes[:])
+			os.write(file, off_y_bytes[:])
 
-		os.flush(file)
-		os.close(file)
-	}
-
-	{
-		// Write glyphs rectangles
-		outpath := fmt.aprintf(BUILD_FONTS_URI + "%s.rects.bin", name)
-		file := create_file(outpath) or_return
-
-		for codepoint in 0 ..= last_codepoint {
-			glyph := &glyph_map[codepoint]
-
-			x_bytes := f32_to_bytes(f32(glyph.rect_pos.x))
-			y_bytes := f32_to_bytes(f32(glyph.rect_pos.y))
-			w_bytes := f32_to_bytes(f32(glyph.bbx.width))
-			h_bytes := f32_to_bytes(f32(glyph.bbx.height))
-
-			size := size_of(x_bytes) + size_of(y_bytes) + size_of(w_bytes) + size_of(h_bytes)
-			assert(size == size_of(rl.Rectangle))
-
-			os.write(file, x_bytes[:])
-			os.write(file, y_bytes[:])
-			os.write(file, w_bytes[:])
-			os.write(file, h_bytes[:])
+			os.write(file, rx_bytes[:])
+			os.write(file, ry_bytes[:])
+			os.write(file, rw_bytes[:])
+			os.write(file, rh_bytes[:])
 		}
 
 		os.flush(file)
@@ -251,32 +232,22 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 		sheet_height := len(glyphs) * glyphs_height
 
 		f := assets_file
-		putline(f, "// Load static '%s' font.", name)
-		putline(f, "//")
-		putline(f, "// IMPORTANT: you should call `rl.UnloadTexture` instead of `rl.UnloadFont`")
-		putline(f, "// because all the data is static, except the texture.")
-		putline(f, "font_load_%s :: proc() -> rl.Font {{", name)
-		putline(f, "\timage_data := #load(\"fonts/%s.rawimage.bin\")", name)
-		putline(f, "\tglyphs     := transmute([]rl.GlyphInfo)#load(\"fonts/%s.glyphs.bin\")", name)
-		putline(f, "\trects      := transmute([]rl.Rectangle)#load(\"fonts/%s.rects.bin\")", name)
+		putline(f, "font_load_%s :: proc() -> ui.Font {{", name)
+		putline(f, "\tpixels := #load(\"fonts/%s.rawimage.bin\")", name)
+		putline(f, "\tglyphs := transmute([]ui.Glyph)#load(\"fonts/%s.glyphs.bin\")", name)
 		putline(f, "")
-		putline(f, "\timage := rl.Image {{")
-		putline(f, "\t\tdata    = raw_data(image_data),")
-		putline(f, "\t\twidth   = %d,", glyphs_width)
-		putline(f, "\t\theight  = %d,", sheet_height)
-		putline(f, "\t\tmipmaps = 1,")
-		putline(f, "\t\tformat  = .UNCOMPRESSED_GRAY_ALPHA,")
-		putline(f, "\t}}")
+		putline(
+			f,
+			"\ttexture := ui.load_texture(pixels, %d, %d, .UNCOMPRESSED_GRAY_ALPHA, 1)",
+			glyphs_width,
+			sheet_height,
+		)
 		putline(f, "")
-		putline(f, "\ttexture := rl.LoadTextureFromImage(image)")
-		putline(f, "")
-		putline(f, "\treturn rl.Font {{")
-		putline(f, "\t\tbaseSize     = %d,", font_pixe_size)
-		putline(f, "\t\tglyphCount   = %d,", len(glyphs))
-		putline(f, "\t\tglyphPadding = %d,", PADDING)
-		putline(f, "\t\ttexture      = texture,")
-		putline(f, "\t\trecs         = raw_data(rects),")
-		putline(f, "\t\tglyphs       = raw_data(glyphs),")
+		putline(f, "\treturn ui.Font {{")
+		putline(f, "\t\tsize        = %d,", font_pixe_size)
+		putline(f, "\t\tglyphs      = glyphs,")
+		putline(f, "\t\tglyph_count = %d,", len(all_glyphs))
+		putline(f, "\t\ttexture     = texture,")
 		putline(f, "\t}}")
 		putline(f, "}}")
 	}

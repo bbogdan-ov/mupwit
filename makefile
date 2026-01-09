@@ -14,7 +14,7 @@ FLAGS := \
 
 .PHONY: all
 
-all: build build/assets/assets.odin build/mupwit
+all: build build/rlgl.a build/assets/assets.odin build/mupwit
 	@echo "DONE!"
 
 build:
@@ -32,7 +32,14 @@ build/assets/assets.odin: build/decode_assets $(ASSETS)
 
 build/decode_assets: $(BUILD_SOURCES)
 	@echo "INFO: Compiling assets decoder..."
-	@odin build build_src/ -out:build/decode_assets $(FLAGS)
+	@odin build build_src/ -out:build/decode_assets -debug $(FLAGS)
+
+build/rlgl.a: lib/rlgl.h
+	@echo "INFO: Compiling rlgl object file..."
+	@gcc \
+		-DRLGL_IMPLEMENTATION \
+		-DGRAPHICS_API_OPENGL_33 \
+		-lm -c -x c -o build/rlgl.a lib/rlgl.h
 
 clean:
 	rm -r build

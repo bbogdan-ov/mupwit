@@ -60,17 +60,17 @@ decode_png :: proc(assets_file: os.Handle, name: string, channels: int) -> (ok: 
 		}
 
 		f := assets_file
-		putline(f, "image_load_%s :: proc() -> rl.Texture {{", name)
+		putline(f, "image_load_%s :: proc() -> ui.Texture {{", name)
 		putline(f, "\t// Image should not be freed because it's data is static.")
-		putline(f, "\timage := rl.Image {{")
-		putline(f, "\t\tdata    = raw_data(#load(\"images/%s.rawimage.bin\")),", name)
-		putline(f, "\t\twidth   = %d,", image.width)
-		putline(f, "\t\theight  = %d,", image.height)
-		putline(f, "\t\tmipmaps = 1,")
-		putline(f, "\t\tformat  = .%s,", format)
-		putline(f, "\t}}")
+		putline(f, "\tpixels := #load(\"images/%s.rawimage.bin\")", name)
 		putline(f, "")
-		putline(f, "\treturn rl.LoadTextureFromImage(image)")
+		putline(
+			f,
+			"\treturn ui.load_texture(pixels, %d, %d, .%s, 1)",
+			image.width,
+			image.height,
+			format,
+		)
 		putline(f, "}}")
 	}
 

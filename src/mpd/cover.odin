@@ -1,11 +1,11 @@
 package mpd
 
-import "vendor:raylib"
-
 import "../util"
+import "core:fmt"
+import "core:image"
 
 Cover_Data :: struct {
-	image: raylib.Image,
+	image: ^image.Image,
 }
 
 request_cover :: proc(client: ^Client, song_uri: string) -> (cover: Cover_Data, err: Error) {
@@ -58,12 +58,16 @@ request_cover :: proc(client: ^Client, song_uri: string) -> (cover: Cover_Data, 
 	}
 
 	// Decode image data
-	img := raylib.LoadImageFromMemory(filetype, raw_data(bytes), cast(i32)len(bytes))
+	opts := image.Options{.do_not_expand_channels, .do_not_expand_grayscale}
+	img, img_err := image.load_from_bytes(bytes[:], opts)
+	if img_err != nil {
+		panic(fmt.tprint("TODO: report the error and return an empty image:", img_err))
+	}
 
 	return Cover_Data{img}, nil
 }
 
 cover_destroy :: proc(cover: ^Cover_Data) {
-	raylib.UnloadImage(cover.image)
-	cover.image.data = nil
+	image.destroy(cover.image)
+	cover.image = nil
 }

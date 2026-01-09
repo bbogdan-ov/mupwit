@@ -1,32 +1,19 @@
 package ui
 
-import rl "vendor:raylib"
-
-import raw "../../build/assets"
-
 Assets :: struct #all_or_none {
-	normal_font:   rl.Font,
-	italic_font:   rl.Font,
-	boxes:         rl.Texture,
-	icons:         rl.Texture,
-	dummy_artwork: rl.Texture,
+	normal_font:   Font,
+	italic_font:   Font,
+	boxes:         Texture,
+	icons:         Texture,
+	dummy_artwork: Texture,
 }
 
 assets: Assets
 
-assets_load :: proc() {
-	assert(rl.IsWindowReady())
-
-	assets = Assets {
-		normal_font   = raw.font_load_kaplimono_regular(),
-		italic_font   = raw.font_load_kapli_italic(),
-		boxes         = raw.image_load_boxes(),
-		icons         = raw.image_load_icons(),
-		dummy_artwork = raw.image_load_dummy_artwork(),
-	}
-}
-
 assets_destroy :: proc() {
-	rl.UnloadTexture(assets.normal_font.texture)
-	rl.UnloadTexture(assets.boxes)
+	unload_font(assets.normal_font)
+	unload_font(assets.italic_font)
+	unload_texture(assets.boxes)
+	unload_texture(assets.icons)
+	unload_texture(assets.dummy_artwork)
 }
