@@ -59,6 +59,7 @@ Client :: struct {
 	// Id of the previous currently playing song.
 	// Used to check whether the current song has changed.
 	prev_song_id: Maybe(uint),
+	thread:       ^thread.Thread,
 }
 
 // Open a connection with the MPD server
@@ -76,9 +77,9 @@ connect :: proc(ip := DEFAULT_IP, port := DEFAULT_PORT) -> ^Client {
 	data.ip = ip
 	data.port = port
 
-	t := thread.create(_do_connect)
-	t.data = data
-	thread.start(t)
+	client.thread = thread.create(_do_connect)
+	client.thread.data = data
+	thread.start(client.thread)
 
 	return client
 }
@@ -86,13 +87,9 @@ connect :: proc(ip := DEFAULT_IP, port := DEFAULT_PORT) -> ^Client {
 // Carefuly close the connection and free the memory owned by the client.
 close :: proc(client: ^Client) {
 	push_action(client, Action_Close{})
-	wait_for_close: for {
-		event := pop_event(client)
-		if _, ok := event.(Event_Closed); ok {
-			trace(.INFO, "Connection closed, destroying the client")
-			break wait_for_close
-		}
-	}
+
+	thread.destroy(client.thread)
+	trace(.INFO, "Connection closed, destroying the client")
 
 	chan.destroy(client.events)
 	chan.destroy(client.actions)
@@ -102,6 +99,7 @@ close :: proc(client: ^Client) {
 @(private)
 _do_connect :: proc(t: ^thread.Thread) {
 	data := (^_Connect_Data)(t.data)
+	defer free(data)
 
 	err := _dial(data)
 	if err != nil {
@@ -165,7 +163,6 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 	}
 
 	net.close(client.sock)
-	_push_event(client, Event_Closed{})
 
 	return nil
 }

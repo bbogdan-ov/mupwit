@@ -59,9 +59,6 @@ update :: #force_inline proc() {
 
 		case mpd.Event_Cover:
 			mpd.cover_destroy(&e.cover)
-
-		case mpd.Event_Closed:
-			panic("TODO: handle closing of the connection in the middle of app execution")
 		}
 	}
 }
