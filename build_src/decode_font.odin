@@ -113,8 +113,6 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 
 	assert(glyphs[0].codepoint == 0)
 
-	// NOTE: it is ok if `font_bbx.y` is < 0
-	assert(font_bbx.x >= 0)
 	assert(font_bbx.width > 0)
 	assert(font_bbx.height > 0)
 
@@ -142,7 +140,7 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 		// Add empty rows for padding
 		for _ in 0 ..< glyphs_width * PADDING do append(&pixels, 255, 0)
 
-		glyph.rect_pos.x = PADDING
+		glyph.rect_pos.x = glyphs_width - math.max(glyph.advance_x, glyph.bbx.width)
 		glyph.rect_pos.y = offset_y
 		offset_y += glyph.bbx.height + PADDING
 	}
@@ -251,6 +249,8 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 		putline(f, "\t}}")
 		putline(f, "}}")
 	}
+
+	render_to_image("hey", pixels[:], glyphs_width)
 
 	return true
 }
