@@ -61,9 +61,11 @@ main :: proc() {
 load_assets :: proc() {
 	assert(ui.window.ready)
 
+	font := assets.font_load_kaplimono_regular()
+
 	ui.assets = ui.Assets {
-		normal_font   = assets.font_load_kaplimono_regular(),
-		italic_font   = assets.font_load_kapli_italic(),
+		normal_font   = font,
+		italic_font   = font,
 		boxes         = assets.image_load_boxes(),
 		icons         = assets.image_load_icons(),
 		dummy_artwork = assets.image_load_dummy_artwork(),

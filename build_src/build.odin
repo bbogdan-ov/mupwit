@@ -38,7 +38,6 @@ decode :: proc() -> (ok: bool) {
 	decode_png(f, "icons", 2) or_return
 
 	decode_bdf(f, "kaplimono_regular") or_return
-	decode_bdf(f, "kapli_italic") or_return
 
 	os.flush(f)
 	os.close(f)

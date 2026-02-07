@@ -9,7 +9,7 @@ WHITE :: Color{255, 255, 255, 255}
 BLACK :: Color{0, 0, 0, 255}
 RED :: Color{255, 0, 0, 255}
 
-THEME_WHITE :: Color{0xdb, 0xdc, 0xe5, 0xff}
+THEME_WHITE :: Color{0xdd, 0xdd, 0xdd, 0xff}
 THEME_BLACK :: Color{0x11, 0x11, 0x11, 0xff}
 THEME_GRAY :: Color{THEME_BLACK.r, THEME_BLACK.g, THEME_BLACK.b, 0xb2}
 

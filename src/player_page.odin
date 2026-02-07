@@ -25,7 +25,7 @@ player_page_draw :: proc(player: ^Player) {
 			song.album.? or_else "<unknown>",
 		)
 
-		offset.y += ui.draw_italic_text(title, offset, scale = 2)
+		offset.y += ui.draw_italic_text(title, offset)
 		offset.y += ui.draw_text(artist_and_album, offset, ui.THEME_GRAY)
 		offset.y += GAP * 2
 	}

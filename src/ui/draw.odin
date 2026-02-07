@@ -114,8 +114,8 @@ draw_text_font :: proc(
 		}
 
 		dest := Rect {
-			pos.x + f32(glyph.offset_x) + advance_x,
-			pos.y + f32(glyph.offset_y),
+			pos.x + f32(glyph.offset_x) * scale + advance_x,
+			pos.y + f32(glyph.offset_y) * scale,
 			(glyph.rect.width + PADDING) * scale,
 			glyph.rect.height * scale,
 		}
