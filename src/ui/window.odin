@@ -1,5 +1,6 @@
 package ui
 
+import "core:log"
 import "core:math"
 import "core:os"
 import "core:time"
@@ -42,6 +43,8 @@ window_init :: proc() {
 		os.exit(1)
 	}
 
+	log.info("GLFW initialized")
+
 	glfw.DefaultWindowHints()
 
 	// Window attributes
@@ -76,6 +79,8 @@ window_init :: proc() {
 	glfw.SetCursorPosCallback(handle, _cursor_pos_callback)
 
 	window.ready = true
+
+	log.info("Window successfully opened")
 }
 
 window_should_close :: proc() -> bool {
@@ -99,4 +104,5 @@ window_close :: proc() {
 	rlgl.Close()
 	glfw.DestroyWindow(window.handle)
 	glfw.Terminate()
+	log.info("Window successfully closed")
 }
