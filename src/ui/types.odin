@@ -17,6 +17,7 @@ Font :: struct {
 	glyphs:      []Glyph,
 	glyph_count: i32,
 	texture:     Texture,
+	padding:     i32,
 }
 
 Glyph :: struct {

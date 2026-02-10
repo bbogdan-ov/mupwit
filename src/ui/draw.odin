@@ -96,12 +96,10 @@ draw_text_font :: proc(
 	pos: Point,
 	color := THEME_BLACK,
 	scale: f32 = 1,
+	max_width: f32 = 0.0,
 ) -> (
 	size: f32,
 ) {
-	// Glyph padding
-	PADDING :: 1
-
 	advance_x: f32 = 0
 
 	rlgl.SetTexture(font.texture.id)
@@ -113,19 +111,46 @@ draw_text_font :: proc(
 			glyph = font.glyphs[rune]
 		}
 
-		dest := Rect {
-			pos.x + f32(glyph.offset_x) * scale + advance_x,
-			pos.y + f32(glyph.offset_y) * scale,
-			(glyph.rect.width + PADDING) * scale,
-			glyph.rect.height * scale,
+		glyph_pos := Point{pos.x + advance_x, pos.y}
+
+		// NOTE: multiplying glyph width by 2 to look two glyphs ahead
+		if max_width > 0 && advance_x + f32(glyph.advance_x) * 2 * scale > max_width {
+			glyph = font.glyphs['…']
+			advance_x += _draw_char_font(font, glyph, glyph_pos, scale, color)
+			break
 		}
-		source := Rect{glyph.rect.x, glyph.rect.y, glyph.rect.width + PADDING, glyph.rect.height}
-		draw_texture_impl(font.texture, source, dest, color)
-		advance_x += f32(glyph.advance_x) * scale
+
+		advance_x += _draw_char_font(font, glyph, glyph_pos, scale, color)
 	}
 
 	rlgl.End()
+
 	return f32(font.size) * scale
+}
+
+@(private)
+_draw_char_font :: #force_inline proc(
+	font: Font,
+	glyph: Glyph,
+	pos: Point,
+	scale: f32,
+	color: Color,
+) -> (
+	advance_x: f32,
+) {
+	padding := f32(font.padding)
+
+	source := glyph.rect
+	source.width += padding
+	dest := Rect {
+		pos.x + f32(glyph.offset_x) * scale,
+		pos.y + f32(glyph.offset_y) * scale,
+		source.width * scale,
+		source.height * scale,
+	}
+	draw_texture_impl(font.texture, source, dest, color)
+
+	return f32(glyph.advance_x) * scale
 }
 
 draw_text :: #force_inline proc(
@@ -133,20 +158,22 @@ draw_text :: #force_inline proc(
 	pos: Point,
 	color := THEME_BLACK,
 	scale: f32 = 1,
+	max_width: f32 = 0.0,
 ) -> (
 	size: f32,
 ) {
-	return draw_text_font(assets.normal_font, text, pos, color, scale)
+	return draw_text_font(assets.normal_font, text, pos, color, scale, max_width)
 }
 draw_italic_text :: #force_inline proc(
 	text: string,
 	pos: Point,
 	color := THEME_BLACK,
 	scale: f32 = 1,
+	max_width: f32 = 0.0,
 ) -> (
 	size: f32,
 ) {
-	return draw_text_font(assets.italic_font, text, pos, color, scale)
+	return draw_text_font(assets.italic_font, text, pos, color, scale, max_width)
 }
 
 draw_box :: proc(box: Box, rect: Rect, color := THEME_BLACK) {
@@ -239,6 +266,16 @@ draw_icon :: proc(icon: Icon, pos: Point, color := THEME_BLACK) {
 	// source := rl.Rectangle{FRAME_WIDTH * f32(icon), 0, FRAME_WIDTH, FRAME_HEIGHT}
 	// dest := rl.Rectangle{pos.x, pos.y, FRAME_WIDTH, FRAME_HEIGHT}
 	// rl.DrawTexturePro(assets.icons, source, dest, {}, 0, rl.Color(color))
+}
+
+begin_scissor :: proc(rect: Rect) {
+	rlgl.DrawRenderBatchActive()
+	rlgl.EnableScissorTest()
+	rlgl.Scissor(i32(rect.x), i32(rect.y), i32(rect.width), i32(rect.height))
+}
+end_scissor :: proc() {
+	rlgl.DrawRenderBatchActive()
+	rlgl.DisableScissorTest()
 }
 
 load_texture :: #force_inline proc(

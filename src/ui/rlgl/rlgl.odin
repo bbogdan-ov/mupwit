@@ -59,6 +59,10 @@ foreign lib {
 	SetTexture :: proc(id: c.uint) ---
 	TexCoord2f :: proc(x, y: c.float) ---
 
+	EnableScissorTest :: proc() ---
+	DisableScissorTest :: proc() ---
+	Scissor :: proc(x, y, width, height: c.int) ---
+
 	DrawRenderBatchActive :: proc() ---
 
 	LoadTexture :: proc(pixels: [^]c.char, width, height: c.int, format: Pixel_Format, mipmapCount: c.int) -> c.uint ---

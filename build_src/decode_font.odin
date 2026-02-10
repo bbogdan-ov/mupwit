@@ -246,6 +246,7 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 		putline(f, "\t\tglyphs      = glyphs,")
 		putline(f, "\t\tglyph_count = %d,", len(all_glyphs))
 		putline(f, "\t\ttexture     = texture,")
+		putline(f, "\t\tpadding     = %d,", PADDING)
 		putline(f, "\t}}")
 		putline(f, "}}")
 	}
