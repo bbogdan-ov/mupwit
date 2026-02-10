@@ -6,6 +6,20 @@ import "ui"
 
 import "../build/assets"
 
+load_assets :: proc() {
+	assert(ui.window.ready)
+
+	font := assets.font_load_kaplimono_regular()
+
+	ui.assets = ui.Assets {
+		normal_font   = font,
+		italic_font   = font,
+		boxes         = assets.image_load_boxes(),
+		icons         = assets.image_load_icons(),
+		dummy_artwork = assets.image_load_dummy_artwork(),
+	}
+}
+
 main :: proc() {
 	// Initialize logger
 	context.logger = log.create_console_logger(
@@ -53,7 +67,6 @@ main :: proc() {
 		case .Connecting:
 			ui.draw_text("Connecting...", {}, ui.BLACK)
 		case .Ready:
-			player_page_draw(&player)
 		case .Error:
 			ui.draw_text("Error!", {}, ui.BLACK)
 		}
@@ -67,18 +80,4 @@ main :: proc() {
 	ui.window_close()
 
 	mpd.close(client)
-}
-
-load_assets :: proc() {
-	assert(ui.window.ready)
-
-	font := assets.font_load_kaplimono_regular()
-
-	ui.assets = ui.Assets {
-		normal_font   = font,
-		italic_font   = font,
-		boxes         = assets.image_load_boxes(),
-		icons         = assets.image_load_icons(),
-		dummy_artwork = assets.image_load_dummy_artwork(),
-	}
 }
