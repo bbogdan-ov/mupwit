@@ -2,6 +2,7 @@ package mpd
 
 import "base:runtime"
 import "core:fmt"
+import "core:log"
 import "core:net"
 import "core:strings"
 import "core:sync/chan"
@@ -88,7 +89,7 @@ close :: proc(client: ^Client) {
 	push_action(client, Action_Close{})
 
 	thread.destroy(client.thread)
-	trace("Connection closed, destroying the client")
+	log.info("Connection closed, destroying the client")
 
 	chan.destroy(client.events)
 	chan.destroy(client.actions)
@@ -97,6 +98,11 @@ close :: proc(client: ^Client) {
 
 @(private)
 _do_connect :: proc(t: ^thread.Thread) {
+	context.logger = log.create_console_logger(
+		ident = "CLIENT",
+		opt = {.Level, .Time, .Short_File_Path, .Line, .Terminal_Color},
+	)
+
 	data := (^_Connect_Data)(t.data)
 	defer free(data)
 
@@ -123,7 +129,7 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 
 	// Successfully connected
 	_push_event(client, Event_State_Changed{.Ready})
-	trace("Successfully connected")
+	log.info("Successfully connected")
 
 	start := time.now()
 
@@ -148,10 +154,10 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 				break action
 			case Action:
 				close, err := _handle_action(client, a)
-				trace_error(client, err)
+				log_error(client, err)
 
 				if close {
-					trace("Closing the connection...")
+					log.info("Closing the connection...")
 					break loop
 				}
 			}
@@ -170,7 +176,7 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 _fetch_status :: proc(client: ^Client) {
 	status, err := request_status(client)
 	if err != nil {
-		trace_error(client, err)
+		log_error(client, err)
 		return
 	}
 
@@ -186,7 +192,7 @@ _fetch_status :: proc(client: ^Client) {
 	if id, ok := status.cur_song_id.?; ok {
 		song, err = request_queue_song_by_id(client, id)
 		if err != nil {
-			trace_error(client, err)
+			log_error(client, err)
 			return
 		}
 	}
@@ -249,12 +255,10 @@ set_error :: proc(client: ^Client, msg: string, loc := #caller_location) {
 	client.error_loc = loc
 }
 
-trace_error :: proc(client: ^Client, error: Error) {
+log_error :: proc(client: ^Client, error: Error) {
 	if error == nil do return
 
 	sb := strings.builder_make()
-
-	fmt.sbprint(&sb, "CLIENT: ")
 
 	// Prepend error message if any
 	if msg, ok := client.error_msg.?; ok {
@@ -293,14 +297,5 @@ trace_error :: proc(client: ^Client, error: Error) {
 		fmt.sbprintf(&sb, "Network error: %s", e)
 	}
 
-	// TODO: log the error to the context.logger
-	fmt.eprint(strings.to_string(sb))
-}
-
-trace :: proc(msg: string, args: ..any) {
-	sb := strings.builder_make()
-	fmt.sbprint(&sb, "CLIENT: ")
-	fmt.sbprintf(&sb, msg, ..args)
-	// TODO: log the error to the context.logger
-	fmt.print(strings.to_string(sb))
+	log.info(strings.to_string(sb))
 }

@@ -1,11 +1,18 @@
 package mupwit
 
+import "core:log"
 import "mpd"
 import "ui"
 
 import "../build/assets"
 
 main :: proc() {
+	// Initialize logger
+	context.logger = log.create_console_logger(
+		opt = {.Level, .Time, .Short_File_Path, .Line, .Terminal_Color},
+	)
+
+	// Initialize app
 	client_state: mpd.State = .Connecting
 	client := mpd.connect()
 	player := player_make()
@@ -54,8 +61,12 @@ main :: proc() {
 		ui.end_frame()
 	}
 
+	mpd.push_action(client, mpd.Action_Close{})
+
 	ui.assets_destroy()
 	ui.window_close()
+
+	mpd.close(client)
 }
 
 load_assets :: proc() {
