@@ -20,7 +20,7 @@ album_destroy :: proc(album: ^Album) {
 request_albums :: proc(client: ^Client, albums: ^[dynamic]Album) -> (err: Error) {
 	err = #force_inline _request_albums(client, albums)
 	if err != nil {
-		log.error("Failed to request list of albums:", err)
+		log.error("CLIENT: Failed to request list of albums:", err)
 	}
 	return
 }
@@ -68,7 +68,7 @@ _request_albums :: proc(client: ^Client, albums: ^[dynamic]Album) -> (err: Error
 			}
 		} else {
 			log.errorf(
-				"Unexpected pair while parsing albums list: %s => '%s'",
+				"CLIENT: Unexpected pair while parsing albums list: %s => '%s'",
 				pair.name,
 				pair.value,
 			)
@@ -89,7 +89,7 @@ _request_albums :: proc(client: ^Client, albums: ^[dynamic]Album) -> (err: Error
 		song, ok := maybe_song.?
 		if !ok {
 			log.errorf(
-				"Failed to request the first song of the album '%s' by '%s'",
+				"CLIENT: Failed to request the first song of the album '%s' by '%s'",
 				album.title,
 				album.artist,
 			)

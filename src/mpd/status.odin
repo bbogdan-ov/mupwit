@@ -46,7 +46,7 @@ song_destroy :: proc(song: ^Song) {
 request_status :: proc(client: ^Client, loc := #caller_location) -> (status: Status, err: Error) {
 	status, err = #force_inline _request_status(client)
 	if err != nil {
-		log.error("Failed to request current playback status:", err)
+		log.error("CLIENT: Failed to request current playback status:", err)
 	}
 	return
 }
@@ -110,7 +110,7 @@ _request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 response_next_song :: proc(client: ^Client, res: ^Response) -> (song: Maybe(Song), err: Error) {
 	song, err = _response_next_song(res)
 	if err != nil {
-		log.error("Failed to parse next song from the response:", err)
+		log.error("CLIENT: Failed to parse next song from the response:", err)
 	}
 	return
 }

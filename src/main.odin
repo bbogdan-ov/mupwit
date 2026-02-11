@@ -1,6 +1,8 @@
 package mupwit
 
+import "core:fmt"
 import "core:log"
+import "core:time"
 import "mpd"
 import "ui"
 
@@ -20,9 +22,47 @@ load_assets :: proc() {
 	}
 }
 
+logger_proc :: proc(
+	data: rawptr,
+	level: log.Level,
+	text: string,
+	options: log.Options,
+	location := #caller_location,
+) {
+	fmt.print("\x1b[37m")
+
+	when time.IS_SUPPORTED {
+		h, m, s, nanos := time.precise_clock(time.now())
+		fmt.printf("%02d:%02d:%02d.%03d ", h, m, s, nanos / 1_000_000)
+	}
+
+	switch level {
+	case .Debug:
+		fmt.print("\x1b[37mDEBUG:\x1b[0m ")
+	case .Info:
+		fmt.print("\x1b[94mINFO:\x1b[0m ")
+	case .Warning:
+		// TODO: log relative path to the file
+		fmt.printf("(%s:%d) ", location.file_path, location.line)
+		fmt.print("\x1b[93mWARN:\x1b[0m ")
+	case .Error:
+		// TODO: log relative path to the file
+		fmt.printf("(%s:%d) ", location.file_path, location.line)
+		fmt.print("\x1b[91mERROR:\x1b[0m ")
+	case .Fatal:
+		// TODO: log relative path to the file
+		fmt.printf("(%s:%d) ", location.file_path, location.line)
+		fmt.print("\x1b[91;7mFATAL:\x1b[0m ")
+	}
+
+	fmt.println(text)
+}
+
 main :: proc() {
 	// Initialize logger
-	context.logger = log.create_console_logger(opt = {.Level, .Time, .Terminal_Color})
+	context.logger = log.Logger {
+		procedure = logger_proc,
+	}
 
 	// Initialize app
 	client_state: mpd.State = .Connecting

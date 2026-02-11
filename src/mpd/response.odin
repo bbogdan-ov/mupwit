@@ -74,7 +74,7 @@ receive :: proc(client: ^Client, loc := #caller_location) -> (res: Response, err
 		// Just set the received error code as an error message.
 		// I don't really care to parse it into more "user-friendly" format.
 		// TODO!: save this message somewhere to show to the user later.
-		log.error("MPD error when receiving a response: %s", s)
+		log.error("CLIENT: MPD error when receiving a response: %s", s)
 		delete(s)
 
 		return Response{}, .Mpd_Error
@@ -108,7 +108,7 @@ response_expect_ok :: proc(res: ^Response) -> (err: Error) {
 response_next_binary :: proc(res: ^Response) -> (binary: []byte, err: Error) {
 	binary, err = #force_inline _response_next_binary(res)
 	if err != nil {
-		log.error("Failed to parse next binary blob from the response:", err)
+		log.error("CLIENT: Failed to parse next binary blob from the response:", err)
 	}
 	return
 }
@@ -156,7 +156,7 @@ response_next_line :: proc(res: ^Response) -> (str: string, err: Error) {
 response_next_pair :: proc(res: ^Response) -> (pair: Maybe(Pair), err: Error) {
 	pair, err = #force_inline _response_next_pair(res)
 	if err != nil {
-		log.error("Failed to parse next pair from the response:", err)
+		log.error("CLIENT: Failed to parse next pair from the response:", err)
 	}
 	return
 }
@@ -168,7 +168,7 @@ _response_next_pair :: proc(res: ^Response) -> (pair: Maybe(Pair), err: Error) {
 
 	left, right, ok := util.split_once(s, ':')
 	if !ok {
-		log.errorf("Invalid pair: '%s', |%s|", s, string(res.buf[res.offset:]))
+		log.errorf("CLIENT: Invalid pair: '%s'", s)
 		return Pair{}, .Response_Invalid_Pair
 	}
 

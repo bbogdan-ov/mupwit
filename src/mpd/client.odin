@@ -38,6 +38,7 @@ _Connect_Data :: struct #all_or_none {
 	client: ^Client,
 	ip:     string,
 	port:   int,
+	logger: log.Logger,
 }
 
 State :: enum {
@@ -71,6 +72,7 @@ connect :: proc(ip := DEFAULT_IP, port := DEFAULT_PORT) -> ^Client {
 		client = client,
 		ip     = ip,
 		port   = port,
+		logger = context.logger,
 	}
 
 	client.thread = thread.create(_do_connect)
@@ -85,7 +87,7 @@ close :: proc(client: ^Client) {
 	push_action(client, Action_Close{})
 
 	thread.destroy(client.thread)
-	log.info("Connection closed, destroying the client")
+	log.info("CLIENT: Connection closed, destroying the client")
 
 	chan.destroy(client.events)
 	chan.destroy(client.actions)
@@ -94,13 +96,10 @@ close :: proc(client: ^Client) {
 
 @(private)
 _do_connect :: proc(t: ^thread.Thread) {
-	context.logger = log.create_console_logger(
-		ident = "CLIENT",
-		opt = {.Level, .Time, .Terminal_Color},
-	)
-
 	data := (^_Connect_Data)(t.data)
 	defer free(data)
+
+	context.logger = data.logger
 
 	err := _dial(data)
 	if err != nil {
@@ -120,7 +119,7 @@ _dial :: proc(data: ^_Connect_Data) -> (err: Error) {
 
 	// Successfully connected
 	_push_event(client, Event_State_Changed{.Ready})
-	log.info("Successfully connected")
+	log.info("CLIENT: Successfully connected")
 
 	start := time.now()
 
@@ -147,7 +146,7 @@ _dial :: proc(data: ^_Connect_Data) -> (err: Error) {
 				close, _ := _handle_action(client, a) // NOTE: ignoring the error
 
 				if close {
-					log.info("Closing the connection...")
+					log.info("CLIENT: Closing the connection...")
 					break loop
 				}
 			}
@@ -172,14 +171,14 @@ _consume_version_message :: proc(client: ^Client) -> (err: Error) {
 
 	// TODO!: save this message somewhere to show to the user later.
 	if err != nil {
-		log.error("Expected MPD version message but got error:", err)
+		log.error("CLIENT: Expected MPD version message but got error:", err)
 		return err
 	} else if !strings.starts_with(msg, "OK MPD ") {
-		log.errorf("Received an invalid MPD version message: '%s'", msg)
+		log.errorf("CLIENT: Received an invalid MPD version message: '%s'", msg)
 		return .Invalid_Mpd_Version_Msg
 	}
 
-	log.infof("Received MPD version message: '%s'", msg)
+	log.infof("CLIENT: Received MPD version message: '%s'", msg)
 	return
 }
 
@@ -187,7 +186,7 @@ _consume_version_message :: proc(client: ^Client) -> (err: Error) {
 _periodic_request_status :: proc(client: ^Client) {
 	status, err := request_status(client)
 	if err != nil {
-		log.error("Failed periodic status request")
+		log.error("CLIENT: Failed periodic status request")
 		return
 	}
 
@@ -203,7 +202,7 @@ _periodic_request_status :: proc(client: ^Client) {
 	if id, ok := status.cur_song_id.?; ok {
 		song, err = request_queue_song_by_id(client, id)
 		if err != nil {
-			log.error("Failed to request a song from the periodically requested status")
+			log.error("CLIENT: Failed to request a song from the periodically requested status")
 			return
 		}
 	}
