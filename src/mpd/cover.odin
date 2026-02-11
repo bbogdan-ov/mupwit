@@ -26,7 +26,7 @@ request_cover :: proc(client: ^Client, song_uri: string) -> (cover: Cover_Data, 
 		res = receive(client) or_return
 
 		// Parse `size` field
-		pair := response_expect_pair(&res, "size") or_return
+		pair := response_expect_pair_with_name(&res, "size") or_return
 		size := pair_parse_int(pair) or_return
 
 		// Allocate enough space for the image data
@@ -35,7 +35,7 @@ request_cover :: proc(client: ^Client, song_uri: string) -> (cover: Cover_Data, 
 		}
 
 		// Parse `type` field
-		pair = response_expect_pair(&res, "type") or_return
+		pair = response_expect_pair_with_name(&res, "type") or_return
 		switch pair.value {
 		case "image/png":
 			filetype = ".png"

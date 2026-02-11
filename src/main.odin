@@ -22,17 +22,21 @@ load_assets :: proc() {
 
 main :: proc() {
 	// Initialize logger
-	context.logger = log.create_console_logger(
-		opt = {.Level, .Time, .Short_File_Path, .Line, .Terminal_Color},
-	)
+	context.logger = log.create_console_logger(opt = {.Level, .Time, .Terminal_Color})
 
 	// Initialize app
 	client_state: mpd.State = .Connecting
 	client := mpd.connect()
+
 	player := player_make()
+	defer player_destroy(&player)
+	queue := queue_make()
+	defer queue_destroy(&queue)
 
 	ui.window_init()
 	load_assets()
+
+	mpd.push_action(client, mpd.Action_Req_Queue{})
 
 	for !ui.window_should_close() {
 		// Update
@@ -43,6 +47,7 @@ main :: proc() {
 			switch &e in event {
 			case nil:
 				break events
+
 			case mpd.Event_State_Changed:
 				client_state = e.state
 
@@ -52,10 +57,15 @@ main :: proc() {
 				player_on_status_and_song(&player, e.status, e.song)
 
 			case mpd.Event_Albums:
+				// TODO: consume all the received albums for now
 				for &a in e.albums do mpd.album_destroy(&a)
 				delete(e.albums)
 
+			case mpd.Event_Queue:
+				queue_on_queue(&queue, e)
+
 			case mpd.Event_Cover:
+				// TODO: consume all the received covers for now
 				mpd.cover_destroy(&e.cover)
 			}
 		}
@@ -67,6 +77,7 @@ main :: proc() {
 		case .Connecting:
 			ui.draw_text("Connecting...", {}, ui.BLACK)
 		case .Ready:
+			queue_page_draw(queue)
 		case .Error:
 			ui.draw_text("Error!", {}, ui.BLACK)
 		}

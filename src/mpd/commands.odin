@@ -1,6 +1,7 @@
 package mpd
 
 import "core:fmt"
+import "core:log"
 import "core:net"
 import "core:strings"
 
@@ -16,7 +17,7 @@ executef :: proc(client: ^Client, format: string, args: ..any) -> Error {
 cmd_send :: proc(client: ^Client, cmd: string) -> Error {
 	size, err := net.send(client.sock, transmute([]u8)cmd)
 	if err != nil {
-		set_error(client, "Unable to send command")
+		log.errorf("Unable to send command `%s`: %s", cmd, err)
 		return err
 	}
 	if size != len(cmd) do return .Cmd_Invalid_Size

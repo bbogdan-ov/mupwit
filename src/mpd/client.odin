@@ -1,7 +1,6 @@
 package mpd
 
 import "base:runtime"
-import "core:fmt"
 import "core:log"
 import "core:net"
 import "core:strings"
@@ -16,6 +15,7 @@ DEFAULT_PORT: int : 6600
 Error_Kind :: enum {
 	None = 0,
 	Mpd_Error,
+	Invalid_Mpd_Version_Msg,
 	Parse_IP,
 	Cmd_Invalid_Size,
 	Response_Not_OK,
@@ -34,7 +34,7 @@ Error :: union #shared_nil {
 }
 
 @(private)
-_Connect_Data :: struct {
+_Connect_Data :: struct #all_or_none {
 	client: ^Client,
 	ip:     string,
 	port:   int,
@@ -50,12 +50,6 @@ Client :: struct {
 	sock:         net.TCP_Socket,
 	events:       chan.Chan(Event),
 	actions:      chan.Chan(Action),
-	// Current error message.
-	// It may be set by a function that returned `mpd.Error`.
-	// Should be a static string.
-	error_msg:    Maybe(string),
-	// Location where the `error_msg` was set.
-	error_loc:    runtime.Source_Code_Location,
 	// Id of the previous currently playing song.
 	// Used to check whether the current song has changed.
 	prev_song_id: Maybe(uint),
@@ -73,9 +67,11 @@ connect :: proc(ip := DEFAULT_IP, port := DEFAULT_PORT) -> ^Client {
 	assert(err == nil)
 
 	data := new(_Connect_Data)
-	data.client = client
-	data.ip = ip
-	data.port = port
+	data^ = _Connect_Data {
+		client = client,
+		ip     = ip,
+		port   = port,
+	}
 
 	client.thread = thread.create(_do_connect)
 	client.thread.data = data
@@ -100,7 +96,7 @@ close :: proc(client: ^Client) {
 _do_connect :: proc(t: ^thread.Thread) {
 	context.logger = log.create_console_logger(
 		ident = "CLIENT",
-		opt = {.Level, .Time, .Short_File_Path, .Line, .Terminal_Color},
+		opt = {.Level, .Time, .Terminal_Color},
 	)
 
 	data := (^_Connect_Data)(t.data)
@@ -113,19 +109,14 @@ _do_connect :: proc(t: ^thread.Thread) {
 }
 
 @(private)
-_dial :: proc(data: ^_Connect_Data) -> Error {
+_dial :: proc(data: ^_Connect_Data) -> (err: Error) {
 	addr, ok := net.parse_ip4_address(data.ip)
 	if !ok do return .Parse_IP
 
 	client := data.client
 	client.sock = net.dial_tcp(addr, data.port) or_return
 
-	// Consume the MPD version message
-	{
-		res := receive(client) or_return
-		response_next_string(&res)
-		response_destroy(&res)
-	}
+	_consume_version_message(client) or_return
 
 	// Successfully connected
 	_push_event(client, Event_State_Changed{.Ready})
@@ -133,19 +124,19 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 
 	start := time.now()
 
-	STATUS_FETCH_INTERVAL: time.Duration : 250 * time.Millisecond
-	status_fetch_timer := time.Duration(0)
+	STATUS_REQ_INTERVAL: time.Duration : 250 * time.Millisecond
+	status_req_timer := time.Duration(0)
 
 	// Loop forever
 	loop: for {
 		elapsed := time.since(start)
 
-		status_fetch_timer -= elapsed
+		status_req_timer -= elapsed
 
-		// Fetch current status and song periodically
-		if status_fetch_timer <= 0 {
-			_fetch_status(client)
-			status_fetch_timer = STATUS_FETCH_INTERVAL
+		// Request current status and song periodically
+		if status_req_timer <= 0 {
+			_periodic_request_status(client)
+			status_req_timer = STATUS_REQ_INTERVAL
 		}
 
 		action: for {
@@ -153,8 +144,7 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 			case nil:
 				break action
 			case Action:
-				close, err := _handle_action(client, a)
-				log_error(client, err)
+				close, _ := _handle_action(client, a) // NOTE: ignoring the error
 
 				if close {
 					log.info("Closing the connection...")
@@ -173,10 +163,31 @@ _dial :: proc(data: ^_Connect_Data) -> Error {
 }
 
 @(private)
-_fetch_status :: proc(client: ^Client) {
+_consume_version_message :: proc(client: ^Client) -> (err: Error) {
+	res := receive(client) or_return
+	defer response_destroy(&res)
+
+	msg: string
+	msg, err = response_next_string(&res)
+
+	// TODO!: save this message somewhere to show to the user later.
+	if err != nil {
+		log.error("Expected MPD version message but got error:", err)
+		return err
+	} else if !strings.starts_with(msg, "OK MPD ") {
+		log.errorf("Received an invalid MPD version message: '%s'", msg)
+		return .Invalid_Mpd_Version_Msg
+	}
+
+	log.infof("Received MPD version message: '%s'", msg)
+	return
+}
+
+@(private)
+_periodic_request_status :: proc(client: ^Client) {
 	status, err := request_status(client)
 	if err != nil {
-		log_error(client, err)
+		log.error("Failed periodic status request")
 		return
 	}
 
@@ -192,7 +203,7 @@ _fetch_status :: proc(client: ^Client) {
 	if id, ok := status.cur_song_id.?; ok {
 		song, err = request_queue_song_by_id(client, id)
 		if err != nil {
-			log_error(client, err)
+			log.error("Failed to request a song from the periodically requested status")
 			return
 		}
 	}
@@ -217,9 +228,14 @@ _handle_action :: proc(client: ^Client, action: Action) -> (close: bool, err: Er
 		_push_event(client, Event_Cover{a.id, cover})
 
 	case Action_Req_Albums:
-		albums := make([dynamic]Album, len = 0, cap = 20)
+		albums := make([dynamic]Album, len = 0, cap = 32)
 		request_albums(client, &albums) or_return
 		_push_event(client, Event_Albums{albums})
+
+	case Action_Req_Queue:
+		songs := make([dynamic]Song, len = 0, cap = 256)
+		request_queue_songs(client, &songs) or_return
+		_push_event(client, Event_Queue{songs})
 
 	case Action_Close:
 		close = true
@@ -248,54 +264,4 @@ _pop_action :: proc(client: ^Client) -> Maybe(Action) {
 	action, ok := chan.try_recv(client.actions)
 	if !ok do return nil
 	return action
-}
-
-set_error :: proc(client: ^Client, msg: string, loc := #caller_location) {
-	client.error_msg = msg
-	client.error_loc = loc
-}
-
-log_error :: proc(client: ^Client, error: Error) {
-	if error == nil do return
-
-	sb := strings.builder_make()
-
-	// Prepend error message if any
-	if msg, ok := client.error_msg.?; ok {
-		fmt.sbprintf(&sb, "%s %s: ", client.error_loc, msg)
-		client.error_msg = nil
-	}
-
-	switch e in error {
-	case Error_Kind:
-		switch e {
-		case .None:
-		case .Mpd_Error:
-			fmt.sbprint(&sb, "MPD error")
-		case .Parse_IP:
-			fmt.sbprint(&sb, "Failed to parse IP")
-		case .Cmd_Invalid_Size:
-			fmt.sbprint(&sb, "COMMAND: Sent invalid number of bytes")
-		case .Response_Not_OK:
-			fmt.sbprint(&sb, "RESPONSE: Received response is not OK")
-		case .Response_Expected_String:
-			fmt.sbprint(&sb, "RESPONSE: Expected a valid UTF-8 string")
-		case .Response_Invalid_Pair:
-			fmt.sbprint(&sb, "RESPONSE: Invalid pair")
-		case .Response_Unexpected_Binary_Size:
-			fmt.sbprint(&sb, "RESPONSE: Binary response differs from the expected size")
-		case .Response_Expected_Song_Info:
-			fmt.sbprint(&sb, "RESPONSE: Expected song info")
-		case .Pair_Expected_Number:
-			fmt.sbprint(&sb, "RESPONSE: Pair value expected to be a number")
-		case .Unexpected_Pair:
-			fmt.sbprint(&sb, "RESPONSE: Unexpected pair")
-		case .End_Of_Response:
-			fmt.sbprint(&sb, "RESPONSE: Unexpected end of response")
-		}
-	case net.Network_Error:
-		fmt.sbprintf(&sb, "Network error: %s", e)
-	}
-
-	log.info(strings.to_string(sb))
 }

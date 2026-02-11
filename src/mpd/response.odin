@@ -1,6 +1,7 @@
 package mpd
 
 import "core:bytes"
+import "core:log"
 import "core:net"
 import "core:strconv"
 import "core:strings"
@@ -70,12 +71,11 @@ receive :: proc(client: ^Client, loc := #caller_location) -> (res: Response, err
 		// Received an error response.
 		// See https://mpd.readthedocs.io/en/latest/protocol.html#failure-responses
 
-		// FIXME!: setting this error message will leak some memory.
-		// `set_error` expects a static string, but we supply an allocated one.
-
 		// Just set the received error code as an error message.
 		// I don't really care to parse it into more "user-friendly" format.
-		set_error(client, s, loc)
+		// TODO!: save this message somewhere to show to the user later.
+		log.error("MPD error when receiving a response: %s", s)
+		delete(s)
 
 		return Response{}, .Mpd_Error
 	}
@@ -104,7 +104,16 @@ response_expect_ok :: proc(res: ^Response) -> Error {
 }
 
 response_next_binary :: proc(res: ^Response) -> (binary: []byte, err: Error) {
-	pair := response_expect_pair(res, "binary") or_return
+	binary, err = #force_inline _response_next_binary(res)
+	if err != nil {
+		log.error("Failed to parse next binary blob from the response:", err)
+	}
+	return
+}
+
+@(private)
+_response_next_binary :: proc(res: ^Response) -> (binary: []byte, err: Error) {
+	pair := response_expect_pair_with_name(res, "binary") or_return
 	size := pair_parse_int(pair) or_return
 
 	end := res.offset + size
@@ -139,6 +148,15 @@ response_next_string :: proc(res: ^Response) -> (str: string, err: Error) {
 }
 
 response_next_pair :: proc(res: ^Response) -> (pair: Maybe(Pair), err: Error) {
+	pair, err = #force_inline _response_next_pair(res)
+	if err != nil {
+		log.error("Failed to parse next pair from the response:", err)
+	}
+	return
+}
+
+@(private)
+_response_next_pair :: proc(res: ^Response) -> (pair: Maybe(Pair), err: Error) {
 	s := response_next_string(res) or_return
 
 	if strings.trim_space(s) == "OK" do return nil, nil
@@ -154,7 +172,7 @@ response_next_pair :: proc(res: ^Response) -> (pair: Maybe(Pair), err: Error) {
 	return p, nil
 }
 
-response_expect_pair :: #force_inline proc(
+response_expect_pair_with_name :: #force_inline proc(
 	res: ^Response,
 	name: string,
 ) -> (
@@ -169,7 +187,7 @@ response_expect_pair :: #force_inline proc(
 	return p, nil
 }
 
-response_optional_pair :: #force_inline proc(
+response_optional_pair_with_name :: #force_inline proc(
 	res: ^Response,
 	name: string,
 ) -> (

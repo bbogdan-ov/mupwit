@@ -1,5 +1,6 @@
 package mpd
 
+import "core:log"
 import "core:strings"
 
 import "../util"
@@ -16,8 +17,17 @@ album_destroy :: proc(album: ^Album) {
 	util.maybe_str_delete(album.artist)
 }
 
-request_albums :: proc(client: ^Client, list: ^[dynamic]Album) -> Error {
-	executef(client, "list album group artist") or_return
+request_albums :: proc(client: ^Client, albums: ^[dynamic]Album) -> (err: Error) {
+	err = #force_inline _request_albums(client, albums)
+	if err != nil {
+		log.error("Failed to request list of albums:", err)
+	}
+	return
+}
+
+@(private)
+_request_albums :: proc(client: ^Client, albums: ^[dynamic]Album) -> (err: Error) {
+	executef(client, "list album group artist") or_return // request all albums grouped by artists
 	res := receive(client) or_return
 	defer response_destroy(&res)
 
@@ -54,16 +64,20 @@ request_albums :: proc(client: ^Client, list: ^[dynamic]Album) -> Error {
 					title  = strings.clone(pair.value),
 					artist = artist,
 				}
-				append(list, album)
+				append(albums, album)
 			}
 		} else {
-			set_error(client, "Unable to parse albums list")
+			log.errorf(
+				"Unexpected pair while parsing albums list: %s => '%s'",
+				pair.name,
+				pair.value,
+			)
 			return .Unexpected_Pair
 		}
 	}
 
 	// Fetch the first song of each album
-	for &album in list {
+	for &album in albums {
 		CMD :: `find "((Album == %s) AND (Artist == %s))" window 0:1`
 		title := util.espace(util.quote(album.title.? or_else ""))
 		artist := util.espace(util.quote(album.artist.? or_else ""))
@@ -74,7 +88,11 @@ request_albums :: proc(client: ^Client, list: ^[dynamic]Album) -> Error {
 		maybe_song := response_next_song(client, &res) or_return
 		song, ok := maybe_song.?
 		if !ok {
-			set_error(client, "Unable to request the first song of the album")
+			log.errorf(
+				"Failed to request the first song of the album '%s' by '%s'",
+				album.title,
+				album.artist,
+			)
 			return .Response_Expected_Song_Info
 		}
 

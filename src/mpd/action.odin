@@ -10,6 +10,7 @@ Action_Req_Cover :: struct #all_or_none {
 }
 
 Action_Req_Albums :: struct {}
+Action_Req_Queue :: struct {}
 
 // Ask the client to carefuly close the connection
 Action_Close :: struct {}
@@ -19,5 +20,6 @@ Action :: union #no_nil {
 	Action_Pause,
 	Action_Req_Cover,
 	Action_Req_Albums,
+	Action_Req_Queue,
 	Action_Close,
 }

@@ -1,5 +1,6 @@
 package mpd
 
+import "core:log"
 import "core:strings"
 import "core:time"
 
@@ -45,7 +46,7 @@ song_destroy :: proc(song: ^Song) {
 request_status :: proc(client: ^Client, loc := #caller_location) -> (status: Status, err: Error) {
 	status, err = #force_inline _request_status(client)
 	if err != nil {
-		set_error(client, "Unable to request current playback status", loc)
+		log.error("Failed to request current playback status:", err)
 	}
 	return
 }
@@ -108,7 +109,7 @@ _request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 response_next_song :: proc(client: ^Client, res: ^Response) -> (song: Maybe(Song), err: Error) {
 	song, err = _response_next_song(res)
 	if err != nil {
-		set_error(client, "Unable to parse the next song from the response")
+		log.error("Failed to parse next song from the response:", err)
 	}
 	return
 }
@@ -133,6 +134,20 @@ _response_next_song :: proc(res: ^Response) -> (song: Maybe(Song), err: Error) {
 		case "duration":
 			secs := pair_parse_f32(pair) or_return
 			s.duration = time.Duration(secs) * time.Second
+		case "Last-Modified": // ignore
+		case "Added": // ignore
+		case "Format": // ignore
+		case "Track": // ignore
+		case "Genre": // ignore
+		case "Time": // ignore
+		case "Pos": // ignore
+		case "Id": // ignore
+		case:
+			log.warnf(
+				"Found an unhandled pair while parsing song info: %s => '%s'",
+				pair.name,
+				pair.value,
+			)
 		}
 	}
 
