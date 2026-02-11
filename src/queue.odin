@@ -19,6 +19,6 @@ queue_destroy :: proc(queue: ^Queue) {
 }
 
 queue_on_queue :: proc(queue: ^Queue, event: mpd.Event_Queue) {
-	log.infof("Queue received %d songs", len(queue.songs))
 	queue.songs = event.songs
+	log.infof("Queue received %d songs", len(queue.songs))
 }

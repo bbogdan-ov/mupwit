@@ -32,7 +32,7 @@ request_queue_songs :: proc(client: ^Client, songs: ^[dynamic]Song) -> (err: Err
 
 @(private)
 _request_queue_songs :: proc(client: ^Client, songs: ^[dynamic]Song) -> (err: Error) {
-	executef(client, "playlist") or_return // request all songs in the current queue (playlist)
+	executef(client, "playlistinfo") or_return // request all songs info in the current queue (playlist)
 	res := receive(client) or_return
 	defer response_destroy(&res)
 

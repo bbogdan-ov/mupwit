@@ -168,7 +168,7 @@ _consume_version_message :: proc(client: ^Client) -> (err: Error) {
 	defer response_destroy(&res)
 
 	msg: string
-	msg, err = response_next_string(&res)
+	msg, err = response_next_line(&res)
 
 	// TODO!: save this message somewhere to show to the user later.
 	if err != nil {

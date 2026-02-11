@@ -106,6 +106,7 @@ _request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 }
 
 // Parse the next song info the `Response`
+// All song fields are owned by this struct, don't forget to `song_destroy`
 response_next_song :: proc(client: ^Client, res: ^Response) -> (song: Maybe(Song), err: Error) {
 	song, err = _response_next_song(res)
 	if err != nil {
@@ -118,13 +119,23 @@ response_next_song :: proc(client: ^Client, res: ^Response) -> (song: Maybe(Song
 _response_next_song :: proc(res: ^Response) -> (song: Maybe(Song), err: Error) {
 	s: Song
 
-	for {
+	already_parsed := false
+	pairs: for {
+		prev_offset := res.offset
 		maybe_pair := response_next_pair(res) or_return
 		pair := maybe_pair.? or_break
 
+		// NOTE: ignore other pairs because we don't care.
 		switch pair.name {
 		case "file":
+			if already_parsed {
+				// A new song info has began
+				res.offset = prev_offset
+				break pairs
+			}
+
 			s.uri = strings.clone(pair.value)
+			already_parsed = true
 		case "Title":
 			s.title = strings.clone(pair.value)
 		case "Artist":
@@ -134,20 +145,6 @@ _response_next_song :: proc(res: ^Response) -> (song: Maybe(Song), err: Error) {
 		case "duration":
 			secs := pair_parse_f32(pair) or_return
 			s.duration = time.Duration(secs) * time.Second
-		case "Last-Modified": // ignore
-		case "Added": // ignore
-		case "Format": // ignore
-		case "Track": // ignore
-		case "Genre": // ignore
-		case "Time": // ignore
-		case "Pos": // ignore
-		case "Id": // ignore
-		case:
-			log.warnf(
-				"Found an unhandled pair while parsing song info: %s => '%s'",
-				pair.name,
-				pair.value,
-			)
 		}
 	}
 

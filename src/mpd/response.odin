@@ -88,14 +88,14 @@ response_destroy :: proc(res: ^Response) {
 	res.buf = nil
 }
 
-receive_ok :: proc(client: ^Client) -> Error {
+receive_ok :: proc(client: ^Client) -> (err: Error) {
 	res := receive(client) or_return
 	defer response_destroy(&res)
 	return response_expect_ok(&res)
 }
 
-response_expect_ok :: proc(res: ^Response) -> Error {
-	s := response_next_string(res) or_return
+response_expect_ok :: proc(res: ^Response) -> (err: Error) {
+	s := response_next_line(res) or_return
 	if s == "OK" {
 		return nil
 	} else {
@@ -103,6 +103,8 @@ response_expect_ok :: proc(res: ^Response) -> Error {
 	}
 }
 
+// Parse next binary blob from a response.
+// Returns a slice of bytes from response's buffer.
 response_next_binary :: proc(res: ^Response) -> (binary: []byte, err: Error) {
 	binary, err = #force_inline _response_next_binary(res)
 	if err != nil {
@@ -127,7 +129,9 @@ _response_next_binary :: proc(res: ^Response) -> (binary: []byte, err: Error) {
 	return
 }
 
-response_next_string :: proc(res: ^Response) -> (str: string, err: Error) {
+// Parse next string line the in a response.
+// Returns a slice from response's buffer.
+response_next_line :: proc(res: ^Response) -> (str: string, err: Error) {
 	idx := bytes.index_byte(res.buf[res.offset:], '\n')
 
 	end: int
@@ -147,6 +151,8 @@ response_next_string :: proc(res: ^Response) -> (str: string, err: Error) {
 	}
 }
 
+// Parse next pair from a response.
+// Returns `Pair` with `name` and `value` as string slices from response's buffer.
 response_next_pair :: proc(res: ^Response) -> (pair: Maybe(Pair), err: Error) {
 	pair, err = #force_inline _response_next_pair(res)
 	if err != nil {
@@ -157,12 +163,14 @@ response_next_pair :: proc(res: ^Response) -> (pair: Maybe(Pair), err: Error) {
 
 @(private)
 _response_next_pair :: proc(res: ^Response) -> (pair: Maybe(Pair), err: Error) {
-	s := response_next_string(res) or_return
-
-	if strings.trim_space(s) == "OK" do return nil, nil
+	s := response_next_line(res) or_return
+	if s == "OK" || s == "" do return nil, nil
 
 	left, right, ok := util.split_once(s, ':')
-	if !ok do return Pair{}, .Response_Invalid_Pair
+	if !ok {
+		log.errorf("Invalid pair: '%s', |%s|", s, string(res.buf[res.offset:]))
+		return Pair{}, .Response_Invalid_Pair
+	}
 
 	p := Pair {
 		name  = strings.trim_space(left),
