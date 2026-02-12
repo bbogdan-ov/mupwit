@@ -39,7 +39,7 @@ LIGHTGRAY :: ui.Color{BLACK.r, BLACK.g, BLACK.b, 60}
 BACKGROUND :: WHITE
 
 // --------------------
-// Colors
+// Strings
 // --------------------
 
 UNKNOWN :: "<unknown>"
