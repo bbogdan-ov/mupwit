@@ -147,10 +147,10 @@ draw_text :: proc(
 		}
 
 		glyph_pos := Point{pos.x + advance_x, pos.y}
-		next_x := (pos.x - ctx.text_trunc_x) + advance_x + f32(glyph.advance_x) * 2 * scale
+		next_x := (pos.x - window.text_trunc_x) + advance_x + f32(glyph.advance_x) * 2 * scale
 
 		// NOTE: multiplying glyph width by 2 to look two glyphs ahead
-		if ctx.text_trunc_width > 0 && next_x > ctx.text_trunc_width {
+		if window.text_trunc_width > 0 && next_x > window.text_trunc_width {
 			glyph = font.glyphs['…']
 			advance_x += _draw_glyph(font, glyph, glyph_pos, scale, color)
 			break
@@ -201,12 +201,12 @@ end_scissor :: #force_inline proc() {
 
 begin_text_truncate :: #force_inline proc(x: f32, width: f32) {
 	assert(width > 0)
-	ctx.text_trunc_x = x
-	ctx.text_trunc_width = width
+	window.text_trunc_x = x
+	window.text_trunc_width = width
 }
 end_text_truncate :: #force_inline proc() {
 	// NOTE: we leave `text_trunc_width` as is because we don't care.
-	ctx.text_trunc_width = 0
+	window.text_trunc_width = 0
 }
 
 load_texture :: #force_inline proc(

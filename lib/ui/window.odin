@@ -11,30 +11,39 @@ import glfw "vendor:glfw/bindings"
 TARGET_FPS :: 120
 
 Window :: struct #all_or_none {
-	ready:       bool,
-	handle:      glfw.WindowHandle,
-	width:       f32,
-	height:      f32,
+	ready:            bool,
+	handle:           glfw.WindowHandle,
+	width:            f32,
+	height:           f32,
 
 	// Mouse position
-	mouse:       Point,
-	// Mouse wheel
-	wheel:       Point,
+	mouse:            Point,
+	// Mouse wheel movement
+	wheel:            Point,
 
 	// Time elapsed since the last frame in milliseconds.
-	delta:       u32,
-	_start_time: time.Time,
+	delta:            u32,
+	_start_time:      time.Time,
+
+	// Text truncation
+	text_trunc_width: f32,
+	text_trunc_x:     f32,
 }
 
 window := Window {
-	ready       = false,
-	handle      = nil,
-	width       = 100,
-	height      = 100,
-	mouse       = {0, 0},
-	wheel       = {0, 0},
-	delta       = 0,
-	_start_time = time.Time{0},
+	ready            = false,
+	handle           = nil,
+	width            = 100,
+	height           = 100,
+	//
+	mouse            = {0, 0},
+	wheel            = {0, 0},
+	//
+	delta            = 0,
+	_start_time      = time.Time{0},
+	//
+	text_trunc_width = 0,
+	text_trunc_x     = 0,
 }
 
 @(private)
@@ -119,8 +128,6 @@ begin_frame :: proc(color: Color) {
 	rlgl.Viewport(0, 0, i32(window.width), i32(window.height))
 	rlgl.ClearColor(color.r, color.g, color.b, color.a)
 	rlgl.ClearScreenBuffers()
-
-	ctx_reset()
 }
 
 end_frame :: proc() {
