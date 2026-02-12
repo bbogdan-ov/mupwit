@@ -19,17 +19,18 @@ Texture :: struct {
 }
 
 Font :: struct {
-	size:        i32,
+	size:        f32,
 	glyphs:      []Glyph,
 	glyph_count: i32,
 	texture:     Texture,
-	padding:     i32,
+	padding:     f32,
+	offset_y:    f32,
 }
 
 Glyph :: struct {
-	advance_x: i32,
-	offset_x:  i32,
-	offset_y:  i32,
+	advance_x: f32,
+	offset_x:  f32,
+	offset_y:  f32,
 	// Rect within the font texture
 	rect:      Rect,
 }
@@ -135,9 +136,12 @@ draw_text :: proc(
 ) -> (
 	advance: Point,
 ) {
+	pos := pos
+
 	rlgl.SetTexture(font.texture.id)
 	rlgl.Begin(rlgl.QUADS)
 
+	pos.y -= font.offset_y
 	advance_x: f32 = 0
 
 	for rune in text {
@@ -147,7 +151,7 @@ draw_text :: proc(
 		}
 
 		glyph_pos := Point{pos.x + advance_x, pos.y}
-		next_x := (pos.x - window.text_trunc_x) + advance_x + f32(glyph.advance_x) * 2 * scale
+		next_x := (pos.x - window.text_trunc_x) + advance_x + glyph.advance_x * 2 * scale
 
 		// NOTE: multiplying glyph width by 2 to look two glyphs ahead
 		if window.text_trunc_width > 0 && next_x > window.text_trunc_width {
@@ -161,7 +165,7 @@ draw_text :: proc(
 
 	rlgl.End()
 
-	return {advance_x, f32(font.size) * scale}
+	return {advance_x, font.size * scale}
 }
 
 @(private)
@@ -174,19 +178,17 @@ _draw_glyph :: #force_inline proc(
 ) -> (
 	advance_x: f32,
 ) {
-	padding := f32(font.padding)
-
 	source := glyph.rect
-	source.width += padding
+	source.width += font.padding
 	dest := Rect {
-		pos.x + f32(glyph.offset_x) * scale,
-		pos.y + f32(glyph.offset_y) * scale,
+		pos.x + glyph.offset_x * scale,
+		pos.y + glyph.offset_y * scale,
 		source.width * scale,
 		source.height * scale,
 	}
 	draw_texture_impl(font.texture, source, dest, color)
 
-	return f32(glyph.advance_x) * scale
+	return glyph.advance_x * scale
 }
 
 measure_text :: proc(font: Font, text: string, scale: f32 = 1) -> (size: Point) {

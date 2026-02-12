@@ -34,6 +34,8 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 	max_codepoint: rune = -1
 	font_bbx := bbx()
 	font_pixe_size := -1
+	font_descent := -1
+	font_cap_height := -1
 	glyphs := make([dynamic]Glyph, len = 0, cap = 256)
 	defer delete(glyphs)
 	{
@@ -107,6 +109,10 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 			} else if parts[0] == "PIXEL_SIZE" {
 				assert(len(parts) >= 2)
 				font_pixe_size = parse_int(parts[1]).? or_return
+			} else if parts[0] == "CAP_HEIGHT" {
+				font_cap_height = parse_int(parts[1]).? or_return
+			} else if parts[0] == "FONT_DESCENT" {
+				font_descent = parse_int(parts[1]).? or_return
 			}
 		}
 	}
@@ -117,6 +123,10 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 	assert(font_bbx.height > 0)
 
 	assert(font_pixe_size > 0)
+
+	assert(font_cap_height > 0)
+	assert(font_descent >= 0)
+	font_offset_y := font_pixe_size - (font_cap_height + font_descent)
 
 	// Render glyphs into the pixels buffer
 	PADDING :: 1
@@ -192,9 +202,9 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 		for codepoint in 0 ..= max_codepoint {
 			glyph := &all_glyphs[codepoint]
 
-			advance_x_bytes := i32_to_bytes(i32(glyph.advance_x))
-			off_x_bytes := i32_to_bytes(i32(glyph.bbx.x))
-			off_y_bytes := i32_to_bytes(i32(-glyph.bbx.y))
+			advance_x_bytes := f32_to_bytes(f32(glyph.advance_x))
+			off_x_bytes := f32_to_bytes(f32(glyph.bbx.x))
+			off_y_bytes := f32_to_bytes(f32(-glyph.bbx.y))
 
 			rx_bytes := f32_to_bytes(f32(glyph.rect_pos.x))
 			ry_bytes := f32_to_bytes(f32(glyph.rect_pos.y))
@@ -247,11 +257,10 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 		putline(f, "\t\tglyph_count = %d,", len(all_glyphs))
 		putline(f, "\t\ttexture     = texture,")
 		putline(f, "\t\tpadding     = %d,", PADDING)
+		putline(f, "\t\toffset_y    = %d,", font_offset_y)
 		putline(f, "\t}}")
 		putline(f, "}}")
 	}
-
-	render_to_image("hey", pixels[:], glyphs_width)
 
 	return true
 }

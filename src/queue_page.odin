@@ -79,7 +79,7 @@ _draw_song :: proc(song: ^mpd.Song, y: f32, container: ui.Rect) {
 	// Draw song info
 	{
 		offset.x += cover_rect.width + GAP
-		offset.y += -GAP + _SONG_HEIGHT / 2 - f32(assets.normal_font.size) - 3
+		offset.y += -GAP + _SONG_HEIGHT / 2 - f32(assets.normal_font.size)
 
 		title := song.title.? or_else UNKNOWN
 		artist := song.artist.? or_else UNKNOWN
@@ -93,7 +93,7 @@ _draw_song :: proc(song: ^mpd.Song, y: f32, container: ui.Rect) {
 	// Draw song duration
 	{
 		x := rect.x + rect.width - dur_size.x - GAP
-		y := rect.y + rect.height / 2 - dur_size.y / 2 - 3
+		y := rect.y + rect.height / 2 - dur_size.y / 2
 		draw_normal_text(song.duration_text, {x, y}, GRAY)
 	}
 }
