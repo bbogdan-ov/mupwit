@@ -5,7 +5,7 @@ import "core:math"
 import "core:os"
 import "core:strings"
 
-import "../src/ui"
+import "../lib/ui"
 
 Bbx :: struct #all_or_none {
 	width:  int,

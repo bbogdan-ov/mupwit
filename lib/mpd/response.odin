@@ -7,8 +7,6 @@ import "core:strconv"
 import "core:strings"
 import "core:unicode/utf8"
 
-import "../util"
-
 Pair :: struct {
 	// Slice from `Response.buffer`
 	name:  string,
@@ -174,7 +172,7 @@ _response_next_pair :: proc(res: ^Response) -> (pair: Maybe(Pair), err: Error) {
 	s := response_next_line(res) or_return
 	if s == "OK" || s == "" do return nil, nil
 
-	left, right, ok := util.split_once(s, ':')
+	left, right, ok := split_once(s, ':')
 	if !ok {
 		log.errorf("CLIENT: Invalid pair: '%s'", s)
 		return Pair{}, .Response_Invalid_Pair

@@ -1,6 +1,5 @@
 package mpd
 
-import "../util"
 import "core:fmt"
 import "core:image"
 
@@ -18,7 +17,7 @@ request_cover :: proc(client: ^Client, song_uri: string) -> (cover: Cover_Data, 
 	bytes: [dynamic]byte = nil
 	filetype: cstring = ".png"
 
-	uri := util.quote(song_uri)
+	uri := quote(song_uri)
 
 	for {
 		executef(client, "readpicture %s %d", uri, offset) or_return

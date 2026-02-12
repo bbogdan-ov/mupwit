@@ -1,4 +1,4 @@
-package util
+package mpd
 
 import "core:mem"
 import "core:strings"

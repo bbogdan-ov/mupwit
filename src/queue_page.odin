@@ -1,7 +1,7 @@
 package mupwit
 
-import "mpd"
-import "ui"
+import "../lib/mpd"
+import "../lib/ui"
 
 GAP :: 8
 
@@ -14,7 +14,7 @@ queue_page_draw :: proc(queue: Queue) {
 	pos := ui.Point{10, 10}
 
 	if len(queue.songs) == 0 {
-		ui.draw_text("no songs", pos)
+		draw_normal_text("no songs", pos)
 		return
 	}
 
@@ -40,7 +40,7 @@ _draw_song :: proc(song: ^mpd.Song, y: f32) {
 
 	if is_hovering {
 		// Draw background
-		ui.draw_box(.Filled_Rounded, rect, ui.THEME_LIGHTGRAY)
+		draw_box(.Filled_Rounded, rect, LIGHTGRAY)
 	}
 
 	// Draw song cover
@@ -48,25 +48,25 @@ _draw_song :: proc(song: ^mpd.Song, y: f32) {
 	offset.y += GAP
 	cover_rect := ui.Rect{offset.x, offset.y, SONG_COVER_SIZE, SONG_COVER_SIZE}
 	{
-		ui.draw_box(.Normal, cover_rect)
+		draw_box(.Normal, cover_rect)
 
 		// Draw disk icon in the center of the rect
 		icon_pos := ui.Point {
-			cover_rect.x + cover_rect.width / 2 - ui.ICON_SIZE / 2,
-			cover_rect.y + cover_rect.height / 2 - ui.ICON_SIZE / 2,
+			cover_rect.x + cover_rect.width / 2 - ICON_SIZE / 2,
+			cover_rect.y + cover_rect.height / 2 - ICON_SIZE / 2,
 		}
-		ui.draw_icon(.Disk, icon_pos)
+		draw_icon(.Disk, icon_pos)
 	}
 
 	// Draw song info
 	{
 		offset.x += cover_rect.width + GAP
-		offset.y += -GAP + SONG_HEIGHT / 2 - f32(ui.assets.normal_font.size) - 4
+		offset.y += -GAP + SONG_HEIGHT / 2 - f32(assets.normal_font.size) - 4
 
-		title := song.title.? or_else ui.UNKNOWN
-		artist := song.artist.? or_else ui.UNKNOWN
+		title := song.title.? or_else UNKNOWN
+		artist := song.artist.? or_else UNKNOWN
 
-		offset.y += ui.draw_text(title, offset)
-		ui.draw_text(artist, offset, color = ui.THEME_GRAY)
+		offset.y += draw_normal_text(title, offset)
+		draw_normal_text(artist, offset, GRAY)
 	}
 }

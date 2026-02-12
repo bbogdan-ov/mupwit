@@ -1,7 +1,8 @@
 package mupwit
 
 import "core:log"
-import "mpd"
+
+import "../lib/mpd"
 
 Queue :: struct {
 	songs: [dynamic]mpd.Song,

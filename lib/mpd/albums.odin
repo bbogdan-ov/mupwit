@@ -3,8 +3,6 @@ package mpd
 import "core:log"
 import "core:strings"
 
-import "../util"
-
 Album :: struct {
 	title:      Maybe(string),
 	artist:     Maybe(string),
@@ -13,8 +11,8 @@ Album :: struct {
 
 album_destroy :: proc(album: ^Album) {
 	song_destroy(&album.first_song)
-	util.maybe_str_delete(album.title)
-	util.maybe_str_delete(album.artist)
+	maybe_str_delete(album.title)
+	maybe_str_delete(album.artist)
 }
 
 @(require_results)
@@ -82,8 +80,8 @@ _request_albums :: proc(client: ^Client) -> (err: Error) {
 	// Fetch the first song of each album
 	for &album in albums {
 		CMD :: `find "((Album == %s) AND (Artist == %s))" window 0:1`
-		title := util.espace(util.quote(album.title.? or_else ""))
-		artist := util.espace(util.quote(album.artist.? or_else ""))
+		title := espace(quote(album.title.? or_else ""))
+		artist := espace(quote(album.artist.? or_else ""))
 		executef(client, CMD, title, artist) or_return
 
 		res := receive(client) or_return

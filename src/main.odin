@@ -3,60 +3,9 @@ package mupwit
 import "core:fmt"
 import "core:log"
 import "core:time"
-import "mpd"
-import "ui"
 
-import "../build/assets"
-
-load_assets :: proc() {
-	assert(ui.window.ready)
-
-	font := assets.font_load_kaplimono_regular()
-
-	ui.assets = ui.Assets {
-		normal_font   = font,
-		italic_font   = font,
-		boxes         = assets.image_load_boxes(),
-		icons         = assets.image_load_icons(),
-		dummy_artwork = assets.image_load_dummy_artwork(),
-	}
-}
-
-logger_proc :: proc(
-	data: rawptr,
-	level: log.Level,
-	text: string,
-	options: log.Options,
-	location := #caller_location,
-) {
-	fmt.print("\x1b[37m")
-
-	when time.IS_SUPPORTED {
-		h, m, s, nanos := time.precise_clock(time.now())
-		fmt.printf("%02d:%02d:%02d.%03d ", h, m, s, nanos / 1_000_000)
-	}
-
-	switch level {
-	case .Debug:
-		fmt.print("\x1b[37mDEBUG:\x1b[0m ")
-	case .Info:
-		fmt.print("\x1b[94mINFO:\x1b[0m ")
-	case .Warning:
-		// TODO: log relative path to the file
-		fmt.printf("(%s:%d) ", location.file_path, location.line)
-		fmt.print("\x1b[93mWARN:\x1b[0m ")
-	case .Error:
-		// TODO: log relative path to the file
-		fmt.printf("(%s:%d) ", location.file_path, location.line)
-		fmt.print("\x1b[91mERROR:\x1b[0m ")
-	case .Fatal:
-		// TODO: log relative path to the file
-		fmt.printf("(%s:%d) ", location.file_path, location.line)
-		fmt.print("\x1b[91;7mFATAL:\x1b[0m ")
-	}
-
-	fmt.println(text)
-}
+import "../lib/mpd"
+import "../lib/ui"
 
 main :: proc() {
 	// Initialize logger
@@ -73,7 +22,7 @@ main :: proc() {
 	queue := queue_make()
 	defer queue_destroy(&queue)
 
-	ui.window_init()
+	ui.window_init(WINDOW_TITLE, "mupwit", WINDOW_WIDTH, WINDOW_HEIGHT)
 	load_assets()
 
 	mpd.send_action(client, mpd.Action_Req_Queue{})
@@ -111,15 +60,15 @@ main :: proc() {
 		}
 
 		// Draw
-		ui.begin_frame(ui.BACKGROUND)
+		ui.begin_frame(BACKGROUND)
 
 		switch client_state {
 		case .Connecting:
-			ui.draw_text("Connecting...", {}, ui.BLACK)
+			draw_normal_text("Connecting...", {}, BLACK)
 		case .Ready:
 			queue_page_draw(queue)
 		case .Error:
-			ui.draw_text("Error!", {}, ui.BLACK)
+			draw_normal_text("Error!", {}, BLACK)
 		}
 
 		ui.end_frame()
@@ -127,8 +76,44 @@ main :: proc() {
 
 	mpd.send_action(client, mpd.Action_Close{})
 
-	ui.assets_destroy()
+	assets_destroy()
 	ui.window_close()
 
 	mpd.close(client)
+}
+
+logger_proc :: proc(
+	data: rawptr,
+	level: log.Level,
+	text: string,
+	options: log.Options,
+	location := #caller_location,
+) {
+	fmt.print("\x1b[37m")
+
+	when time.IS_SUPPORTED {
+		h, m, s, nanos := time.precise_clock(time.now())
+		fmt.printf("%02d:%02d:%02d.%03d ", h, m, s, nanos / 1_000_000)
+	}
+
+	switch level {
+	case .Debug:
+		fmt.print("\x1b[37mDEBUG:\x1b[0m ")
+	case .Info:
+		fmt.print("\x1b[94mINFO:\x1b[0m ")
+	case .Warning:
+		// TODO: log relative path to the file
+		fmt.printf("(%s:%d) ", location.file_path, location.line)
+		fmt.print("\x1b[93mWARN:\x1b[0m ")
+	case .Error:
+		// TODO: log relative path to the file
+		fmt.printf("(%s:%d) ", location.file_path, location.line)
+		fmt.print("\x1b[91mERROR:\x1b[0m ")
+	case .Fatal:
+		// TODO: log relative path to the file
+		fmt.printf("(%s:%d) ", location.file_path, location.line)
+		fmt.print("\x1b[91;7mFATAL:\x1b[0m ")
+	}
+
+	fmt.println(text)
 }

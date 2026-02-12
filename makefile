@@ -1,5 +1,5 @@
-SOURCES       := $(shell find src/       -type f -name '*.odin')
-BUILD_SOURCES := $(shell find build_src/ -type f -name '*.odin')
+SOURCES       := $(shell find src/       -type f -iname '*.odin')
+BUILD_SOURCES := $(shell find build_src/ -type f -iname '*.odin')
 ASSETS        := $(shell find assets/    -type f)
 
 FLAGS := \
@@ -14,25 +14,25 @@ FLAGS := \
 
 .PHONY: all
 
-all: build build/rlgl.a build/assets/assets.odin build/mupwit
+all: build build/mupwit
 	@echo "DONE!"
 
 build:
 	mkdir -p build
 
-build/mupwit: $(SOURCES) build/assets/assets.odin
+build/mupwit: $(SOURCES) build/rlgl.a build/assets/assets.odin
 	@echo "INFO: Compiling MUPWIT..."
 	@odin build src -out:build/mupwit -debug $(FLAGS)
 
-build/assets/assets.odin: build/decode_assets $(ASSETS)
-	@echo "INFO: Decoding assets..."
+build/assets/assets.odin: build/build $(ASSETS)
+	@echo "INFO: Running build script..."
 	@mkdir -p build/assets/fonts
 	@mkdir -p build/assets/images
-	@./build/decode_assets
+	@./build/build
 
-build/decode_assets: $(BUILD_SOURCES)
-	@echo "INFO: Compiling assets decoder..."
-	@odin build build_src/ -out:build/decode_assets -debug $(FLAGS)
+build/build: $(BUILD_SOURCES)
+	@echo "INFO: Compiling build script..."
+	@odin build build_src/ -out:build/build -debug $(FLAGS)
 
 build/rlgl.a: lib/rlgl.h
 	@echo "INFO: Compiling rlgl object file..."

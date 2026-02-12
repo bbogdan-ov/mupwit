@@ -8,6 +8,8 @@ import rlgl "rlgl"
 import glfw_ "vendor:glfw"
 import glfw "vendor:glfw/bindings"
 
+TARGET_FPS :: 120
+
 Window :: struct #all_or_none {
 	ready:  bool,
 	handle: glfw.WindowHandle,
@@ -19,8 +21,8 @@ Window :: struct #all_or_none {
 window := Window {
 	ready  = false,
 	handle = nil,
-	width  = WINDOW_WIDTH,
-	height = WINDOW_HEIGHT,
+	width  = 100,
+	height = 100,
 	mouse  = {},
 }
 
@@ -36,7 +38,7 @@ _cursor_pos_callback :: proc "c" (_: glfw.WindowHandle, x: f64, y: f64) {
 	window.mouse.y = math.floor(f32(y))
 }
 
-window_init :: proc() {
+window_init :: proc(title: cstring, app_id: cstring, width, height: i32) {
 	ok := glfw.Init()
 	if !ok {
 		// TODO: log failure message
@@ -45,13 +47,16 @@ window_init :: proc() {
 
 	log.info("GLFW initialized")
 
+	window.width = width
+	window.height = height
+
 	glfw.DefaultWindowHints()
 
 	// Window attributes
 	glfw.WindowHint(glfw_.AUTO_ICONIFY, false)
 	glfw.WindowHint(glfw_.FLOATING, true)
 	glfw.WindowHint(glfw_.RESIZABLE, false)
-	glfw.WindowHintString(glfw_.WAYLAND_APP_ID, WINDOW_TITLE)
+	glfw.WindowHintString(glfw_.WAYLAND_APP_ID, app_id)
 
 	// OpenGL version.
 	// Using 3.3 because i feel like it is the latest and most supported version.
@@ -59,7 +64,7 @@ window_init :: proc() {
 	glfw.WindowHint(glfw_.CONTEXT_VERSION_MINOR, 3)
 	glfw.WindowHint(glfw_.OPENGL_PROFILE, glfw_.OPENGL_CORE_PROFILE)
 
-	handle := glfw.CreateWindow(window.width, window.height, WINDOW_TITLE, nil, nil)
+	handle := glfw.CreateWindow(window.width, window.height, title, nil, nil)
 	window.handle = handle
 	if handle == nil {
 		// TODO: log failure message

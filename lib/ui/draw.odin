@@ -2,6 +2,38 @@ package ui
 
 import rlgl "rlgl"
 
+WHITE :: Color{255, 255, 255, 255}
+BLACK :: Color{0, 0, 0, 255}
+RED :: Color{255, 0, 0, 255}
+
+Color :: distinct [4]byte
+Point :: distinct [2]f32
+Rect :: struct {
+	x, y, width, height: f32,
+}
+
+Texture :: struct {
+	id:     u32,
+	width:  i32,
+	height: i32,
+}
+
+Font :: struct {
+	size:        i32,
+	glyphs:      []Glyph,
+	glyph_count: i32,
+	texture:     Texture,
+	padding:     i32,
+}
+
+Glyph :: struct {
+	advance_x: i32,
+	offset_x:  i32,
+	offset_y:  i32,
+	// Rect within the font texture
+	rect:      Rect,
+}
+
 draw_rect :: proc(rect: Rect, color: Color) {
 	ww := f32(window.width)
 	wh := f32(window.height)
@@ -39,7 +71,11 @@ draw_texture_ex :: proc(texture: Texture, source: Rect, dest: Rect, tint := WHIT
 	rlgl.SetTexture(0)
 }
 
-// NOTE: textures are still being drawn even outside of the view.
+// "Low level" function that only places vertices into the current batch.
+//
+// NOTE:
+// - This function does NOT begins and ends drawing of the batch.
+// - Textures are still being drawn even outside of the view.
 draw_texture_impl :: proc(texture: Texture, source: Rect, dest: Rect, tint := WHITE) {
 	if source.width <= 0 || source.height <= 0 || dest.width <= 0 || dest.height <= 0 {
 		return
@@ -90,15 +126,15 @@ draw_texture_anim :: proc(
 	draw_texture_ex(texture, source, dest, tint)
 }
 
-draw_text_font :: proc(
+draw_text :: proc(
 	font: Font,
 	text: string,
 	pos: Point,
-	color := THEME_BLACK,
+	color: Color,
 	scale: f32 = 1,
 	max_width: f32 = 0.0,
 ) -> (
-	size: f32,
+	advance_y: f32,
 ) {
 	advance_x: f32 = 0
 
@@ -116,11 +152,11 @@ draw_text_font :: proc(
 		// NOTE: multiplying glyph width by 2 to look two glyphs ahead
 		if max_width > 0 && advance_x + f32(glyph.advance_x) * 2 * scale > max_width {
 			glyph = font.glyphs['…']
-			advance_x += _draw_char_font(font, glyph, glyph_pos, scale, color)
+			advance_x += _draw_glyph(font, glyph, glyph_pos, scale, color)
 			break
 		}
 
-		advance_x += _draw_char_font(font, glyph, glyph_pos, scale, color)
+		advance_x += _draw_glyph(font, glyph, glyph_pos, scale, color)
 	}
 
 	rlgl.End()
@@ -129,7 +165,7 @@ draw_text_font :: proc(
 }
 
 @(private)
-_draw_char_font :: #force_inline proc(
+_draw_glyph :: #force_inline proc(
 	font: Font,
 	glyph: Glyph,
 	pos: Point,
@@ -151,119 +187,6 @@ _draw_char_font :: #force_inline proc(
 	draw_texture_impl(font.texture, source, dest, color)
 
 	return f32(glyph.advance_x) * scale
-}
-
-draw_text :: #force_inline proc(
-	text: string,
-	pos: Point,
-	color := THEME_BLACK,
-	scale: f32 = 1,
-	max_width: f32 = 0.0,
-) -> (
-	size: f32,
-) {
-	return draw_text_font(assets.normal_font, text, pos, color, scale, max_width)
-}
-draw_italic_text :: #force_inline proc(
-	text: string,
-	pos: Point,
-	color := THEME_BLACK,
-	scale: f32 = 1,
-	max_width: f32 = 0.0,
-) -> (
-	size: f32,
-) {
-	return draw_text_font(assets.italic_font, text, pos, color, scale, max_width)
-}
-
-draw_box :: proc(box: Box, rect: Rect, color := THEME_BLACK) {
-	FRAME_WIDTH :: 18
-	FRAME_HEIGHT :: 18
-	// Padding - width and height of each segment in the 9-slice texture
-	P :: 6
-
-	source := Rect{FRAME_WIDTH * f32(box), 0, FRAME_WIDTH, FRAME_HEIGHT}
-	sx := source.x
-	sy := source.y
-	sw := source.width
-	sh := source.height
-
-	rx := rect.x - P / 2
-	ry := rect.y - P / 2
-	rw := rect.width + P
-	rh := rect.height + P
-
-	rlgl.SetTexture(assets.boxes.id)
-	rlgl.Begin(rlgl.QUADS)
-
-	// Top left corner
-	draw_texture_impl(assets.boxes, {sx, sy, P, P}, {rx, ry, P, P}, tint = color)
-
-	// Top edge
-	draw_texture_impl(
-		assets.boxes,
-		{sx + P, sy, sw - P * 2, P},
-		{rx + P, ry, rw - P * 2, P},
-		tint = color,
-	)
-
-	// Top right corner
-	draw_texture_impl(assets.boxes, {sx + sw - P, sy, P, P}, {rx + rw - P, ry, P, P}, tint = color)
-
-	// Right edge
-	draw_texture_impl(
-		assets.boxes,
-		{sx + sw - P, sy + P, P, sh - P * 2},
-		{rx + rw - P, ry + P, P, rh - P * 2},
-		tint = color,
-	)
-
-	// Bottom right corner
-	draw_texture_impl(
-		assets.boxes,
-		{sx + sw - P, sy + sh - P, P, P},
-		{rx + rw - P, ry + rh - P, P, P},
-		tint = color,
-	)
-
-	// Bottom edge
-	draw_texture_impl(
-		assets.boxes,
-		{sx + P, sy + sh - P, sw - P * 2, P},
-		{rx + P, ry + rh - P, rw - P * 2, P},
-		tint = color,
-	)
-
-	// Bottom left corner
-	draw_texture_impl(assets.boxes, {sx, sy + sh - P, P, P}, {rx, ry + rh - P, P, P}, tint = color)
-
-	// Left edge
-	draw_texture_impl(
-		assets.boxes,
-		{sx, sy + P, P, sh - P * 2},
-		{rx, ry + P, P, rh - P * 2},
-		tint = color,
-	)
-
-	// Middle
-	if box == .Filled_Rounded || box == .Filled_Normal {
-		draw_texture_impl(
-			assets.boxes,
-			{sx + P, sy + P, sw - P * 2, sh - P * 2},
-			{rx + P, ry + P, rw - P * 2, rh - P * 2},
-			tint = color,
-		)
-	}
-
-	rlgl.End()
-}
-
-ICON_SIZE :: 16
-
-draw_icon :: proc(icon: Icon, pos: Point, color := THEME_BLACK) {
-	source := Rect{ICON_SIZE * f32(icon), 0, ICON_SIZE, ICON_SIZE}
-	dest := Rect{pos.x, pos.y, ICON_SIZE, ICON_SIZE}
-	draw_texture_ex(assets.icons, source, dest, color)
 }
 
 begin_scissor :: proc(rect: Rect) {
