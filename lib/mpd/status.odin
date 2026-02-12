@@ -1,5 +1,6 @@
 package mpd
 
+import "core:fmt"
 import "core:log"
 import "core:strings"
 import "core:time"
@@ -25,14 +26,16 @@ Status :: struct {
 	duration:    time.Duration,
 }
 
-Song :: struct {
+Song :: struct #all_or_none {
 	// Song file uri
-	uri:      string,
-	id:       int,
-	title:    Maybe(string),
-	artist:   Maybe(string),
-	album:    Maybe(string),
-	duration: time.Duration,
+	uri:           string,
+	id:            int,
+	title:         Maybe(string),
+	artist:        Maybe(string),
+	album:         Maybe(string),
+	duration:      time.Duration,
+	// Formatted string duration.
+	duration_text: string,
 }
 
 song_destroy :: proc(song: ^Song) {
@@ -42,6 +45,7 @@ song_destroy :: proc(song: ^Song) {
 	delete(song.title.? or_else "")
 	delete(song.artist.? or_else "")
 	delete(song.album.? or_else "")
+	delete(song.duration_text)
 }
 
 @(require_results)
@@ -156,8 +160,18 @@ _response_next_song :: proc(res: ^Response) -> (song: Maybe(Song), err: Error) {
 		case "Album":
 			s.album = strings.clone(pair.value)
 		case "duration":
-			secs := pair_parse_f32(pair) or_return
-			s.duration = time.Duration(secs) * time.Second
+			secs_f32 := pair_parse_f32(pair) or_return
+			dur := time.Duration(secs_f32) * time.Second
+			s.duration = dur
+
+			secs := i32(secs_f32) % 60
+			mins := i32(time.duration_minutes(dur)) % 60
+			if dur >= time.Hour {
+				hours := i32(time.duration_hours(dur))
+				s.duration_text = fmt.aprintf("%02d:%02d:%02d", hours, mins, secs)
+			} else {
+				s.duration_text = fmt.aprintf("%02d:%02d", mins, secs)
+			}
 		case "Id":
 			s.id = pair_parse_int(pair) or_return
 		}

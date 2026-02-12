@@ -135,10 +135,10 @@ draw_text :: proc(
 ) -> (
 	advance: Point,
 ) {
-	advance_x: f32 = 0
-
 	rlgl.SetTexture(font.texture.id)
 	rlgl.Begin(rlgl.QUADS)
+
+	advance_x: f32 = 0
 
 	for rune in text {
 		glyph := font.glyphs[0] // defaults to null char
@@ -187,6 +187,20 @@ _draw_glyph :: #force_inline proc(
 	draw_texture_impl(font.texture, source, dest, color)
 
 	return f32(glyph.advance_x) * scale
+}
+
+measure_text :: proc(font: Font, text: string, scale: f32 = 1) -> (size: Point) {
+	for rune in text {
+		glyph := font.glyphs[0] // defaults to null char
+		if i32(rune) < font.glyph_count {
+			glyph = font.glyphs[rune]
+		}
+
+		size.x += f32(glyph.advance_x) * scale
+	}
+
+	size.y = f32(font.size)
+	return
 }
 
 begin_scissor :: #force_inline proc(rect: Rect) {
