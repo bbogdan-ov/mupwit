@@ -3,18 +3,14 @@ package mpd
 import "core:fmt"
 import "core:log"
 import "core:net"
-import "core:strings"
 
-// Format and execute a MPD command
+// Execute a MPD command.
 executef :: proc(client: ^Client, format: string, args: ..any) -> Error {
-	sb := strings.builder_make()
-	defer strings.builder_destroy(&sb)
-	fmt.sbprintfln(&sb, format, ..args)
-	return cmd_send(client, strings.to_string(sb))
+	return _cmd_send(client, fmt.tprintfln(format, ..args))
 }
 
 @(private)
-cmd_send :: proc(client: ^Client, cmd: string) -> Error {
+_cmd_send :: proc(client: ^Client, cmd: string) -> Error {
 	size, err := net.send(client.sock, transmute([]u8)cmd)
 	if err != nil {
 		log.errorf("CLIENT: Unable to send command `%s`: %s", cmd, err)
