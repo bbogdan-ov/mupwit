@@ -1,5 +1,6 @@
 package ui
 
+import "base:runtime"
 import "core:log"
 import "core:math"
 import "core:os"
@@ -28,6 +29,10 @@ Window :: struct #all_or_none {
 	// Text truncation
 	text_trunc_width: f32,
 	text_trunc_x:     f32,
+
+	// Arena allocator for objects that live within one render frame.
+	frame_allocator:  runtime.Allocator,
+	frame_arena:      runtime.Arena,
 }
 
 window := Window {
@@ -44,6 +49,9 @@ window := Window {
 	//
 	text_trunc_width = 0,
 	text_trunc_x     = 0,
+	//
+	frame_arena      = runtime.Arena{},
+	frame_allocator  = runtime.Allocator{},
 }
 
 @(private)
@@ -73,8 +81,10 @@ window_init :: proc(title: cstring, app_id: cstring, width, height: f32) {
 
 	log.info("GLFW initialized")
 
+	// Init window state
 	window.width = width
 	window.height = height
+	window.frame_allocator = runtime.arena_allocator(&window.frame_arena)
 
 	glfw.DefaultWindowHints()
 
