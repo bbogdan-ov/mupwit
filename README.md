@@ -41,16 +41,9 @@ and learning purposes.
 
 ## Building
 
-TODO: staticaly link with `libmpdclient` and maybe `raylib`?
-
 **Dependencies**:
-- raylib: 5.5
-- libmpdclient: 2.23
-
-```sh
-RELEASE=1 make -B
-./build/mupwit
-```
+- [Odin](https://odin-lang.org) compiler
+- GCC or another C compiler
 
 ## License
 
