@@ -98,8 +98,6 @@ begin_frame :: proc(color: Color) {
 	rlgl.ClearScreenBuffers()
 
 	ctx_reset()
-	ctx.width = f32(window.width)
-	ctx.height = f32(window.height)
 }
 
 end_frame :: proc() {
@@ -114,4 +112,8 @@ window_close :: proc() {
 	glfw.DestroyWindow(window.handle)
 	glfw.Terminate()
 	log.info("Window successfully closed")
+}
+
+window_rect :: proc() -> Rect {
+	return Rect{0, 0, f32(window.width), f32(window.height)}
 }

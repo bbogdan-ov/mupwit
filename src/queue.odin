@@ -8,7 +8,7 @@ Queue :: struct {
 	songs: [dynamic]mpd.Song,
 }
 
-queue_make :: proc() -> Queue {
+queue_create :: proc() -> Queue {
 	return Queue{songs = nil}
 }
 queue_destroy :: proc(queue: ^Queue) {

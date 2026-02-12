@@ -126,9 +126,8 @@ draw_normal_text :: #force_inline proc(
 	pos: ui.Point,
 	color := BLACK,
 	scale: f32 = 1,
-	max_width: f32 = 0.0,
 ) -> (
-	advance_y: f32,
+	advance: ui.Point,
 ) {
-	return ui.draw_text(assets.normal_font, text, pos, color, scale, max_width)
+	return ui.draw_text(assets.normal_font, text, pos, color, scale)
 }

@@ -132,9 +132,8 @@ draw_text :: proc(
 	pos: Point,
 	color: Color,
 	scale: f32 = 1,
-	max_width: f32 = 0.0,
 ) -> (
-	advance_y: f32,
+	advance: Point,
 ) {
 	advance_x: f32 = 0
 
@@ -148,9 +147,10 @@ draw_text :: proc(
 		}
 
 		glyph_pos := Point{pos.x + advance_x, pos.y}
+		next_x := (pos.x - ctx.text_trunc_x) + advance_x + f32(glyph.advance_x) * 2 * scale
 
 		// NOTE: multiplying glyph width by 2 to look two glyphs ahead
-		if max_width > 0 && advance_x + f32(glyph.advance_x) * 2 * scale > max_width {
+		if ctx.text_trunc_width > 0 && next_x > ctx.text_trunc_width {
 			glyph = font.glyphs['…']
 			advance_x += _draw_glyph(font, glyph, glyph_pos, scale, color)
 			break
@@ -161,7 +161,7 @@ draw_text :: proc(
 
 	rlgl.End()
 
-	return f32(font.size) * scale
+	return {advance_x, f32(font.size) * scale}
 }
 
 @(private)
@@ -189,14 +189,24 @@ _draw_glyph :: #force_inline proc(
 	return f32(glyph.advance_x) * scale
 }
 
-begin_scissor :: proc(rect: Rect) {
+begin_scissor :: #force_inline proc(rect: Rect) {
 	rlgl.DrawRenderBatchActive()
 	rlgl.EnableScissorTest()
 	rlgl.Scissor(i32(rect.x), i32(rect.y), i32(rect.width), i32(rect.height))
 }
-end_scissor :: proc() {
+end_scissor :: #force_inline proc() {
 	rlgl.DrawRenderBatchActive()
 	rlgl.DisableScissorTest()
+}
+
+begin_text_truncate :: #force_inline proc(x: f32, width: f32) {
+	assert(width > 0)
+	ctx.text_trunc_x = x
+	ctx.text_trunc_width = width
+}
+end_text_truncate :: #force_inline proc() {
+	// NOTE: we leave `text_trunc_width` as is because we don't care.
+	ctx.text_trunc_width = 0
 }
 
 load_texture :: #force_inline proc(

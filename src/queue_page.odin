@@ -6,34 +6,43 @@ import "../lib/ui"
 @(private)
 _SONG_HEIGHT :: QUEUE_SONG_COVER_SIZE + GAP * 2
 
-queue_page_draw :: proc(queue: Queue) {
-	pos := ui.Point{10, 10}
+Queue_Page :: struct #all_or_none {
+	scroll: ui.Scroll,
+}
+
+queue_page_create :: proc() -> Queue_Page {
+	return Queue_Page{scroll = ui.scroll_create()}
+}
+
+queue_page_draw :: proc(page: ^Queue_Page, queue: Queue) {
+	container := ui.rect_shrink(ui.window_rect(), GAP, GAP)
 
 	if len(queue.songs) == 0 {
-		draw_normal_text("no songs", pos)
+		draw_normal_text("no songs", {container.x, container.y})
 		return
 	}
 
 	loop: for &song, idx in queue.songs {
-		y := f32(GAP + idx * _SONG_HEIGHT) - ui.ctx.scroll
+		y := container.y + f32(idx * _SONG_HEIGHT) - page.scroll.offset
 
 		// Don't draw songs above the screen
 		if y + _SONG_HEIGHT < 0 do continue
 		// Don't draw songs below the screen
-		if y > ui.ctx.height do break loop
+		if y > container.height do break loop
 
-		_draw_song(&song, y)
+		_draw_song(&song, y, container)
 	}
 }
 
 @(private)
-_draw_song :: proc(song: ^mpd.Song, y: f32) {
-	rect := ui.Rect{GAP, y, ui.ctx.width - GAP * 2, _SONG_HEIGHT}
-
+_draw_song :: proc(song: ^mpd.Song, y: f32, container: ui.Rect) {
+	rect := ui.Rect{container.x, y, container.width, _SONG_HEIGHT}
 	offset := ui.Point{rect.x, rect.y}
 
-	is_hovering := ui.rect_contains_point(rect, ui.window.mouse)
+	ui.begin_text_truncate(rect.x + GAP, rect.width - GAP * 2)
+	defer ui.end_text_truncate()
 
+	is_hovering := ui.rect_contains_point(rect, ui.window.mouse)
 	if is_hovering {
 		// Draw background
 		draw_box(.Filled_Rounded, rect, LIGHTGRAY)
@@ -62,7 +71,7 @@ _draw_song :: proc(song: ^mpd.Song, y: f32) {
 		title := song.title.? or_else UNKNOWN
 		artist := song.artist.? or_else UNKNOWN
 
-		offset.y += draw_normal_text(title, offset)
+		offset.y += draw_normal_text(title, offset).y
 		draw_normal_text(artist, offset, GRAY)
 	}
 }

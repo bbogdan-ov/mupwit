@@ -13,18 +13,22 @@ main :: proc() {
 		procedure = logger_proc,
 	}
 
-	// Initialize app
-	client_state: mpd.State = .Connecting
-	client := mpd.connect()
-
-	player := player_make()
-	defer player_destroy(&player)
-	queue := queue_make()
-	defer queue_destroy(&queue)
-
+	// Initialize window
 	ui.window_init(WINDOW_TITLE, "mupwit", WINDOW_WIDTH, WINDOW_HEIGHT)
 	load_assets()
 
+	// Initialize other things
+	client_state: mpd.State = .Connecting
+	client := mpd.connect()
+
+	player := player_create()
+	defer player_destroy(&player)
+	queue := queue_create()
+	defer queue_destroy(&queue)
+
+	queue_page := queue_page_create()
+
+	// TODO: temporary
 	mpd.send_action(client, mpd.Action_Req_Queue{})
 
 	for !ui.window_should_close() {
@@ -66,7 +70,7 @@ main :: proc() {
 		case .Connecting:
 			draw_normal_text("Connecting...", {}, BLACK)
 		case .Ready:
-			queue_page_draw(queue)
+			queue_page_draw(&queue_page, queue)
 		case .Error:
 			draw_normal_text("Error!", {}, BLACK)
 		}

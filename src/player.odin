@@ -9,7 +9,7 @@ Player :: struct #all_or_none {
 	song:   Maybe(mpd.Song),
 }
 
-player_make :: proc() -> Player {
+player_create :: proc() -> Player {
 	return Player{status = nil, song = nil}
 }
 player_destroy :: proc(player: ^Player) {
