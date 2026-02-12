@@ -107,7 +107,7 @@ _do_connect :: proc(t: ^thread.Thread) {
 	}
 }
 
-@(private)
+@(private, require_results)
 _dial :: proc(data: ^_Connect_Data) -> (err: Error) {
 	addr, ok := net.parse_ip4_address(data.ip)
 	if !ok do return .Parse_IP
@@ -132,9 +132,17 @@ _dial :: proc(data: ^_Connect_Data) -> (err: Error) {
 
 		status_req_timer -= elapsed
 
+		err := _handle_idle(client)
+		if err != nil {
+			log.error("CLIENT: Failed to handle idle event:", err)
+		}
+
 		// Request current status and song periodically
 		if status_req_timer <= 0 {
-			_periodic_request_status(client)
+			err := request_status(client)
+			if err != nil {
+				log.error("CLIENT: Failed to request current status after interval:", err)
+			}
 			status_req_timer = STATUS_REQ_INTERVAL
 		}
 
@@ -159,7 +167,51 @@ _dial :: proc(data: ^_Connect_Data) -> (err: Error) {
 	return nil
 }
 
-@(private)
+// Handle MPD "idle" events.
+// See: https://mpd.readthedocs.io/en/latest/protocol.html#command-idle
+@(private, require_results)
+_handle_idle :: proc(client: ^Client) -> (err: Error) {
+	// FIXME: i'm not sure if this is a good way to listen to idle events...
+	executef(client, "idle") or_return
+	// Send "noidle" immediately because "idle" is a blocking command, "noidle"
+	// makes it stop listening to events and sends all the occurred events back.
+	executef(client, "noidle") or_return
+
+	res := receive(client) or_return
+	defer response_destroy(&res)
+
+	for {
+		maybe_pair := response_next_pair(&res) or_return
+		pair := maybe_pair.? or_break
+
+		if pair.name != "changed" {
+			log.errorf("CLIENT: Invalid idle event pair: %s => '%s'", pair.name, pair.value)
+			return .Response_Invalid_Pair
+		}
+
+		log.debugf("CLIENT: Received idle event: '%s'", pair.value)
+
+		err: Error = nil
+		switch pair.value {
+		case "database":
+			err = request_albums(client)
+		case "playlist":
+			err = request_queue_songs(client)
+		case "player":
+			err = request_status(client)
+		case: // ignore
+		}
+
+		if err != nil {
+			log.errorf("CLIENT: Failed to make request after '%s' idle event: %s", pair.value, err)
+		}
+	}
+
+
+	return nil
+}
+
+@(private, require_results)
 _consume_version_message :: proc(client: ^Client) -> (err: Error) {
 	res := receive(client) or_return
 	defer response_destroy(&res)
@@ -180,37 +232,7 @@ _consume_version_message :: proc(client: ^Client) -> (err: Error) {
 	return
 }
 
-@(private)
-_periodic_request_status :: proc(client: ^Client) {
-	status, err := request_status(client)
-	if err != nil {
-		log.error("CLIENT: Failed periodic status request")
-		return
-	}
-
-	if status.cur_song_id == client.prev_song_id {
-		// Song didn't change, simply send the up-to-date playback status
-		_send_event(client, Event_Status{status})
-		return
-	}
-
-	// Song did change, request its info
-	song: Maybe(Song) = nil
-
-	if id, ok := status.cur_song_id.?; ok {
-		song, err = request_queue_song_by_id(client, id)
-		if err != nil {
-			log.error("CLIENT: Failed to request a song from the periodically requested status")
-			return
-		}
-	}
-
-	_send_event(client, Event_Status_And_Song{status, song})
-
-	client.prev_song_id = status.cur_song_id
-}
-
-@(private)
+@(private, require_results)
 _handle_action :: proc(client: ^Client, action: Action) -> (close: bool, err: Error) {
 	switch a in action {
 	case Action_Play:
@@ -225,14 +247,9 @@ _handle_action :: proc(client: ^Client, action: Action) -> (close: bool, err: Er
 		_send_event(client, Event_Cover{a.id, cover})
 
 	case Action_Req_Albums:
-		albums := make([dynamic]Album, len = 0, cap = 32)
-		request_albums(client, &albums) or_return
-		_send_event(client, Event_Albums{albums})
-
+		request_albums(client) or_return
 	case Action_Req_Queue:
-		songs := make([dynamic]Song, len = 0, cap = 256)
-		request_queue_songs(client, &songs) or_return
-		_send_event(client, Event_Queue{songs})
+		request_queue_songs(client) or_return
 
 	case Action_Close:
 		close = true

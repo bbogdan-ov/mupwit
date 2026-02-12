@@ -43,31 +43,41 @@ song_destroy :: proc(song: ^Song) {
 	delete(song.album.? or_else "")
 }
 
-request_status :: proc(client: ^Client, loc := #caller_location) -> (status: Status, err: Error) {
+@(require_results)
+request_status :: proc(client: ^Client, loc := #caller_location) -> (err: Error) {
+	status: Status
 	status, err = #force_inline _request_status(client)
 	if err != nil {
 		log.error("CLIENT: Failed to request current playback status:", err)
 	}
-	return
-}
 
-request_status_and_song :: proc(
-	client: ^Client,
-) -> (
-	status: Status,
-	song: Maybe(Song),
-	err: Error,
-) {
-	status = request_status(client) or_return
-
-	if id, ok := status.cur_song_id.?; ok {
-		song = request_queue_song_by_id(client, id) or_return
+	if status.cur_song_id == client.prev_song_id {
+		// Song didn't change, simply send the up-to-date playback status.
+		_send_event(client, Event_Status{status})
+		return
 	}
 
+	// Song did change, request its info
+	song: Maybe(Song) = nil
+
+	client.prev_song_id = status.cur_song_id
+
+	if id, ok := status.cur_song_id.?; ok {
+		song, err = request_queue_song_by_id(client, id)
+		if err != nil {
+			log.error(
+				"CLIENT: Failed to request the current song after the status has changed:",
+				err,
+			)
+			return
+		}
+	}
+
+	_send_event(client, Event_Status_And_Song{status, song})
 	return
 }
 
-@(private)
+@(private, require_results)
 _request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 	executef(client, "status") or_return
 
@@ -107,6 +117,7 @@ _request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 
 // Parse the next song info the `Response`
 // All song fields are owned by this struct, don't forget to `song_destroy`
+@(require_results)
 response_next_song :: proc(client: ^Client, res: ^Response) -> (song: Maybe(Song), err: Error) {
 	song, err = _response_next_song(res)
 	if err != nil {
@@ -115,7 +126,7 @@ response_next_song :: proc(client: ^Client, res: ^Response) -> (song: Maybe(Song
 	return
 }
 
-@(private)
+@(private, require_results)
 _response_next_song :: proc(res: ^Response) -> (song: Maybe(Song), err: Error) {
 	s: Song
 

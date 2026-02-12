@@ -17,19 +17,22 @@ album_destroy :: proc(album: ^Album) {
 	util.maybe_str_delete(album.artist)
 }
 
-request_albums :: proc(client: ^Client, albums: ^[dynamic]Album) -> (err: Error) {
-	err = #force_inline _request_albums(client, albums)
+@(require_results)
+request_albums :: proc(client: ^Client) -> (err: Error) {
+	err = #force_inline _request_albums(client)
 	if err != nil {
 		log.error("CLIENT: Failed to request list of albums:", err)
 	}
 	return
 }
 
-@(private)
-_request_albums :: proc(client: ^Client, albums: ^[dynamic]Album) -> (err: Error) {
+@(private, require_results)
+_request_albums :: proc(client: ^Client) -> (err: Error) {
 	executef(client, "list album group artist") or_return // request all albums grouped by artists
 	res := receive(client) or_return
 	defer response_destroy(&res)
+
+	albums := make([dynamic]Album, len = 0, cap = 32)
 
 	// Slice from the response buffer
 	cur_artist: Maybe(string) = nil
@@ -64,7 +67,7 @@ _request_albums :: proc(client: ^Client, albums: ^[dynamic]Album) -> (err: Error
 					title  = strings.clone(pair.value),
 					artist = artist,
 				}
-				append(albums, album)
+				append(&albums, album)
 			}
 		} else {
 			log.errorf(
@@ -99,5 +102,6 @@ _request_albums :: proc(client: ^Client, albums: ^[dynamic]Album) -> (err: Error
 		album.first_song = song
 	}
 
+	_send_event(client, Event_Albums{albums})
 	return nil
 }

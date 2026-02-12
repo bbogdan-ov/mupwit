@@ -8,6 +8,7 @@ Cover_Data :: struct {
 	image: ^image.Image,
 }
 
+@(require_results)
 request_cover :: proc(client: ^Client, song_uri: string) -> (cover: Cover_Data, err: Error) {
 	offset := 0
 

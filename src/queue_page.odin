@@ -13,6 +13,10 @@ queue_page_draw :: proc(queue: Queue) {
 	}
 
 	for song in queue.songs {
+		if i32(pos.y) > ui.window.height {
+			break
+		}
+
 		if title, ok := song.title.?; ok {
 			pos.y += ui.draw_text(title, pos) + GAP
 		} else {

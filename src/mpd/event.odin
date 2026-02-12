@@ -11,6 +11,8 @@ Event_Status :: struct {
 
 Event_Status_And_Song :: struct #all_or_none {
 	status: Status,
+	// Currently playing song changed as well as the current status.
+	// When `nil`, no sogn is currently being played for some reason (e.g. no more songs to play).
 	song:   Maybe(Song),
 }
 

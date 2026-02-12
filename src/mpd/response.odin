@@ -16,11 +16,13 @@ Pair :: struct {
 	value: string,
 }
 
+@(require_results)
 pair_parse_int :: proc(pair: Pair) -> (number: int, err: Error) {
 	num, ok := strconv.parse_int(string(pair.value))
 	if !ok do return 0, .Pair_Expected_Number
 	return num, nil
 }
+@(require_results)
 pair_parse_f32 :: proc(pair: Pair) -> (number: f32, err: Error) {
 	num, ok := strconv.parse_f32(string(pair.value))
 	if !ok do return 0, .Pair_Expected_Number
@@ -32,6 +34,7 @@ Response :: struct {
 	offset: int,
 }
 
+@(require_results)
 receive :: proc(client: ^Client, loc := #caller_location) -> (res: Response, err: Error) {
 	buffer := bytes.Buffer{}
 	bytes.buffer_init_allocator(&buffer, len = 0, cap = 32)
@@ -88,12 +91,14 @@ response_destroy :: proc(res: ^Response) {
 	res.buf = nil
 }
 
+@(require_results)
 receive_ok :: proc(client: ^Client) -> (err: Error) {
 	res := receive(client) or_return
 	defer response_destroy(&res)
 	return response_expect_ok(&res)
 }
 
+@(require_results)
 response_expect_ok :: proc(res: ^Response) -> (err: Error) {
 	s := response_next_line(res) or_return
 	if s == "OK" {
@@ -105,6 +110,7 @@ response_expect_ok :: proc(res: ^Response) -> (err: Error) {
 
 // Parse next binary blob from a response.
 // Returns a slice of bytes from response's buffer.
+@(require_results)
 response_next_binary :: proc(res: ^Response) -> (binary: []byte, err: Error) {
 	binary, err = #force_inline _response_next_binary(res)
 	if err != nil {
@@ -113,7 +119,7 @@ response_next_binary :: proc(res: ^Response) -> (binary: []byte, err: Error) {
 	return
 }
 
-@(private)
+@(private, require_results)
 _response_next_binary :: proc(res: ^Response) -> (binary: []byte, err: Error) {
 	pair := response_expect_pair_with_name(res, "binary") or_return
 	size := pair_parse_int(pair) or_return
@@ -131,6 +137,7 @@ _response_next_binary :: proc(res: ^Response) -> (binary: []byte, err: Error) {
 
 // Parse next string line the in a response.
 // Returns a slice from response's buffer.
+@(require_results)
 response_next_line :: proc(res: ^Response) -> (str: string, err: Error) {
 	idx := bytes.index_byte(res.buf[res.offset:], '\n')
 
@@ -153,6 +160,7 @@ response_next_line :: proc(res: ^Response) -> (str: string, err: Error) {
 
 // Parse next pair from a response.
 // Returns `Pair` with `name` and `value` as string slices from response's buffer.
+@(require_results)
 response_next_pair :: proc(res: ^Response) -> (pair: Maybe(Pair), err: Error) {
 	pair, err = #force_inline _response_next_pair(res)
 	if err != nil {
@@ -161,7 +169,7 @@ response_next_pair :: proc(res: ^Response) -> (pair: Maybe(Pair), err: Error) {
 	return
 }
 
-@(private)
+@(private, require_results)
 _response_next_pair :: proc(res: ^Response) -> (pair: Maybe(Pair), err: Error) {
 	s := response_next_line(res) or_return
 	if s == "OK" || s == "" do return nil, nil
@@ -180,6 +188,7 @@ _response_next_pair :: proc(res: ^Response) -> (pair: Maybe(Pair), err: Error) {
 	return p, nil
 }
 
+@(require_results)
 response_expect_pair_with_name :: #force_inline proc(
 	res: ^Response,
 	name: string,
@@ -195,6 +204,7 @@ response_expect_pair_with_name :: #force_inline proc(
 	return p, nil
 }
 
+@(require_results)
 response_optional_pair_with_name :: #force_inline proc(
 	res: ^Response,
 	name: string,
