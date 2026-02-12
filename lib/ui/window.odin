@@ -96,6 +96,10 @@ begin_frame :: proc(color: Color) {
 	rlgl.Viewport(0, 0, window.width, window.height)
 	rlgl.ClearColor(color.r, color.g, color.b, color.a)
 	rlgl.ClearScreenBuffers()
+
+	ctx_reset()
+	ctx.width = f32(window.width)
+	ctx.height = f32(window.height)
 }
 
 end_frame :: proc() {

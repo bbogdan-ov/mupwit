@@ -1,5 +1,6 @@
 SOURCES       := $(shell find src/       -type f -iname '*.odin')
 BUILD_SOURCES := $(shell find build_src/ -type f -iname '*.odin')
+LIB_SOURCES   := $(shell find lib/       -type f -iname '*.odin')
 ASSETS        := $(shell find assets/    -type f)
 
 FLAGS := \
@@ -20,7 +21,7 @@ all: build build/mupwit
 build:
 	mkdir -p build
 
-build/mupwit: $(SOURCES) build/rlgl.a build/assets/assets.odin
+build/mupwit: $(SOURCES) $(LIB_SOURCES) build/rlgl.a build/assets/assets.odin
 	@echo "INFO: Compiling MUPWIT..."
 	@odin build src -out:build/mupwit -debug $(FLAGS)
 
