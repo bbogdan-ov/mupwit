@@ -258,14 +258,12 @@ draw_box :: proc(box: Box, rect: Rect, color := THEME_BLACK) {
 	rlgl.End()
 }
 
+ICON_SIZE :: 16
+
 draw_icon :: proc(icon: Icon, pos: Point, color := THEME_BLACK) {
-	panic("TODO:")
-	// FRAME_WIDTH :: 16
-	// FRAME_HEIGHT :: 16
-	//
-	// source := rl.Rectangle{FRAME_WIDTH * f32(icon), 0, FRAME_WIDTH, FRAME_HEIGHT}
-	// dest := rl.Rectangle{pos.x, pos.y, FRAME_WIDTH, FRAME_HEIGHT}
-	// rl.DrawTexturePro(assets.icons, source, dest, {}, 0, rl.Color(color))
+	source := Rect{ICON_SIZE * f32(icon), 0, ICON_SIZE, ICON_SIZE}
+	dest := Rect{pos.x, pos.y, ICON_SIZE, ICON_SIZE}
+	draw_texture_ex(assets.icons, source, dest, color)
 }
 
 begin_scissor :: proc(rect: Rect) {
