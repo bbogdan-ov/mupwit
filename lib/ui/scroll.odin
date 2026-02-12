@@ -8,6 +8,8 @@ Scroll :: struct #all_or_none {
 	_prev_offset:   f32,
 	// Vertical offset of the scroll.
 	offset:         f32,
+	// How long are the contents of the scrolling container.
+	length:         f32,
 	tween:          Timer,
 }
 
@@ -16,13 +18,16 @@ scroll_create :: proc() -> Scroll {
 		_actual_offset = 0,
 		_prev_offset = 0,
 		offset = 0,
+		length = 0,
 		tween = timer_create(SCROLL_TWEEN_DURATION),
 	}
 }
 
-scroll_update :: proc(scroll: ^Scroll, scroll_height: f32, container_height: f32) {
+scroll_update :: proc(scroll: ^Scroll, length: f32, container_height: f32) {
+	scroll.length = length
+
 	if window.wheel.y != 0 {
-		max_offset := math.max(scroll_height - container_height, 0)
+		max_offset := math.max(length - container_height, 0)
 
 		scroll._prev_offset = scroll.offset
 		scroll._actual_offset -= window.wheel.y * SCROLL_SENSITIVITY
@@ -48,4 +53,15 @@ scroll_update :: proc(scroll: ^Scroll, scroll_height: f32, container_height: f32
 	} else {
 		scroll.offset = math.floor(scroll._actual_offset)
 	}
+}
+
+scroll_draw :: proc(scroll: Scroll, container: Rect, offset_x: f32, color: Color) {
+	c := container
+
+	height := math.floor(c.height * c.height / scroll.length)
+	if height >= c.height do return
+
+	x := c.x + c.width + offset_x
+	y := math.floor(c.y + scroll.offset * (c.height - height) / (scroll.length - c.height))
+	draw_rect({x, y, SCROLL_THICKNESS, height}, color)
 }

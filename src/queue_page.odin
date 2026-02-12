@@ -19,6 +19,8 @@ queue_page_draw :: proc(page: ^Queue_Page) {
 
 	ui.scroll_update(&page.scroll, f32(len(queue.songs) * _SONG_HEIGHT), container.height)
 
+	ui.scroll_draw(page.scroll, container, GAP / 2 - ui.SCROLL_THICKNESS / 2, LIGHTGRAY)
+
 	// TODO: temporary
 	if len(queue.songs) == 0 {
 		draw_normal_text("no songs", {container.x, container.y})
