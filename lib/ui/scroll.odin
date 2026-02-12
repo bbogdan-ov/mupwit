@@ -27,11 +27,25 @@ scroll_update :: proc(scroll: ^Scroll, scroll_height: f32, container_height: f32
 		scroll._prev_offset = scroll.offset
 		scroll._actual_offset -= window.wheel.y * SCROLL_SENSITIVITY
 		scroll._actual_offset = math.clamp(scroll._actual_offset, 0, max_offset)
-		timer_start(&scroll.tween)
+
+		when SCROLL_TWEEN_DURATION > 0 {
+			timer_start(&scroll.tween)
+		}
 	}
 
-	timer_update(&scroll.tween)
+	when SCROLL_TWEEN_DURATION > 0 {
+		timer_update(&scroll.tween)
+	}
 
-	offset := timer_lerp(scroll.tween, ease_out_sine, scroll._prev_offset, scroll._actual_offset)
-	scroll.offset = math.floor(offset)
+	when SCROLL_TWEEN_DURATION > 0 {
+		offset := timer_lerp(
+			scroll.tween,
+			ease_out_sine,
+			scroll._prev_offset,
+			scroll._actual_offset,
+		)
+		scroll.offset = math.floor(offset)
+	} else {
+		scroll.offset = math.floor(scroll._actual_offset)
+	}
 }
