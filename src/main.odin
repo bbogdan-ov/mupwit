@@ -21,10 +21,10 @@ main :: proc() {
 	client_state: mpd.State = .Connecting
 	client := mpd.connect()
 
-	player := player_create()
-	defer player_destroy(&player)
-	queue := queue_create()
-	defer queue_destroy(&queue)
+	player_init()
+	defer player_destroy()
+	queue_init()
+	defer queue_destroy()
 
 	queue_page := queue_page_create()
 
@@ -45,9 +45,9 @@ main :: proc() {
 				client_state = e.state
 
 			case mpd.Event_Status:
-				player_on_status(&player, e.status)
+				player_on_status(e.status)
 			case mpd.Event_Status_And_Song:
-				player_on_status_and_song(&player, e.status, e.song)
+				player_on_status_and_song(e.status, e.song)
 
 			case mpd.Event_Albums:
 				// TODO: consume all the received albums for now
@@ -55,7 +55,7 @@ main :: proc() {
 				delete(e.albums)
 
 			case mpd.Event_Queue:
-				queue_on_queue(&queue, e)
+				queue_on_queue(e)
 
 			case mpd.Event_Cover:
 				// TODO: consume all the received covers for now
@@ -70,7 +70,7 @@ main :: proc() {
 		case .Connecting:
 			draw_normal_text("Connecting...", {}, BLACK)
 		case .Ready:
-			queue_page_draw(&queue_page, queue)
+			queue_page_draw(&queue_page)
 		case .Error:
 			draw_normal_text("Error!", {}, BLACK)
 		}

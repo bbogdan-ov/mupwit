@@ -14,7 +14,7 @@ queue_page_create :: proc() -> Queue_Page {
 	return Queue_Page{scroll = ui.scroll_create()}
 }
 
-queue_page_draw :: proc(page: ^Queue_Page, queue: Queue) {
+queue_page_draw :: proc(page: ^Queue_Page) {
 	container := ui.rect_shrink(ui.window_rect(), GAP, GAP)
 
 	ui.scroll_update(&page.scroll, f32(len(queue.songs) * _SONG_HEIGHT), container.height)

@@ -9,17 +9,22 @@ Player :: struct #all_or_none {
 	song:   Maybe(mpd.Song),
 }
 
-player_create :: proc() -> Player {
-	return Player{status = nil, song = nil}
+player: Player
+
+player_init :: proc() {
+	player = Player {
+		status = nil,
+		song   = nil,
+	}
 }
-player_destroy :: proc(player: ^Player) {
+player_destroy :: proc() {
 	if s, ok := &player.song.?; ok do mpd.song_destroy(s)
 }
 
-player_on_status :: proc(player: ^Player, status: mpd.Status) {
+player_on_status :: proc(status: mpd.Status) {
 	player.status = status
 }
-player_on_status_and_song :: proc(player: ^Player, status: mpd.Status, song: Maybe(mpd.Song)) {
+player_on_status_and_song :: proc(status: mpd.Status, song: Maybe(mpd.Song)) {
 	player.status = status
 
 	s, ok := &player.song.?

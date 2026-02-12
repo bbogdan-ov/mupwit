@@ -8,21 +8,25 @@ Queue :: struct {
 	songs: [dynamic]mpd.Song,
 }
 
-queue_create :: proc() -> Queue {
-	return Queue{songs = nil}
+queue: Queue
+
+queue_init :: proc() {
+	queue = Queue {
+		songs = nil,
+	}
 }
-queue_destroy :: proc(queue: ^Queue) {
-	_queue_destroy_songs(queue)
+queue_destroy :: proc() {
+	_destroy_songs()
 }
 
-queue_on_queue :: proc(queue: ^Queue, event: mpd.Event_Queue) {
-	_queue_destroy_songs(queue)
+queue_on_queue :: proc(event: mpd.Event_Queue) {
+	_destroy_songs()
 	queue.songs = event.songs
 	log.infof("Queue received %d songs", len(queue.songs))
 }
 
 @(private)
-_queue_destroy_songs :: #force_inline proc(queue: ^Queue) {
+_destroy_songs :: #force_inline proc() {
 	if queue.songs == nil do return
 
 	for &song in queue.songs do mpd.song_destroy(&song)
