@@ -84,7 +84,7 @@ connect :: proc(ip := DEFAULT_IP, port := DEFAULT_PORT) -> ^Client {
 
 // Carefuly close the connection and free the memory owned by the client.
 close :: proc(client: ^Client) {
-	push_action(client, Action_Close{})
+	send_action(client, Action_Close{})
 
 	thread.destroy(client.thread)
 	log.info("CLIENT: Connection closed, destroying the client")
@@ -103,7 +103,7 @@ _do_connect :: proc(t: ^thread.Thread) {
 
 	err := _dial(data)
 	if err != nil {
-		_push_event(data.client, Event_State_Changed{.Error})
+		_send_event(data.client, Event_State_Changed{.Error})
 	}
 }
 
@@ -118,7 +118,7 @@ _dial :: proc(data: ^_Connect_Data) -> (err: Error) {
 	_consume_version_message(client) or_return
 
 	// Successfully connected
-	_push_event(client, Event_State_Changed{.Ready})
+	_send_event(client, Event_State_Changed{.Ready})
 	log.info("CLIENT: Successfully connected")
 
 	start := time.now()
@@ -138,17 +138,14 @@ _dial :: proc(data: ^_Connect_Data) -> (err: Error) {
 			status_req_timer = STATUS_REQ_INTERVAL
 		}
 
+		// Drain and handle all queued actions.
 		action: for {
-			switch a in _pop_action(client) {
+			switch a in _recv_action(client) {
 			case nil:
 				break action
 			case Action:
 				close, _ := _handle_action(client, a) // NOTE: ignoring the error
-
-				if close {
-					log.info("CLIENT: Closing the connection...")
-					break loop
-				}
+				if close do break loop
 			}
 		}
 
@@ -156,6 +153,7 @@ _dial :: proc(data: ^_Connect_Data) -> (err: Error) {
 		time.sleep(30 * time.Millisecond)
 	}
 
+	log.info("CLIENT: Closing the connection...")
 	net.close(client.sock)
 
 	return nil
@@ -192,7 +190,7 @@ _periodic_request_status :: proc(client: ^Client) {
 
 	if status.cur_song_id == client.prev_song_id {
 		// Song didn't change, simply send the up-to-date playback status
-		_push_event(client, Event_Status{status})
+		_send_event(client, Event_Status{status})
 		return
 	}
 
@@ -207,7 +205,7 @@ _periodic_request_status :: proc(client: ^Client) {
 		}
 	}
 
-	_push_event(client, Event_Status_And_Song{status, song})
+	_send_event(client, Event_Status_And_Song{status, song})
 
 	client.prev_song_id = status.cur_song_id
 }
@@ -224,17 +222,17 @@ _handle_action :: proc(client: ^Client, action: Action) -> (close: bool, err: Er
 
 	case Action_Req_Cover:
 		cover := request_cover(client, a.song_uri) or_return
-		_push_event(client, Event_Cover{a.id, cover})
+		_send_event(client, Event_Cover{a.id, cover})
 
 	case Action_Req_Albums:
 		albums := make([dynamic]Album, len = 0, cap = 32)
 		request_albums(client, &albums) or_return
-		_push_event(client, Event_Albums{albums})
+		_send_event(client, Event_Albums{albums})
 
 	case Action_Req_Queue:
 		songs := make([dynamic]Song, len = 0, cap = 256)
 		request_queue_songs(client, &songs) or_return
-		_push_event(client, Event_Queue{songs})
+		_send_event(client, Event_Queue{songs})
 
 	case Action_Close:
 		close = true
@@ -244,22 +242,22 @@ _handle_action :: proc(client: ^Client, action: Action) -> (close: bool, err: Er
 }
 
 @(private)
-_push_event :: proc(client: ^Client, event: Event) {
+_send_event :: proc(client: ^Client, event: Event) {
 	ok := chan.send(client.events, event)
 	assert(ok)
 }
-pop_event :: proc(client: ^Client) -> Event {
+recv_event :: proc(client: ^Client) -> Event {
 	event, ok := chan.try_recv(client.events)
 	if !ok do return nil
 	return event
 }
 
-push_action :: proc(client: ^Client, action: Action) {
+send_action :: proc(client: ^Client, action: Action) {
 	ok := chan.send(client.actions, action)
 	assert(ok)
 }
 @(private)
-_pop_action :: proc(client: ^Client) -> Maybe(Action) {
+_recv_action :: proc(client: ^Client) -> Maybe(Action) {
 	action, ok := chan.try_recv(client.actions)
 	if !ok do return nil
 	return action

@@ -76,14 +76,14 @@ main :: proc() {
 	ui.window_init()
 	load_assets()
 
-	mpd.push_action(client, mpd.Action_Req_Queue{})
+	mpd.send_action(client, mpd.Action_Req_Queue{})
 
 	for !ui.window_should_close() {
 		// Update
 
 		// Handle incoming events
 		events: for {
-			event := mpd.pop_event(client)
+			event := mpd.recv_event(client)
 			switch &e in event {
 			case nil:
 				break events
@@ -125,7 +125,7 @@ main :: proc() {
 		ui.end_frame()
 	}
 
-	mpd.push_action(client, mpd.Action_Close{})
+	mpd.send_action(client, mpd.Action_Close{})
 
 	ui.assets_destroy()
 	ui.window_close()
