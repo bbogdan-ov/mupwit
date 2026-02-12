@@ -52,6 +52,13 @@ _draw_song :: proc(song: ^mpd.Song, y: f32, container: ui.Rect) {
 		draw_box(.Filled_Rounded, rect, LIGHTGRAY)
 	}
 
+	// Draw "currently playing" marker
+	if cur_song, ok := player.song.?; ok && cur_song.id == song.id {
+		x := rect.x - ICON_SIZE / 2
+		y := rect.y + rect.height / 2 - ICON_SIZE / 2
+		draw_icon(.Small_Arrow_Right, {x, y})
+	}
+
 	// Draw song cover
 	offset.x += GAP
 	offset.y += GAP

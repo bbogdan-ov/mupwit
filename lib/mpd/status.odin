@@ -28,6 +28,7 @@ Status :: struct {
 Song :: struct {
 	// Song file uri
 	uri:      string,
+	id:       int,
 	title:    Maybe(string),
 	artist:   Maybe(string),
 	album:    Maybe(string),
@@ -129,6 +130,7 @@ response_next_song :: proc(client: ^Client, res: ^Response) -> (song: Maybe(Song
 @(private, require_results)
 _response_next_song :: proc(res: ^Response) -> (song: Maybe(Song), err: Error) {
 	s: Song
+	s.id = -1
 
 	already_parsed := false
 	pairs: for {
@@ -156,10 +158,16 @@ _response_next_song :: proc(res: ^Response) -> (song: Maybe(Song), err: Error) {
 		case "duration":
 			secs := pair_parse_f32(pair) or_return
 			s.duration = time.Duration(secs) * time.Second
+		case "Id":
+			s.id = pair_parse_int(pair) or_return
 		}
 	}
 
 	if len(s.uri) > 0 {
+		if s.id < 0 {
+			log.errorf("CLIENT: Found a song with no id (%d) '%s'", s.id, s.uri)
+		}
+
 		return s, nil
 	} else {
 		return nil, nil
