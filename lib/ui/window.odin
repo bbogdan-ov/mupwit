@@ -11,25 +11,36 @@ import glfw "vendor:glfw/bindings"
 TARGET_FPS :: 120
 
 Window :: struct #all_or_none {
-	ready:  bool,
-	handle: glfw.WindowHandle,
-	width:  i32,
-	height: i32,
-	mouse:  Point,
+	ready:       bool,
+	handle:      glfw.WindowHandle,
+	width:       f32,
+	height:      f32,
+
+	// Mouse position
+	mouse:       Point,
+	// Mouse wheel
+	wheel:       Point,
+
+	// Time elapsed since the last frame in milliseconds.
+	delta:       u32,
+	_start_time: time.Time,
 }
 
 window := Window {
-	ready  = false,
-	handle = nil,
-	width  = 100,
-	height = 100,
-	mouse  = {},
+	ready       = false,
+	handle      = nil,
+	width       = 100,
+	height      = 100,
+	mouse       = {0, 0},
+	wheel       = {0, 0},
+	delta       = 0,
+	_start_time = time.Time{0},
 }
 
 @(private)
 _size_callback :: proc "c" (_: glfw.WindowHandle, w: i32, h: i32) {
-	window.width = w
-	window.height = h
+	window.width = f32(w)
+	window.height = f32(h)
 }
 
 @(private)
@@ -38,7 +49,13 @@ _cursor_pos_callback :: proc "c" (_: glfw.WindowHandle, x: f64, y: f64) {
 	window.mouse.y = math.floor(f32(y))
 }
 
-window_init :: proc(title: cstring, app_id: cstring, width, height: i32) {
+@(private)
+_scroll_callback :: proc "c" (_: glfw.WindowHandle, x: f64, y: f64) {
+	window.wheel.x = f32(x)
+	window.wheel.y = f32(y)
+}
+
+window_init :: proc(title: cstring, app_id: cstring, width, height: f32) {
 	ok := glfw.Init()
 	if !ok {
 		// TODO: log failure message
@@ -64,7 +81,7 @@ window_init :: proc(title: cstring, app_id: cstring, width, height: i32) {
 	glfw.WindowHint(glfw_.CONTEXT_VERSION_MINOR, 3)
 	glfw.WindowHint(glfw_.OPENGL_PROFILE, glfw_.OPENGL_CORE_PROFILE)
 
-	handle := glfw.CreateWindow(window.width, window.height, title, nil, nil)
+	handle := glfw.CreateWindow(i32(window.width), i32(window.height), title, nil, nil)
 	window.handle = handle
 	if handle == nil {
 		// TODO: log failure message
@@ -77,11 +94,15 @@ window_init :: proc(title: cstring, app_id: cstring, width, height: i32) {
 	rlgl.LoadExtensions(glfw.GetProcAddress)
 
 	// Check window size because it may differ on window creation
-	glfw.GetWindowSize(handle, &window.width, &window.height)
-	rlgl.Init(window.width, window.height)
+	w, h: i32
+	glfw.GetWindowSize(handle, &w, &h)
+	window.width = f32(w)
+	window.height = f32(h)
+	rlgl.Init(w, h)
 
 	glfw.SetWindowSizeCallback(handle, _size_callback)
 	glfw.SetCursorPosCallback(handle, _cursor_pos_callback)
+	glfw.SetScrollCallback(handle, _scroll_callback)
 
 	window.ready = true
 
@@ -93,7 +114,9 @@ window_should_close :: proc() -> bool {
 }
 
 begin_frame :: proc(color: Color) {
-	rlgl.Viewport(0, 0, window.width, window.height)
+	window._start_time = time.now()
+
+	rlgl.Viewport(0, 0, i32(window.width), i32(window.height))
 	rlgl.ClearColor(color.r, color.g, color.b, color.a)
 	rlgl.ClearScreenBuffers()
 
@@ -101,10 +124,14 @@ begin_frame :: proc(color: Color) {
 }
 
 end_frame :: proc() {
+	window.wheel = {0, 0}
+
 	rlgl.DrawRenderBatchActive()
 	glfw.SwapBuffers(window.handle)
 	time.sleep(1000 / TARGET_FPS * time.Millisecond)
 	glfw.PollEvents()
+
+	window.delta = u32(time.duration_milliseconds(time.since(window._start_time)))
 }
 
 window_close :: proc() {
@@ -115,5 +142,5 @@ window_close :: proc() {
 }
 
 window_rect :: proc() -> Rect {
-	return Rect{0, 0, f32(window.width), f32(window.height)}
+	return Rect{0, 0, window.width, window.height}
 }

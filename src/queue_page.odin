@@ -17,11 +17,15 @@ queue_page_create :: proc() -> Queue_Page {
 queue_page_draw :: proc(page: ^Queue_Page, queue: Queue) {
 	container := ui.rect_shrink(ui.window_rect(), GAP, GAP)
 
+	ui.scroll_update(&page.scroll, f32(len(queue.songs) * _SONG_HEIGHT), container.height)
+
+	// TODO: temporary
 	if len(queue.songs) == 0 {
 		draw_normal_text("no songs", {container.x, container.y})
 		return
 	}
 
+	// Draw list of songs
 	loop: for &song, idx in queue.songs {
 		y := container.y + f32(idx * _SONG_HEIGHT) - page.scroll.offset
 

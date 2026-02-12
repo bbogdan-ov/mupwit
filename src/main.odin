@@ -95,10 +95,8 @@ logger_proc :: proc(
 ) {
 	fmt.print("\x1b[37m")
 
-	when time.IS_SUPPORTED {
-		h, m, s, nanos := time.precise_clock(time.now())
-		fmt.printf("%02d:%02d:%02d.%03d ", h, m, s, nanos / 1_000_000)
-	}
+	h, m, s, nanos := time.precise_clock(time.now())
+	fmt.printf("%02d:%02d:%02d.%03d ", h, m, s, nanos / 1_000_000)
 
 	switch level {
 	case .Debug:
