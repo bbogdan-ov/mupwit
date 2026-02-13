@@ -203,7 +203,6 @@ end_frame :: proc() {
 		glfw.SetCursor(window.handle, glfw.CreateStandardCursor(MAGICK + i32(window.cursor)))
 	}
 
-
 	window.wheel = {0, 0}
 	window.is_mouse_pressed = false
 	window.is_mouse_released = false
@@ -213,6 +212,8 @@ end_frame :: proc() {
 	glfw.PollEvents()
 
 	window.delta = u32(time.duration_milliseconds(time.since(window._start_time)))
+
+	free_all(window.frame_allocator)
 }
 
 window_close :: proc() {

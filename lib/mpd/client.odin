@@ -241,6 +241,9 @@ _handle_action :: proc(client: ^Client, action: Action) -> (close: bool, err: Er
 	case Action_Pause:
 		executef(client, "pause 1") or_return
 		receive_ok(client) or_return
+	case Action_Toggle:
+		executef(client, "pause") or_return
+		receive_ok(client) or_return
 
 	case Action_Req_Cover:
 		cover := request_cover(client, a.song_uri) or_return

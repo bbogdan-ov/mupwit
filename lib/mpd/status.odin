@@ -14,15 +14,15 @@ Playstate :: enum {
 Status :: struct {
 	state:       Playstate,
 
-	// Volume in range 0..=100
+	// Volume in range 0..=100.
 	volume:      uint,
 
-	// Id of the currently playing song
+	// Id of the currently playing song.
 	cur_song_id: Maybe(uint),
 
-	// Time elapsed within the current song
+	// Time elapsed within the current song.
 	elapsed:     time.Duration,
-	// Duration of the current song
+	// Duration of the current song.
 	duration:    time.Duration,
 }
 
@@ -114,6 +114,9 @@ _request_status :: proc(client: ^Client) -> (status: Status, err: Error) {
 		case "elapsed":
 			secs := pair_parse_f32(pair) or_return
 			status.elapsed = time.Duration(secs) * time.Second
+		case "duration":
+			secs := pair_parse_f32(pair) or_return
+			status.duration = time.Duration(secs) * time.Second
 		}
 	}
 

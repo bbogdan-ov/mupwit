@@ -71,7 +71,7 @@ main :: proc() {
 			draw_normal_text("Connecting...", {}, BLACK)
 		case .Ready:
 			queue_page_draw(&queue_page)
-			player_panel_draw()
+			player_panel_draw(client)
 		case .Error:
 			draw_normal_text("Error!", {}, BLACK)
 		}

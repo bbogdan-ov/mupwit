@@ -144,7 +144,7 @@ draw_text :: proc(
 	pos.y -= font.offset_y
 	advance_x: f32 = 0
 
-	for rune in text {
+	for rune, idx in text {
 		glyph := font.glyphs[0] // defaults to null char
 		if i32(rune) < font.glyph_count {
 			glyph = font.glyphs[rune]
@@ -155,6 +155,9 @@ draw_text :: proc(
 
 		// NOTE: multiplying glyph width by 2 to look two glyphs ahead
 		if window.text_trunc_width > 0 && next_x > window.text_trunc_width {
+			// Don't draw anything if only one character is fitting.
+			if idx == 0 do break
+
 			glyph = font.glyphs['…']
 			advance_x += _draw_glyph(font, glyph, glyph_pos, scale, color)
 			break

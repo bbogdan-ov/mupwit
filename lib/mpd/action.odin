@@ -2,6 +2,7 @@ package mpd
 
 Action_Play :: struct {}
 Action_Pause :: struct {}
+Action_Toggle :: struct {}
 
 // Request song album cover
 Action_Req_Cover :: struct #all_or_none {
@@ -18,6 +19,7 @@ Action_Close :: struct {}
 Action :: union #no_nil {
 	Action_Play,
 	Action_Pause,
+	Action_Toggle,
 	Action_Req_Cover,
 	Action_Req_Albums,
 	Action_Req_Queue,
