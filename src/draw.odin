@@ -131,3 +131,18 @@ draw_normal_text :: #force_inline proc(
 ) {
 	return ui.draw_text(assets.normal_font, text, pos, color, scale)
 }
+
+ICON_BUTTON_SIZE :: 32
+
+draw_icon_button :: proc(icon: Icon, pos: ui.Point, color := BLACK) -> (pressed: bool) {
+	rect := ui.Rect{pos.x, pos.y, ICON_BUTTON_SIZE, ICON_BUTTON_SIZE}
+
+	x := rect.x + rect.width / 2 - ICON_SIZE / 2
+	y := rect.y + rect.height / 2 - ICON_SIZE / 2
+	draw_icon(icon, {x, y}, color)
+
+	is_hovering := ui.rect_contains_point(rect, ui.window.mouse)
+	if is_hovering do ui.set_cursor(.Pointing_Hand)
+
+	return is_hovering && ui.is_clicked()
+}

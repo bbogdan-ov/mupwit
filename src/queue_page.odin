@@ -16,6 +16,7 @@ queue_page_create :: proc() -> Queue_Page {
 
 queue_page_draw :: proc(page: ^Queue_Page) {
 	container := ui.rect_shrink(ui.window_rect(), GAP, GAP)
+	container.height -= PLAYER_PANEL_HEIGHT
 
 	ui.scroll_update(&page.scroll, f32(len(queue.songs) * _SONG_HEIGHT), container.height)
 
@@ -34,7 +35,7 @@ queue_page_draw :: proc(page: ^Queue_Page) {
 		// Don't draw songs above the screen
 		if y + _SONG_HEIGHT < 0 do continue
 		// Don't draw songs below the screen
-		if y > container.height do break loop
+		if y > ui.window.height do break loop
 
 		_draw_song(&song, y, container)
 	}
@@ -48,10 +49,13 @@ _draw_song :: proc(song: ^mpd.Song, y: f32, container: ui.Rect) {
 	dur_size := ui.measure_text(assets.normal_font, song.duration_text)
 	ui.begin_text_truncate(rect.x + GAP, rect.width - GAP * 2 - (dur_size.x + GAP * 2))
 
-	is_hovering := ui.rect_contains_point(rect, ui.window.mouse)
+	is_hovering :=
+		ui.rect_contains_point(rect, ui.window.mouse) &&
+		ui.rect_contains_point(container, ui.window.mouse)
 	if is_hovering {
 		// Draw background
 		draw_box(.Filled_Rounded, rect, LIGHTGRAY)
+		ui.set_cursor(.Pointing_Hand)
 	}
 
 	// Draw "currently playing" marker
