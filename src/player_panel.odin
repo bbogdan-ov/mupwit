@@ -19,7 +19,7 @@ player_panel_draw :: proc(client: ^mpd.Client) {
 		ui.draw_rect(container, BACKGROUND)
 		border := container
 		border.height = 1
-		ui.draw_rect(border, BLACK)
+		ui.draw_rect(border, GRAY)
 	}
 
 	ui.begin_text_truncate(offset.x, container.width - GAP * 3)

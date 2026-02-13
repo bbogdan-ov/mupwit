@@ -1,7 +1,9 @@
 package mpd
 
+import "core:fmt"
 import "core:mem"
 import "core:strings"
+import "core:time"
 
 // Split string exactly into two parts separated by the separator `sep`.
 //
@@ -75,6 +77,34 @@ _espace :: proc(
 			append(&sb.buf, '\\', byte)
 		case:
 			append(&sb.buf, byte)
+		}
+	}
+}
+
+format_duration :: proc(duration: time.Duration, allocator := context.allocator) -> string {
+	context.allocator = allocator
+	duration := duration
+
+	neg := false
+	if duration < 0 {
+		duration = -duration
+		neg = true
+	}
+
+	secs := i32(time.duration_seconds(duration)) % 60
+	mins := i32(time.duration_minutes(duration)) % 60
+	if duration >= time.Hour {
+		hours := i32(time.duration_hours(duration))
+		if neg {
+			return fmt.aprintf("-%02d:%02d:%02d", hours, mins, secs)
+		} else {
+			return fmt.aprintf("%02d:%02d:%02d", hours, mins, secs)
+		}
+	} else {
+		if neg {
+			return fmt.aprintf("-%02d:%02d", mins, secs)
+		} else {
+			return fmt.aprintf("%02d:%02d", mins, secs)
 		}
 	}
 }

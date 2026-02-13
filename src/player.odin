@@ -21,13 +21,13 @@ player_destroy :: proc() {
 	if s, ok := &player.song.?; ok do mpd.song_destroy(s)
 }
 
-player_on_status :: proc(status: mpd.Status) {
-	player.status = status
+player_on_status :: proc(event: mpd.Event_Status) {
+	player.status = event.status
 }
-player_on_status_and_song :: proc(status: mpd.Status, song: Maybe(mpd.Song)) {
-	player.status = status
+player_on_status_and_song :: proc(event: mpd.Event_Status_And_Song) {
+	player.status = event.status
 
 	s, ok := &player.song.?
 	if ok do mpd.song_destroy(s)
-	player.song = song
+	player.song = event.song
 }

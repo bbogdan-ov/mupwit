@@ -45,9 +45,10 @@ main :: proc() {
 				client_state = e.state
 
 			case mpd.Event_Status:
-				player_on_status(e.status)
+				player_on_status(e)
 			case mpd.Event_Status_And_Song:
-				player_on_status_and_song(e.status, e.song)
+				player_on_status_and_song(e)
+				queue_on_status_and_song()
 
 			case mpd.Event_Albums:
 				// TODO: consume all the received albums for now

@@ -2,9 +2,13 @@ package mupwit
 
 import "../lib/mpd"
 import "../lib/ui"
+import "core:fmt"
+import "core:time"
 
 @(private)
 _SONG_HEIGHT :: QUEUE_SONG_COVER_SIZE + GAP * 2
+@(private)
+_INFO_HEIGHT :: 24
 
 Queue_Page :: struct #all_or_none {
 	scroll: ui.Scroll,
@@ -39,6 +43,8 @@ queue_page_draw :: proc(page: ^Queue_Page) {
 
 		_draw_song(&song, y, container)
 	}
+
+	_draw_info()
 }
 
 @(private)
@@ -99,5 +105,56 @@ _draw_song :: proc(song: ^mpd.Song, y: f32, container: ui.Rect) {
 		x := rect.x + rect.width - dur_size.x - GAP
 		y := rect.y + rect.height / 2 - dur_size.y / 2
 		draw_normal_text(song.duration_text, {x, y}, GRAY)
+	}
+}
+
+@(private)
+_draw_info :: proc() {
+	container := ui.Rect {
+		0,
+		ui.window.height - PLAYER_PANEL_HEIGHT - _INFO_HEIGHT,
+		ui.window.width,
+		_INFO_HEIGHT,
+	}
+	offset := ui.Point {
+		container.x + GAP * 2,
+		container.y + container.height / 2 - assets.normal_font.size / 2,
+	}
+
+	// Draw panel background and border
+	{
+		ui.draw_rect(container, BACKGROUND)
+		border := container
+		border.height = 1
+		ui.draw_rect(border, GRAY)
+	}
+
+	// Draw number of songs in the queue
+	{
+		count_text := fmt.aprintf("%d", len(queue.songs), allocator = ui.window.frame_allocator)
+
+		offset.x += draw_normal_text("𝅘𝅥𝅮 ", offset, GRAY).x
+		offset.x += draw_normal_text(count_text, offset, GRAY).x
+	}
+
+	// Draw elapsed time
+	{
+		cur_elapsed: time.Duration = 0
+		cur_song, ok := player.status.?
+		if ok do cur_elapsed = cur_song.elapsed
+
+		context.allocator = ui.window.frame_allocator
+
+		left := (queue.elapsed + cur_elapsed) - queue.duration
+		text := mpd.format_duration(left)
+		// text := fmt.aprintf(
+		// 	"%s/%s",
+		// 	mpd.format_duration(queue.elapsed + cur_elapsed),
+		// 	mpd.format_duration(queue.duration),
+		// )
+		size := ui.measure_text(assets.normal_font, text)
+
+		offset.x = container.width - GAP * 2 - size.x
+		draw_normal_text(text, offset, GRAY)
 	}
 }

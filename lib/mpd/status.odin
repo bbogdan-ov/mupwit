@@ -1,7 +1,7 @@
 package mpd
 
-import "core:fmt"
 import "core:log"
+import "core:math/bits"
 import "core:strings"
 import "core:time"
 
@@ -29,7 +29,7 @@ Status :: struct {
 Song :: struct #all_or_none {
 	// Song file uri
 	uri:           string,
-	id:            int,
+	id:            uint,
 	title:         Maybe(string),
 	artist:        Maybe(string),
 	album:         Maybe(string),
@@ -137,7 +137,7 @@ response_next_song :: proc(client: ^Client, res: ^Response) -> (song: Maybe(Song
 @(private, require_results)
 _response_next_song :: proc(res: ^Response) -> (song: Maybe(Song), err: Error) {
 	s: Song
-	s.id = -1
+	s.id = bits.UINT_MAX
 
 	already_parsed := false
 	pairs: for {
@@ -166,22 +166,14 @@ _response_next_song :: proc(res: ^Response) -> (song: Maybe(Song), err: Error) {
 			secs_f32 := pair_parse_f32(pair) or_return
 			dur := time.Duration(secs_f32) * time.Second
 			s.duration = dur
-
-			secs := i32(secs_f32) % 60
-			mins := i32(time.duration_minutes(dur)) % 60
-			if dur >= time.Hour {
-				hours := i32(time.duration_hours(dur))
-				s.duration_text = fmt.aprintf("%02d:%02d:%02d", hours, mins, secs)
-			} else {
-				s.duration_text = fmt.aprintf("%02d:%02d", mins, secs)
-			}
+			s.duration_text = format_duration(s.duration)
 		case "Id":
-			s.id = pair_parse_int(pair) or_return
+			s.id = uint(pair_parse_int(pair) or_return)
 		}
 	}
 
 	if len(s.uri) > 0 {
-		if s.id < 0 {
+		if s.id >= bits.UINT_MAX {
 			log.errorf("CLIENT: Found a song with no id (%d) '%s'", s.id, s.uri)
 		}
 
