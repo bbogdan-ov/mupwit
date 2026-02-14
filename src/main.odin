@@ -85,6 +85,8 @@ main :: proc() {
 	ui.window_close()
 
 	mpd.close(client)
+
+	log.info("Bye")
 }
 
 logger_proc :: proc(
