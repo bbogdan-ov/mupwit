@@ -24,7 +24,7 @@ queue_page_init :: proc() {
 
 queue_page_draw :: proc() {
 	container := ui.rect_shrink(ui.window_rect(), GAP, GAP)
-	container.height -= PLAYER_PANEL_HEIGHT
+	container.height -= PLAYER_PANEL_HEIGHT + _INFO_HEIGHT
 
 	ui.scroll_update(&queue_page.scroll, f32(len(player.queue) * _SONG_HEIGHT), container.height)
 
