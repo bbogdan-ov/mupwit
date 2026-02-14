@@ -33,7 +33,7 @@ QUEUE_SONG_COVER_SIZE :: 32
 
 WHITE :: ui.Color{0xdd, 0xdd, 0xdd, 0xff}
 BLACK :: ui.Color{0x11, 0x11, 0x11, 0xff}
-GRAY :: ui.Color{BLACK.r, BLACK.g, BLACK.b, 170}
+GRAY :: ui.Color{BLACK.r, BLACK.g, BLACK.b, 140}
 LIGHTGRAY :: ui.Color{BLACK.r, BLACK.g, BLACK.b, 60}
 
 BACKGROUND :: WHITE
