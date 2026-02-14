@@ -14,17 +14,21 @@ Queue_Page :: struct #all_or_none {
 	scroll: ui.Scroll,
 }
 
-queue_page_create :: proc() -> Queue_Page {
-	return Queue_Page{scroll = ui.scroll_create()}
+queue_page: Queue_Page
+
+queue_page_init :: proc() {
+	queue_page = Queue_Page {
+		scroll = ui.scroll_create(),
+	}
 }
 
-queue_page_draw :: proc(page: ^Queue_Page) {
+queue_page_draw :: proc() {
 	container := ui.rect_shrink(ui.window_rect(), GAP, GAP)
 	container.height -= PLAYER_PANEL_HEIGHT
 
-	ui.scroll_update(&page.scroll, f32(len(queue.songs) * _SONG_HEIGHT), container.height)
+	ui.scroll_update(&queue_page.scroll, f32(len(queue.songs) * _SONG_HEIGHT), container.height)
 
-	ui.scroll_draw(page.scroll, container, GAP / 2 - ui.SCROLL_THICKNESS / 2, LIGHTGRAY)
+	ui.scroll_draw(queue_page.scroll, container, GAP / 2 - ui.SCROLL_THICKNESS / 2, LIGHTGRAY)
 
 	// TODO: temporary
 	if len(queue.songs) == 0 {
@@ -34,7 +38,7 @@ queue_page_draw :: proc(page: ^Queue_Page) {
 
 	// Draw list of songs
 	loop: for &song, idx in queue.songs {
-		y := container.y + f32(idx * _SONG_HEIGHT) - page.scroll.offset
+		y := container.y + f32(idx * _SONG_HEIGHT) - queue_page.scroll.offset
 
 		// Don't draw songs above the screen
 		if y + _SONG_HEIGHT < 0 do continue

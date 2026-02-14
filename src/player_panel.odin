@@ -5,7 +5,7 @@ import "../lib/ui"
 
 PLAYER_PANEL_HEIGHT :: ICON_BUTTON_SIZE + GAP * 2
 
-player_panel_draw :: proc(client: ^mpd.Client) {
+player_panel_draw :: proc() {
 	container := ui.Rect {
 		0,
 		ui.window.height - PLAYER_PANEL_HEIGHT,

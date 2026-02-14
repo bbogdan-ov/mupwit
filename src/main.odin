@@ -7,6 +7,8 @@ import "core:time"
 import "../lib/mpd"
 import "../lib/ui"
 
+client: ^mpd.Client = nil
+
 main :: proc() {
 	// Initialize logger
 	context.logger = log.Logger {
@@ -19,14 +21,14 @@ main :: proc() {
 
 	// Initialize other things
 	client_state: mpd.State = .Connecting
-	client := mpd.connect()
+	client = mpd.connect()
 
 	player_init()
 	defer player_destroy()
 	queue_init()
 	defer queue_destroy()
 
-	queue_page := queue_page_create()
+	queue_page_init()
 
 	// TODO: temporary
 	mpd.send_action(client, mpd.Action_Req_Queue{})
@@ -71,8 +73,8 @@ main :: proc() {
 		case .Connecting:
 			draw_normal_text("Connecting...", {}, BLACK)
 		case .Ready:
-			queue_page_draw(&queue_page)
-			player_panel_draw(client)
+			queue_page_draw()
+			player_panel_draw()
 		case .Error:
 			draw_normal_text("Error!", {}, BLACK)
 		}
