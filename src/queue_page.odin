@@ -26,18 +26,18 @@ queue_page_draw :: proc() {
 	container := ui.rect_shrink(ui.window_rect(), GAP, GAP)
 	container.height -= PLAYER_PANEL_HEIGHT
 
-	ui.scroll_update(&queue_page.scroll, f32(len(queue.songs) * _SONG_HEIGHT), container.height)
+	ui.scroll_update(&queue_page.scroll, f32(len(player.queue) * _SONG_HEIGHT), container.height)
 
 	ui.scroll_draw(queue_page.scroll, container, GAP / 2 - ui.SCROLL_THICKNESS / 2, LIGHTGRAY)
 
 	// TODO: temporary
-	if len(queue.songs) == 0 {
+	if len(player.queue) == 0 {
 		draw_normal_text("no songs", {container.x, container.y})
 		return
 	}
 
 	// Draw list of songs
-	loop: for &song, idx in queue.songs {
+	loop: for &song, idx in player.queue {
 		y := container.y + f32(idx * _SONG_HEIGHT) - queue_page.scroll.offset
 
 		// Don't draw songs above the screen
@@ -135,7 +135,7 @@ _draw_info :: proc() {
 
 	// Draw number of songs in the queue
 	{
-		count_text := fmt.aprintf("%d", len(queue.songs), allocator = ui.window.frame_allocator)
+		count_text := fmt.aprintf("%d", len(player.queue), allocator = ui.window.frame_allocator)
 
 		offset.x += draw_normal_text("𝅘𝅥𝅮 ", offset, GRAY).x
 		offset.x += draw_normal_text(count_text, offset, GRAY).x
@@ -149,13 +149,8 @@ _draw_info :: proc() {
 
 		context.allocator = ui.window.frame_allocator
 
-		left := (queue.elapsed + cur_elapsed) - queue.duration
+		left := (player.queue_elapsed + cur_elapsed) - player.queue_duration
 		text := mpd.format_duration(left)
-		// text := fmt.aprintf(
-		// 	"%s/%s",
-		// 	mpd.format_duration(queue.elapsed + cur_elapsed),
-		// 	mpd.format_duration(queue.duration),
-		// )
 		size := ui.measure_text(assets.normal_font, text)
 
 		offset.x = container.width - GAP * 2 - size.x

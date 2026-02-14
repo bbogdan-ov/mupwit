@@ -25,8 +25,6 @@ main :: proc() {
 
 	player_init()
 	defer player_destroy()
-	queue_init()
-	defer queue_destroy()
 
 	queue_page_init()
 
@@ -50,7 +48,6 @@ main :: proc() {
 				player_on_status(e)
 			case mpd.Event_Status_And_Song:
 				player_on_status_and_song(e)
-				queue_on_status_and_song()
 
 			case mpd.Event_Albums:
 				// TODO: consume all the received albums for now
@@ -58,7 +55,7 @@ main :: proc() {
 				delete(e.albums)
 
 			case mpd.Event_Queue:
-				queue_on_queue(e)
+				player_on_queue(e)
 
 			case mpd.Event_Cover:
 				// TODO: consume all the received covers for now
