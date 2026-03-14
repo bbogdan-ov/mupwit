@@ -15,7 +15,7 @@ Scroll :: struct #all_or_none {
 	tween:          Timer,
 }
 
-scroll_make :: proc() -> Scroll {
+scroll_make :: proc "contextless" () -> Scroll {
 	return Scroll {
 		_actual_offset = 0,
 		_prev_offset = 0,
@@ -25,7 +25,7 @@ scroll_make :: proc() -> Scroll {
 	}
 }
 
-scroll_update :: proc(scroll: ^Scroll, length: f32, container_height: f32) {
+scroll_update :: proc "contextless" (scroll: ^Scroll, length: f32, container_height: f32) {
 	scroll.length = length
 
 	if window.wheel.y != 0 {
@@ -55,7 +55,7 @@ scroll_update :: proc(scroll: ^Scroll, length: f32, container_height: f32) {
 	}
 }
 
-scroll_draw :: proc(scroll: Scroll, container: Rect, offset_x: f32, color: Color) {
+scroll_draw :: proc "contextless" (scroll: Scroll, container: Rect, offset_x: f32, color: Color) {
 	c := container
 
 	height := max(32, math.floor(c.height * c.height / scroll.length))

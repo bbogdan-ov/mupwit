@@ -35,7 +35,7 @@ Glyph :: struct {
 	rect:      Rect,
 }
 
-draw_rect :: proc(rect: Rect, color: Color) {
+draw_rect :: proc "contextless" (rect: Rect, color: Color) {
 	ww := f32(window.width)
 	wh := f32(window.height)
 	left: f32 = rect.x / ww * 2 - 1
@@ -58,13 +58,13 @@ draw_rect :: proc(rect: Rect, color: Color) {
 	rlgl.End()
 }
 
-draw_texture :: #force_inline proc(texture: Texture, pos: Point, tint := WHITE) {
+draw_texture :: #force_inline proc "contextless" (texture: Texture, pos: Point, tint := WHITE) {
 	source := Rect{0, 0, f32(texture.width), f32(texture.height)}
 	dest := Rect{pos.x, pos.y, source.width, source.height}
 	draw_texture_ex(texture, source, dest, tint)
 }
 
-draw_texture_ex :: proc(texture: Texture, source: Rect, dest: Rect, tint := WHITE) {
+draw_texture_ex :: proc "contextless" (texture: Texture, source: Rect, dest: Rect, tint := WHITE) {
 	rlgl.SetTexture(texture.id)
 	rlgl.Begin(rlgl.QUADS)
 	draw_texture_impl(texture, source, dest, tint)
@@ -77,7 +77,12 @@ draw_texture_ex :: proc(texture: Texture, source: Rect, dest: Rect, tint := WHIT
 // NOTE:
 // - This function does NOT begins and ends drawing of the batch.
 // - Textures are still being drawn even outside of the view.
-draw_texture_impl :: proc(texture: Texture, source: Rect, dest: Rect, tint := WHITE) {
+draw_texture_impl :: proc "contextless" (
+	texture: Texture,
+	source: Rect,
+	dest: Rect,
+	tint := WHITE,
+) {
 	if source.width <= 0 || source.height <= 0 || dest.width <= 0 || dest.height <= 0 {
 		return
 	}
@@ -107,7 +112,7 @@ draw_texture_impl :: proc(texture: Texture, source: Rect, dest: Rect, tint := WH
 	rlgl.Vertex2f(left, top)
 }
 
-draw_texture_anim :: proc(
+draw_texture_anim :: proc "contextless" (
 	texture: Texture,
 	pos: Point,
 	frame: [2]i32,
@@ -127,7 +132,7 @@ draw_texture_anim :: proc(
 	draw_texture_ex(texture, source, dest, tint)
 }
 
-draw_text :: proc(
+draw_text :: proc "contextless" (
 	font: Font,
 	text: string,
 	pos: Point,
@@ -137,6 +142,10 @@ draw_text :: proc(
 	advance: Point,
 ) {
 	pos := pos
+
+	if window.text_trunc_width <= 0 {
+		return {0, 0}
+	}
 
 	rlgl.SetTexture(font.texture.id)
 	rlgl.Begin(rlgl.QUADS)
@@ -172,7 +181,7 @@ draw_text :: proc(
 }
 
 @(private)
-_draw_glyph :: #force_inline proc(
+_draw_glyph :: #force_inline proc "contextless" (
 	font: Font,
 	glyph: Glyph,
 	pos: Point,
@@ -194,7 +203,9 @@ _draw_glyph :: #force_inline proc(
 	return glyph.advance_x * scale
 }
 
-measure_text :: proc(font: Font, text: string, scale: f32 = 1) -> (size: Point) {
+// Measure width of a string without drawing it onto the screen.
+// Doesn't take into account text truncation.
+measure_text :: proc "contextless" (font: Font, text: string, scale: f32 = 1) -> (size: Point) {
 	for rune in text {
 		glyph := font.glyphs[0] // defaults to null char
 		if i32(rune) < font.glyph_count {
@@ -208,27 +219,26 @@ measure_text :: proc(font: Font, text: string, scale: f32 = 1) -> (size: Point) 
 	return
 }
 
-begin_scissor :: #force_inline proc(rect: Rect) {
+begin_scissor :: #force_inline proc "contextless" (rect: Rect) {
 	rlgl.DrawRenderBatchActive()
 	rlgl.EnableScissorTest()
 	rlgl.Scissor(i32(rect.x), i32(rect.y), i32(rect.width), i32(rect.height))
 }
-end_scissor :: #force_inline proc() {
+end_scissor :: #force_inline proc "contextless" () {
 	rlgl.DrawRenderBatchActive()
 	rlgl.DisableScissorTest()
 }
 
-begin_text_truncate :: #force_inline proc(x: f32, width: f32) {
-	assert(width > 0)
+begin_text_truncate :: #force_inline proc "contextless" (x: f32, width: f32) {
 	window.text_trunc_x = x
-	window.text_trunc_width = width
+	window.text_trunc_width = max(width, 0)
 }
-end_text_truncate :: #force_inline proc() {
+end_text_truncate :: #force_inline proc "contextless" () {
 	// NOTE: we leave `text_trunc_width` as is because we don't care.
 	window.text_trunc_width = 0
 }
 
-load_texture :: #force_inline proc(
+load_texture :: #force_inline proc "contextless" (
 	pixels: []byte,
 	width, height: i32,
 	format: rlgl.Pixel_Format,
@@ -239,11 +249,11 @@ load_texture :: #force_inline proc(
 	return Texture{id, width, height}
 }
 
-unload_texture :: #force_inline proc(texture: Texture) {
+unload_texture :: #force_inline proc "contextless" (texture: Texture) {
 	rlgl.UnloadTexture(texture.id)
 }
 
-unload_font :: #force_inline proc(font: Font) {
+unload_font :: #force_inline proc "contextless" (font: Font) {
 	// NOTE: do not free the `glyphs` array because it is always static in this project.
 	// Glyphs info is always generated at compile-time (see build_src/build.odin).
 	unload_texture(font.texture)

@@ -1,7 +1,7 @@
 package ui
 
 @(require_results)
-rect_contains_point :: #force_inline proc(rect: Rect, point: Point) -> bool {
+rect_contains_point :: #force_inline proc "contextless" (rect: Rect, point: Point) -> bool {
 	return(
 		point.x >= rect.x &&
 		point.y >= rect.y &&
@@ -11,7 +11,11 @@ rect_contains_point :: #force_inline proc(rect: Rect, point: Point) -> bool {
 }
 
 @(require_results)
-rect_shrink :: #force_inline proc(rect: Rect, horizontal: f32, vertical: f32) -> Rect {
+rect_shrink :: #force_inline proc "contextless" (
+	rect: Rect,
+	horizontal: f32,
+	vertical: f32,
+) -> Rect {
 	rect := rect
 	rect.x += horizontal
 	rect.y += vertical
