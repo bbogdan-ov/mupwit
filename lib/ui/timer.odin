@@ -37,3 +37,7 @@ timer_lerp :: #force_inline proc "contextless" (
 ) -> f32 {
 	return math.lerp(start, end, easing(timer_progress(timer)))
 }
+
+ease_out_sine :: proc "contextless" (x: f32) -> f32 {
+	return math.sin((x * math.PI) / 2)
+}
