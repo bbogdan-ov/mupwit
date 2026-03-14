@@ -35,12 +35,12 @@ build/build: $(BUILD_SOURCES)
 	@echo "INFO: Compiling build script..."
 	@odin build build_src/ -out:build/build -debug $(FLAGS)
 
-build/rlgl.a: lib/rlgl.h
+build/rlgl.a: lib/ui/rlgl/rlgl.h
 	@echo "INFO: Compiling rlgl object file..."
 	@gcc \
 		-DRLGL_IMPLEMENTATION \
 		-DGRAPHICS_API_OPENGL_33 \
-		-lm -c -x c -o build/rlgl.a lib/rlgl.h
+		-lm -c -x c -o build/rlgl.a lib/ui/rlgl/rlgl.h
 
 clean:
 	rm -r build
