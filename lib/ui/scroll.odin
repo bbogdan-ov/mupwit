@@ -58,7 +58,7 @@ scroll_update :: proc(scroll: ^Scroll, length: f32, container_height: f32) {
 scroll_draw :: proc(scroll: Scroll, container: Rect, offset_x: f32, color: Color) {
 	c := container
 
-	height := math.floor(c.height * c.height / scroll.length)
+	height := max(32, math.floor(c.height * c.height / scroll.length))
 	if height >= c.height do return
 
 	x := c.x + c.width + offset_x
