@@ -36,53 +36,56 @@ queue_page_draw :: proc() {
 		return
 	}
 
-	// Draw list of songs
+	// Calculate the index of a song over which the cursor is hovering.
+	hover_idx := int((ui.window.mouse.y - container.y + queue_page.scroll.offset) / _SONG_HEIGHT)
+
+	if 0 <= hover_idx && hover_idx < len(player.queue) {
+		ui.set_cursor(.Pointing_Hand)
+	}
+
+	// Draw list of songs.
 	loop: for &song, idx in player.queue {
 		y := container.y + f32(idx * _SONG_HEIGHT) - queue_page.scroll.offset
 
-		// Don't draw songs above the screen
+		// Don't draw songs above the screen.
 		if y + _SONG_HEIGHT < 0 do continue
-		// Don't draw songs below the screen
+		// Don't draw songs below the screen.
 		if y > ui.window.height do break loop
 
-		_draw_song(&song, y, container)
+		_draw_song(&song, y, container, idx == hover_idx)
 	}
 
 	_draw_info()
 }
 
 @(private)
-_draw_song :: proc(song: ^mpd.Song, y: f32, container: ui.Rect) {
+_draw_song :: proc(song: ^mpd.Song, y: f32, container: ui.Rect, is_hovering: bool) {
 	rect := ui.Rect{container.x, y, container.width, _SONG_HEIGHT}
 	offset := ui.Point{rect.x, rect.y}
 
 	dur_size := ui.measure_text(assets.normal_font, song.duration_text)
 	ui.begin_text_truncate(rect.x + GAP, rect.width - GAP * 2 - (dur_size.x + GAP * 2))
 
-	is_hovering :=
-		ui.rect_contains_point(rect, ui.window.mouse) &&
-		ui.rect_contains_point(container, ui.window.mouse)
 	if is_hovering {
-		// Draw background
+		// Draw background.
 		draw_box(.Filled_Rounded, rect, LIGHTGRAY)
-		ui.set_cursor(.Pointing_Hand)
 	}
 
-	// Draw "currently playing" marker
+	// Draw "currently playing" marker.
 	if cur_song, ok := player.song.?; ok && cur_song.id == song.id {
 		x := rect.x - ICON_SIZE / 2
 		y := rect.y + rect.height / 2 - ICON_SIZE / 2
 		draw_icon(.Small_Arrow_Right, {x, y})
 	}
 
-	// Draw song cover
+	// Draw song cover.
 	offset.x += GAP
 	offset.y += GAP
 	cover_rect := ui.Rect{offset.x, offset.y, QUEUE_SONG_COVER_SIZE, QUEUE_SONG_COVER_SIZE}
 	{
 		draw_box(.Normal, cover_rect)
 
-		// Draw disk icon in the center of the rect
+		// Draw disk icon in the center of the rect.
 		icon_pos := ui.Point {
 			cover_rect.x + cover_rect.width / 2 - ICON_SIZE / 2,
 			cover_rect.y + cover_rect.height / 2 - ICON_SIZE / 2,
@@ -90,7 +93,7 @@ _draw_song :: proc(song: ^mpd.Song, y: f32, container: ui.Rect) {
 		draw_icon(.Disk, icon_pos)
 	}
 
-	// Draw song info
+	// Draw song info.
 	{
 		offset.x += cover_rect.width + GAP
 		offset.y += -GAP + _SONG_HEIGHT / 2 - f32(assets.normal_font.size)
@@ -104,7 +107,7 @@ _draw_song :: proc(song: ^mpd.Song, y: f32, container: ui.Rect) {
 
 	ui.end_text_truncate()
 
-	// Draw song duration
+	// Draw song duration.
 	{
 		x := rect.x + rect.width - dur_size.x - GAP
 		y := rect.y + rect.height / 2 - dur_size.y / 2

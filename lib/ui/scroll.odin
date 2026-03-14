@@ -1,6 +1,7 @@
 package ui
 
 import "core:math"
+import "core:math/ease"
 
 Scroll :: struct #all_or_none {
 	// Actual vertical offset of the scroll.
@@ -44,7 +45,7 @@ scroll_update :: proc(scroll: ^Scroll, length: f32, container_height: f32) {
 
 		offset := timer_lerp(
 			scroll.tween,
-			ease_out_sine,
+			ease.sine_out,
 			scroll._prev_offset,
 			scroll._actual_offset,
 		)

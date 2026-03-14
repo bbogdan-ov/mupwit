@@ -37,6 +37,3 @@ timer_lerp :: #force_inline proc(
 ) -> f32 {
 	return math.lerp(start, end, easing(timer_progress(timer)))
 }
-
-ease_out_sine :: proc(x: f32) -> f32 {
-	return math.sin((x * math.PI) / 2)}

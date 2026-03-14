@@ -151,9 +151,9 @@ draw_text :: proc(
 		}
 
 		glyph_pos := Point{pos.x + advance_x, pos.y}
+		// NOTE: multiplying glyph `advance_x` by 2 to look two glyphs ahead
 		next_x := (pos.x - window.text_trunc_x) + advance_x + glyph.advance_x * 2 * scale
 
-		// NOTE: multiplying glyph width by 2 to look two glyphs ahead
 		if window.text_trunc_width > 0 && next_x > window.text_trunc_width {
 			// Don't draw anything if only one character is fitting.
 			if idx == 0 do break
