@@ -12,10 +12,10 @@ Player :: struct #all_or_none {
 
 	// Songs in the current queue.
 	queue:          [dynamic]mpd.Song,
-	// Time elapsed within the whole queue.
+	// Time elapsed within the queue.
 	// Currently playing song doesn't count.
 	queue_elapsed:  time.Duration,
-	// Duration of the whole queue.
+	// Duration of the queue (sum of songs duration).
 	queue_duration: time.Duration,
 }
 

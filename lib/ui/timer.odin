@@ -8,7 +8,7 @@ Timer :: struct #all_or_none {
 	duration: u32,
 }
 
-timer_create :: proc(duration: u32) -> Timer {
+timer_make :: proc(duration: u32) -> Timer {
 	return Timer{elapsed = duration, duration = duration}
 }
 

@@ -18,7 +18,7 @@ queue_page: Queue_Page
 
 queue_page_init :: proc() {
 	queue_page = Queue_Page {
-		scroll = ui.scroll_create(),
+		scroll = ui.scroll_make(),
 	}
 }
 

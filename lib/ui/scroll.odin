@@ -1,25 +1,26 @@
 package ui
 
 import "core:math"
+
 Scroll :: struct #all_or_none {
 	// Actual vertical offset of the scroll.
-	// Used to smoothly interpolate `offset` to this value.
+	// Used to smoothly interpolate `offset` from `_prev_offset` to `_actual_offset`.
 	_actual_offset: f32,
 	_prev_offset:   f32,
-	// Vertical offset of the scroll.
+	// Vertical offset of the scrolling container's content.
 	offset:         f32,
-	// How long are the contents of the scrolling container.
+	// How long is the content of the scrolling container.
 	length:         f32,
 	tween:          Timer,
 }
 
-scroll_create :: proc() -> Scroll {
+scroll_make :: proc() -> Scroll {
 	return Scroll {
 		_actual_offset = 0,
 		_prev_offset = 0,
 		offset = 0,
 		length = 0,
-		tween = timer_create(SCROLL_TWEEN_DURATION),
+		tween = timer_make(SCROLL_TWEEN_DURATION),
 	}
 }
 
@@ -40,9 +41,7 @@ scroll_update :: proc(scroll: ^Scroll, length: f32, container_height: f32) {
 
 	when SCROLL_TWEEN_DURATION > 0 {
 		timer_update(&scroll.tween)
-	}
 
-	when SCROLL_TWEEN_DURATION > 0 {
 		offset := timer_lerp(
 			scroll.tween,
 			ease_out_sine,
