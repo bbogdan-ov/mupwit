@@ -49,18 +49,18 @@ decode :: proc() -> (ok: bool) {
 // Helper functions
 // ==============================
 
-create_file :: #force_inline proc(path: string) -> (file: os.Handle, ok: bool) {
+create_file :: #force_inline proc(path: string) -> (file: ^os.File, ok: bool) {
 	err: os.Error
-	file, err = os.open(path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, 0o644)
+	file, err = os.open(path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
 	if err != nil {
 		fmt.eprintfln("Unable to create file %s: %s", path, err)
-		return 0, false
+		return nil, false
 	}
 
 	return file, true
 }
 
-putline :: proc(f: os.Handle, format: string, args: ..any) {
+putline :: proc(f: ^os.File, format: string, args: ..any) {
 	fmt.fprintfln(f, format, ..args, flush = false)
 }
 

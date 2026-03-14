@@ -4,7 +4,7 @@ import "core:fmt"
 import "core:image/png"
 import "core:os"
 
-decode_png :: proc(assets_file: os.Handle, name: string, channels: int) -> (ok: bool) {
+decode_png :: proc(assets_file: ^os.File, name: string, channels: int) -> (ok: bool) {
 	path := fmt.aprintf(IMAGES_URI + "%s.png", name)
 	defer delete(path)
 

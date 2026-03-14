@@ -140,9 +140,9 @@ window_init :: proc(title: cstring, app_id: cstring, width, height: f32) {
 	glfw.DefaultWindowHints()
 
 	// Window attributes
-	glfw.WindowHint(glfw_.AUTO_ICONIFY, false)
-	glfw.WindowHint(glfw_.FLOATING, true)
-	glfw.WindowHint(glfw_.RESIZABLE, false)
+	glfw.WindowHint(glfw_.AUTO_ICONIFY, 0)
+	glfw.WindowHint(glfw_.FLOATING, 1)
+	glfw.WindowHint(glfw_.RESIZABLE, 0)
 	glfw.WindowHintString(glfw_.WAYLAND_APP_ID, app_id)
 
 	// OpenGL version.

@@ -27,7 +27,7 @@ Glyph :: struct #all_or_none {
 	bitmap:    [dynamic]u32,
 }
 
-decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
+decode_bdf :: proc(assets_file: ^os.File, name: string) -> (ok: bool) {
 	path := fmt.aprintf(FONTS_URI + "%s.bdf", name)
 	defer delete(path)
 
@@ -40,7 +40,7 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 	defer delete(glyphs)
 	{
 		// Parsing the BDF file and collect all the glyphs
-		data, err := os.read_entire_file_from_filename_or_err(path)
+		data, err := os.read_entire_file_from_path(path, context.allocator)
 		if err != nil {
 			fmt.eprintfln("Unable to read font file %s: %s", path, err)
 			return
@@ -267,11 +267,7 @@ decode_bdf :: proc(assets_file: os.Handle, name: string) -> (ok: bool) {
 
 // Output rendered glyphs into the PBM image for debug purposes.
 render_to_image :: proc(name: string, pixels: []byte, glyphs_width: int) {
-	file, err := os.open(
-		fmt.tprintf("build/%s.pbm", name),
-		os.O_WRONLY | os.O_CREATE | os.O_TRUNC,
-		0o644,
-	)
+	file, err := os.open(fmt.tprintf("build/%s.pbm", name), os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
 	assert(err == nil)
 
 	putline(file, "P1")
