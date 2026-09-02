@@ -1,4 +1,5 @@
 SOURCES := $(shell find src -name '*.odin')
+LIB_SOURCES := $(shell find lib -name '*.odin')
 PREBUILD_SOURCES := $(shell find prebuild -name '*.odin')
 IMAGES := $(shell find assets/images -name '*.png')
 
@@ -16,7 +17,7 @@ FLAGS := \
 .PHONY: libs check
 
 # Compile MUPWIT.
-build/mupwit: $(SOURCES) assets/.generated
+build/mupwit: $(SOURCES) $(LIB_SOURCES) assets/.generated
 	@mkdir -p build
 	@echo "INFO: Compiling..."
 	@odin build src -out:build/mupwit -sanitize:address -debug $(FLAGS)

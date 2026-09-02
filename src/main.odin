@@ -1,12 +1,14 @@
 package mupwit
 
 import "base:runtime"
+import "core:thread"
 
 import "lib:cairo"
 import win "lib:my_window"
 
 State :: struct {
 	px, py:            i32,
+	client_thread:     ^thread.Thread,
 
 	// Assets.
 	font_library:      win.Font_Library,
@@ -19,6 +21,10 @@ state: State
 
 main :: proc() {
 	context.logger = make_logger()
+
+	connect()
+	thread.join(state.client_thread)
+	if true do return
 
 	window := win.window_new(WINDOW_WIDTH, WINDOW_HEIGHT)
 	assert(window != nil) // TODO: handle error.
