@@ -1,0 +1,43 @@
+SOURCES := $(shell find src -name '*.odin')
+PREBUILD_SOURCES := $(shell find prebuild -name '*.odin')
+IMAGES := $(shell find assets/images -name '*.png')
+
+FLAGS := \
+	-error-pos-style:unix \
+	-strict-style \
+	-vet-tabs \
+	-vet-unused \
+	-vet-unused-variables \
+	-vet-unused-imports \
+	-vet-using-stmt \
+	-terse-errors \
+	-collection:lib=lib
+
+.PHONY: libs check
+
+# Compile MUPWIT.
+build/mupwit: $(SOURCES) assets/.generated
+	@mkdir -p build
+	@echo "INFO: Compiling..."
+	@odin build src -out:build/mupwit -sanitize:address -debug $(FLAGS)
+
+# Prebuild assets.
+assets/.generated: build/prebuild $(IMAGES)
+	@echo "INFO: Running prebuild script..."
+	@./build/prebuild
+	@touch assets/.generated
+
+build/prebuild: $(PREBUILD_SOURCES)
+	@mkdir -p build
+	@echo "INFO: Compiling prebuild script..."
+	@odin build prebuild -out:build/prebuild $(FLAGS)
+
+
+# Compile libraries.
+libs:
+	make -C./lib/my_window
+
+
+# Type check.
+check:
+	@odin check src $(FLAGS)

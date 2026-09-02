@@ -1,0 +1,5 @@
+{
+	"collections": [
+		{ "name": "lib", "path": "lib" }
+	],
+}
