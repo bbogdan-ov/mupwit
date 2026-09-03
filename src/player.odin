@@ -2,6 +2,7 @@ package mupwit
 
 import "core:log"
 import "core:thread"
+import "core:time"
 import "lib:mpd"
 
 connect :: proc() {
@@ -16,14 +17,23 @@ _do_connect :: proc(t: ^thread.Thread) {
 	assert(err == nil) // TODO: handle error.
 	defer mpd.disconnect(&client)
 
-	err = mpd.send(&client, "status")
-	if err != nil do return
+	should_send := true
+	for {
+		s, received := mpd.recv(&client) or_break
+		if received {
+			log.infof("Received: %q", s)
+			delete(s)
+			should_send = true
+		} else {
+			log.info("Waiting...")
+		}
 
-	p: mpd.Parser
-	p, err = mpd.recv_and_parse(&client)
-	if err != nil do return
-	defer mpd.parser_destroy(p)
+		if should_send {
+			log.info("Idle")
+			mpd.send(&client, "idle") or_break
+			should_send = false
+		}
 
-	state, _ := mpd.parser_next_named_pair(&p, "state")
-	log.info("State:", state)
+		time.sleep(1 * time.Second)
+	}
 }
