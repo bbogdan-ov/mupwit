@@ -6,14 +6,17 @@ import "core:reflect"
 import "core:strconv"
 import "core:strings"
 import "core:testing"
-import "core:unicode"
 import "core:unicode/utf8"
 
 _ :: reflect
 
+index_byte :: strings.index_byte
+trim :: strings.trim_space
+
 Parser :: struct {
-	s:      string,
-	offset: int,
+	s:        string,
+	offset:   int,
+	finished: bool, // Parser stambled upon "OK".
 }
 
 Pair :: struct {
@@ -37,82 +40,57 @@ parser_destroy :: proc(p: Parser, allocator := context.allocator) {
 	delete(p.s, allocator)
 }
 
-parser_next_named_pair :: proc(p: ^Parser, key: string) -> (value: string, ok: bool) {
-	for pair in parser_next_pair(p) {
-		if pair.key == key {
-			return pair.value, true
-		}
+parser_next_line :: proc(p: ^Parser) -> (line: string, found: bool) {
+	if p.finished do return "", false
+
+	start := p.offset
+	end := p.offset
+
+	for rune in parser_cur_rune(p) {
+		parser_advance(p, rune)
+		if rune == '\n' do break
+		end = p.offset
 	}
-	return "", false
+
+	if start <= end {
+		line = trim(p.s[start:end])
+		if line == "OK" do p.finished = true
+		return line, true
+	} else {
+		return "", false
+	}
+}
+
+parser_peek_next_line :: proc(p: ^Parser) -> (line: string, found: bool) {
+	before := p.offset
+	defer p.offset = before
+	return parser_next_line(p)
 }
 
 // Parse next `<key>: <value>` pair.
-parser_next_pair :: proc(p: ^Parser) -> (pair: Pair, ok: bool) {
-	parser_skip_spaces(p)
+parser_next_pair :: proc(p: ^Parser) -> (pair: Pair, found: bool) {
+	line := parser_next_line(p) or_return
 
-	pair.key = parser_next_key(p) or_return
-	if pair.key == "OK" {
-		p.offset = len(p.s)
+	COLON :: ':'
+	COLON_SIZE :: 1
+
+	colon := index_byte(line, COLON)
+	if colon < 0 {
 		return {}, false
 	}
 
-	pair.value = parser_next_value(p) or_return
+	pair.key = line[:colon]
+	pair.key = trim(pair.key)
+	pair.value = line[colon + COLON_SIZE:]
+	pair.value = trim(pair.value)
 
 	return pair, true
 }
 
-// Parse next `<number>:<kind>: <path>`
-parser_next_queue_song :: proc(
-	p: ^Parser,
-) -> (
-	number: string,
-	kind: string,
-	path: string,
-	ok: bool,
-) {
-	number = parser_next_key(p) or_return
-	kind = parser_next_key(p) or_return
-	path = parser_next_value(p) or_return
-	ok = true
-	return
-}
-
-// Parse anything untill ':'.
-parser_next_key :: proc(p: ^Parser) -> (field: string, ok: bool) {
-	start := p.offset
-	end := p.offset
-
-	for rune in parser_cur_rune(p) {
-		defer parser_advance(p, rune)
-
-		end = p.offset
-
-		if rune == '\n' do return "", false
-		if rune == ':' do break
-	}
-
-	if start >= end do return "", false
-	return strings.trim_space(p.s[start:end]), true
-}
-
-// Parse anything untill newline.
-parser_next_value :: proc(p: ^Parser) -> (value: string, ok: bool) {
-	start := p.offset
-	end := p.offset
-
-	for rune in parser_cur_rune(p) {
-		defer parser_advance(p, rune)
-
-		end = p.offset
-		if rune == '\n' do break
-	}
-
-	if start >= end do return "", false
-	return strings.trim_space(p.s[start:end]), true
-}
-
 // Parse next sequence of `changed: <subsystem>`.
-parser_next_changes :: proc(p: ^Parser) -> (changes: Changes, ok: bool) {
+parser_next_changes :: proc(p: ^Parser) -> (changes: Changes, found: bool) {
+	if p.finished do return {}, false
+
 	for pair in parser_next_pair(p) {
 		if pair.key != "changed" do continue
 
@@ -130,22 +108,28 @@ parser_next_struct :: proc(
 	loc := #caller_location,
 ) -> (
 	strct: T,
-	err: Parse_Error,
+	found: bool,
 ) {
-	err = parser_next_struct_any(p, strct, loc)
+	found = parser_next_struct_any(p, strct, loc)
 	return
 }
 
 // Parse next struct from `<key>: <value>` sequence.
+// Any string within the resulting struct will be a slice from parser's source string.
+// TODO!: parse arrays, MPD may send a sequance of pairs with the same key representing an array.
 @(require_results)
-parser_next_struct_any :: proc(
-	p: ^Parser,
-	strct: any,
-	loc := #caller_location,
-) -> (
-	err: Parse_Error,
-) {
-	for pair in parser_next_pair(p) {
+parser_next_struct_any :: proc(p: ^Parser, strct: any, loc := #caller_location) -> (found: bool) {
+	FILE_KEY :: "file"
+
+	if p.finished do return false
+
+	// If parser hits "file" key again, its the start of the next song info.
+	was_file := false
+
+	before := p.offset
+	loop: for pair in parser_next_pair(p) {
+		defer before = p.offset
+
 		target_field: any
 		field_name: string
 		field_alias: string
@@ -153,9 +137,21 @@ parser_next_struct_any :: proc(
 		for field in reflect.struct_fields_zipped(strct.id) {
 			field_name = field.name
 			field_alias = field.name
-			if field.tag != "" do field_alias = string(field.tag)
+
+			if field.tag != "" {
+				field_alias = string(field.tag)
+			}
 
 			if pair.key == field_alias {
+				switch {
+				case pair.key == FILE_KEY && was_file:
+					// Hit the next song info! Cancel the previous scan and return.
+					p.offset = before
+					break loop
+				case pair.key == FILE_KEY:
+					was_file = true
+				}
+
 				target_field = reflect.struct_field_value(strct, field)
 				break
 			}
@@ -163,7 +159,7 @@ parser_next_struct_any :: proc(
 
 		if target_field == nil do continue
 
-		err = field_parse(target_field, pair.value)
+		err := field_parse(target_field, pair.value)
 		if err != nil {
 			MSG :: "MPD: Failed to parse: %v\n\tfield = %T.%s: %T %q\n\tpair = %v"
 			log.errorf(
@@ -176,11 +172,11 @@ parser_next_struct_any :: proc(
 				pair,
 				location = loc,
 			)
-			return err
+			return false
 		}
 	}
 
-	return nil
+	return true
 }
 
 @(require_results)
@@ -204,12 +200,18 @@ field_parse :: proc(field: any, s: string) -> (err: Parse_Error) {
 		v, ok = sc.parse_int(s)
 	case f32:
 		v, ok = sc.parse_f32(s)
+	case string:
+		v = s
+		ok = true
 
 	case Song_Id:
 		v = Song_Id(sc.parse_int(s) or_break)
 		ok = true
 	case Song_Pos:
 		v = Song_Pos(sc.parse_int(s) or_break)
+		ok = true
+	case Song_File:
+		v = Song_File(s)
 		ok = true
 	case Seconds:
 		v = Seconds(sc.parse_f32(s) or_break)
@@ -225,13 +227,6 @@ field_parse :: proc(field: any, s: string) -> (err: Parse_Error) {
 
 	if !ok do return .Parse_Value
 	return nil
-}
-
-parser_skip_spaces :: proc(p: ^Parser) {
-	for rune in parser_cur_rune(p) {
-		if !unicode.is_space(rune) do break
-		parser_advance(p, rune)
-	}
 }
 
 parser_cur_rune :: proc(p: ^Parser) -> (rune: rune, ok: bool) {

@@ -33,7 +33,7 @@ assets_load :: proc() -> (ok: bool) {
 	return true
 }
 
-assert_destroy :: proc() {
+assets_destroy :: proc() {
 	font_destroy(state.font_kapli)
 	win.font_library_destroy(state.font_library)
 

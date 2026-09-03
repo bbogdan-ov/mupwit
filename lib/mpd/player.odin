@@ -1,19 +1,23 @@
 #+vet explicit-allocators
 
-package mpd
-
-import "base:intrinsics"
-import "core:strings"
-
-_ :: strings
-
 // NOTE: do not rename enum variants, they are the same (except the casing) as
 // MPD's "enums" (e.g. play state) for simpler deserialization.
 
+package mpd
+
+import "base:intrinsics"
+
 // Unique song ID within queue.
+// This ID is only used within a queue, therefore it is only assigned after
+// adding a song to the queue.
+// Filename (URI) of the song should act as a unique "global" ID.
 Song_Id :: distinct int
-// Position of a song in queue.
+
+// Position of a song in queue or album.
 Song_Pos :: distinct int
+
+// Song file path relative to the MPD music dir.
+Song_File :: distinct string
 
 Seconds :: distinct f32
 
@@ -57,6 +61,8 @@ Changes :: bit_set[Change;u16]
 
 // Player status.
 Status :: struct {
+	// Volume in range 0..=100
+	volume:           int,
 	// Wheter to keep repeating the queue.
 	repeat:           bool,
 	// Whether queue is shuffled.
@@ -77,6 +83,27 @@ Status :: struct {
 	elapsed:          Seconds,
 	// Duration of currently playing song.
 	duration:         Seconds,
+	error:            string,
+}
 
-	// TODO: may be also include the `error` field.
+Song_Info :: struct {
+	file:         Song_File,
+	artist:       string `Artist`,
+	album_artist: string `AlbumArtist`,
+	title:        string `Title`,
+	album:        string `Album`,
+	release_date: string `Date`,
+	genre:        string `Genre`, // TODO: this should be an array.
+	id:           Song_Id `Id`,
+	number:       Song_Pos `Track`, // Number of track in its album.
+	disc:         int `Disc`,
+	duration:     Seconds,
+	queue_pos:    Song_Pos `Pos`,
+}
+
+song_info_strings_len :: proc(info: ^Song_Info) -> (n: int) {
+	n += len(info.file) + len(info.artist)
+	n += len(info.album_artist) + len(info.title)
+	n += len(info.album) + len(info.release_date) + len(info.genre)
+	return n
 }

@@ -68,7 +68,7 @@ connect_to_endpoint :: proc(
 	client: Client,
 	err: Error,
 ) {
-	log.debug("MPD: Connecting...")
+	log.info("MPD: Connecting...")
 
 	dial_err: net.Network_Error
 	client.socket, dial_err = net.dial_tcp(endpoint)
@@ -86,13 +86,14 @@ connect_to_endpoint :: proc(
 		version := recv_blocking(&client, context.allocator, loc) or_return
 		defer delete(version, context.allocator)
 
-		log.debugf("MPD: Connected: %q", version)
+		log.infof("MPD: Connected: %q", version)
 	}
 
 	return client, nil
 }
 
 disconnect :: proc(client: ^Client) {
+	log.info("MPD: Disconnecting...")
 	net.close(client.socket)
 	recv_state_destroy(&client.state)
 }
