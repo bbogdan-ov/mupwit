@@ -3,6 +3,7 @@ package mupwit
 import "base:runtime"
 import "core:fmt"
 import "core:log"
+import "core:time"
 
 import "lib:cairo"
 import "lib:mpd"
@@ -25,14 +26,11 @@ state: State
 main :: proc() {
 	context.logger = make_logger()
 
-	// player_connect()
-	// player_destroy()
-	// if true do return
-
 	window := win.window_new(WINDOW_WIDTH, WINDOW_HEIGHT)
 	assert(window != nil) // TODO: handle error.
 
 	win.window_set_resizable(window, false)
+	win.window_set_frame_callback(window, _window_on_frame)
 	win.window_set_draw_callback(window, _window_draw)
 	win.window_set_pointer_motion_callback(window, _window_on_pointer_motion)
 
@@ -51,6 +49,10 @@ main :: proc() {
 	log.info("Bye")
 }
 
+update :: proc(dt: Seconds) {
+	player_update(dt)
+}
+
 draw :: proc(ctx: ^Context) {
 	defer free_all(context.temp_allocator)
 
@@ -65,10 +67,12 @@ draw :: proc(ctx: ^Context) {
 	set_source_color(ctx, BLACK)
 	cairo.save(ctx)
 	cairo.move_to(ctx, 8, 16)
-	cairo.show_text(ctx, fmt.ctprint(player.playstate))
+	cairo.show_text(ctx, fmt.ctprintf("%v - %v", player.playstate, player.cur_song))
 	cairo.restore(ctx)
 
-	for song, i in player.queue {
+	for i in 0 ..< min(len(player.queue), 10) {
+		song := &player.queue[i]
+
 		cairo.save(ctx)
 		cairo.move_to(ctx, 8, f64(i) * 20 + 64)
 		cairo.show_text(ctx, fmt.ctprintf("%v - %v", song.title, song.artist))
@@ -90,6 +94,22 @@ _window_draw :: proc "c" (window: ^win.Window, cr: ^cairo.cairo_t, surface: ^cai
 	ctx.view.height = cairo.image_surface_get_height(surface)
 
 	draw(&ctx)
+}
+
+_window_on_frame :: proc "c" (window: ^win.Window) {
+	context = runtime.default_context()
+	context.logger = make_logger()
+
+	@(static) start: time.Time
+
+	now := time.now()
+	if start._nsec == 0 do start = now
+
+	delta := time.diff(start, now)
+	start = now
+
+	dt := Seconds(time.duration_seconds(delta))
+	update(dt)
 }
 
 _window_on_pointer_motion :: proc "c" (window: ^win.Window, x, y: f64) {}

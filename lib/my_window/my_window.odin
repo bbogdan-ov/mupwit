@@ -16,6 +16,7 @@ Font_Face :: cairo.Font_Face
 
 Window :: struct {}
 
+Callback :: #type proc "c" (win: ^Window)
 Draw_Callback :: #type proc "c" (win: ^Window, cr: ^cairo.cairo_t, surface: ^cairo.surface_t)
 Pointer_Motion_Callback :: #type proc "c" (win: ^Window, x, y: f64)
 
@@ -29,6 +30,7 @@ foreign lib {
 
 	window_set_userdata :: proc(win: ^Window, userdata: rawptr) ---
 	window_set_resizable :: proc(win: ^Window, resizable: bool) ---
+	window_set_frame_callback :: proc(win: ^Window, callback: Callback) ---
 	window_set_draw_callback :: proc(win: ^Window, callback: Draw_Callback) ---
 	window_set_pointer_motion_callback :: proc(win: ^Window, callback: Pointer_Motion_Callback) ---
 

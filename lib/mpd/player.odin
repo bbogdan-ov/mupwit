@@ -6,6 +6,7 @@
 package mpd
 
 import "base:intrinsics"
+import "base:runtime"
 
 // Unique song ID within queue.
 // This ID is only used within a queue, therefore it is only assigned after
@@ -15,6 +16,11 @@ Song_Id :: distinct int
 
 // Position of a song in queue or album.
 Song_Pos :: distinct int
+
+Song_Handle :: struct #all_or_none {
+	id:  Song_Id,
+	pos: Song_Pos,
+}
 
 // Song file path relative to the MPD music dir.
 Song_File :: distinct string
@@ -83,27 +89,57 @@ Status :: struct {
 	elapsed:          Seconds,
 	// Duration of currently playing song.
 	duration:         Seconds,
-	error:            string,
 }
 
-Song_Info :: struct {
-	file:         Song_File,
-	artist:       string `Artist`,
-	album_artist: string `AlbumArtist`,
-	title:        string `Title`,
-	album:        string `Album`,
-	release_date: string `Date`,
-	genre:        string `Genre`, // TODO: this should be an array.
-	id:           Song_Id `Id`,
-	number:       Song_Pos `Track`, // Number of track in its album.
-	disc:         int `Disc`,
-	duration:     Seconds,
-	queue_pos:    Song_Pos `Pos`,
+Song :: struct {
+	file:      Song_File,
+	artist:    string `Artist`,
+	title:     string `Title`,
+	album:     string `Album`,
+	date:      string `Date`,
+	genre:     string `Genre`, // TODO: this should be an array.
+	number:    Song_Pos `Track`,
+	disc:      int `Disc`,
+	duration:  Seconds,
+
+	// Queue-local data, if not in a queue, those fields are zeroed.
+	queue_id:  Song_Id `Id`, // Song ID within current queue.
+	queue_pos: Song_Pos `Pos`,
+
+	// Allocator used to allocate strings.
+	allocator: runtime.Allocator,
 }
 
-song_info_strings_len :: proc(info: ^Song_Info) -> (n: int) {
-	n += len(info.file) + len(info.artist)
-	n += len(info.album_artist) + len(info.title)
-	n += len(info.album) + len(info.release_date) + len(info.genre)
-	return n
+Song_List :: distinct [dynamic]Song
+
+song_destroy :: proc(song: Song) {
+	delete(string(song.file), song.allocator)
+	delete(song.artist, song.allocator)
+	delete(song.title, song.allocator)
+	delete(song.album, song.allocator)
+	delete(song.date, song.allocator)
+	delete(song.genre, song.allocator)
+}
+
+// Destroy all songs inside a list and `clear()` it.
+song_list_clear :: proc(list: ^Song_List) {
+	for song in list do song_destroy(song)
+	clear(list)
+}
+
+song_list_destroy :: proc(list: ^Song_List) {
+	song_list_clear(list)
+	delete(list^)
+}
+
+Picture :: struct {
+	data_size: int `size`,
+	mimetype:  string `type`,
+	data:      []u8,
+	allocator: runtime.Allocator,
+}
+
+picture_destroy :: proc(picture: ^Picture) {
+	delete(picture.data, picture.allocator)
+	delete(picture.mimetype, picture.allocator)
 }

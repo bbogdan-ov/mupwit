@@ -15,18 +15,26 @@ static_assert(sizeof(bool) == 1);
 
 typedef struct My_Window My_Window;
 
-typedef void (*Draw_Callback)(My_Window *window, cairo_t *cr, cairo_surface_t *surface);
-typedef void (*Pointer_Motion_Callback)(My_Window *window, double x, double y);
+typedef void (*My_Callback)(My_Window *window);
+typedef void (*My_Draw_Callback)(My_Window *window, cairo_t *cr, cairo_surface_t *surface);
+typedef void (*My_Pointer_Motion_Callback)(My_Window *window, double x, double y);
 
 struct My_Window {
 	wayclient_state state;
 
 	void *userdata;
-	Draw_Callback draw;
-	Pointer_Motion_Callback on_pointer_motion;
+	My_Callback on_frame;
+	My_Draw_Callback draw;
+	My_Pointer_Motion_Callback on_pointer_motion;
 };
 
-void draw(wayclient_state *state, uint8_t *pixel_data, size_t pixel_data_size) {
+void my_window__on_frame(wayclient_state *state) {
+	My_Window *window = state->userdata;
+	if (window->on_frame != NULL)
+		window->on_frame(window);
+}
+
+void my_window__draw(wayclient_state *state, uint8_t *pixel_data, size_t pixel_data_size) {
 	My_Window *window = state->userdata;
 	if (window->draw == NULL) return;
 
@@ -45,7 +53,7 @@ void draw(wayclient_state *state, uint8_t *pixel_data, size_t pixel_data_size) {
 	cairo_surface_destroy(surface);
 }
 
-void on_pointer_motion(wayclient_state *state, double x, double y) {
+void my_window__on_pointer_motion(wayclient_state *state, double x, double y) {
 	My_Window *window = state->userdata;
 
 	if (window->on_pointer_motion != NULL)
@@ -61,8 +69,9 @@ my_window_new(uint32_t width, uint32_t height) {
 	wayclient_init(&window->state, width, height);
 
 	window->state.userdata = window;
-	window->state.draw = draw;
-	window->state.on_pointer_motion = on_pointer_motion;
+	window->state.on_frame = my_window__on_frame;
+	window->state.draw = my_window__draw;
+	window->state.on_pointer_motion = my_window__on_pointer_motion;
 
 	wayclient_error err = wayclient_run(&window->state);
 	if (err != WAYCLIENT_OK)
@@ -91,8 +100,9 @@ my_window_set_resizable(My_Window *window, bool resizable) {
 	window->state.resizable = resizable;
 }
 
-void my_window_set_draw_callback(My_Window *window, Draw_Callback callback) { window->draw = callback; }
-void my_window_set_pointer_motion_callback(My_Window *window, Pointer_Motion_Callback callback) { window->on_pointer_motion = callback; }
+void my_window_set_frame_callback(My_Window *w, My_Callback cb)                         { w->on_frame = cb; }
+void my_window_set_draw_callback(My_Window *w, My_Draw_Callback cb)                     { w->draw = cb; }
+void my_window_set_pointer_motion_callback(My_Window *w, My_Pointer_Motion_Callback cb) { w->on_pointer_motion = cb; }
 
 void *
 my_window_userdata(My_Window *window) {

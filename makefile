@@ -20,7 +20,7 @@ FLAGS := \
 build/mupwit: $(SOURCES) $(LIB_SOURCES) assets/.generated
 	@mkdir -p build
 	@echo "INFO: Compiling..."
-	@odin build src -out:build/mupwit -sanitize:address -debug $(FLAGS)
+	@odin build src -out:build/mupwit -debug $(FLAGS)
 
 # Prebuild assets.
 assets/.generated: build/prebuild $(IMAGES)

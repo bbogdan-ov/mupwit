@@ -1,6 +1,7 @@
 package mpd
 
 import "base:intrinsics"
+import "core:fmt"
 import "core:log"
 import "core:reflect"
 import "core:strconv"
@@ -14,20 +15,15 @@ index_byte :: strings.index_byte
 trim :: strings.trim_space
 
 Parser :: struct {
-	s:        string,
-	offset:   int,
-	finished: bool, // Parser stambled upon "OK".
+	s:                string,
+	offset:           int,
+	prev_line_offset: int,
+	finished:         bool, // Parser stambled upon "OK".
 }
 
 Pair :: struct {
 	key:   string,
 	value: string,
-}
-
-Parse_Error :: enum {
-	None = 0,
-	Parse_Value,
-	Unsupported_Type,
 }
 
 parser_make :: proc(s: string) -> (p: Parser) {
@@ -45,6 +41,7 @@ parser_next_line :: proc(p: ^Parser) -> (line: string, found: bool) {
 
 	start := p.offset
 	end := p.offset
+	p.prev_line_offset = p.offset
 
 	for rune in parser_cur_rune(p) {
 		parser_advance(p, rune)
@@ -87,146 +84,217 @@ parser_next_pair :: proc(p: ^Parser) -> (pair: Pair, found: bool) {
 	return pair, true
 }
 
-// Parse next sequence of `changed: <subsystem>`.
+parser_skip_until_pair :: proc(p: ^Parser, key: string) {
+	for pair in parser_next_pair(p) {
+		if pair.key == key {
+			parser_cancel_line(p)
+			return
+		}
+	}
+}
+
+@(require_results)
 parser_next_changes :: proc(p: ^Parser) -> (changes: Changes, found: bool) {
-	if p.finished do return {}, false
+	if parser_will_finish(p) do return {}, false
 
 	for pair in parser_next_pair(p) {
-		if pair.key != "changed" do continue
+		if pair.key != "changed" {
+			parser_cancel_line(p)
+			break
+		}
 
-		c := parse_enum(Change, pair.value) or_return
-		log.info(pair.value, c)
+		c := _parse_enum(Change, pair) or_continue
 		changes |= {c}
 	}
 	return changes, true
 }
 
 @(require_results)
-parser_next_struct :: proc(
-	$T: typeid,
+parser_next_song :: proc(
 	p: ^Parser,
+	allocator := context.allocator,
 	loc := #caller_location,
 ) -> (
-	strct: T,
+	song: Song,
 	found: bool,
 ) {
-	found = parser_next_struct_any(p, strct, loc)
-	return
-}
+	if parser_will_finish(p) do return {}, false
 
-// Parse next struct from `<key>: <value>` sequence.
-// Any string within the resulting struct will be a slice from parser's source string.
-// TODO!: parse arrays, MPD may send a sequance of pairs with the same key representing an array.
-@(require_results)
-parser_next_struct_any :: proc(p: ^Parser, strct: any, loc := #caller_location) -> (found: bool) {
-	FILE_KEY :: "file"
+	song.allocator = allocator
 
-	if p.finished do return false
-
-	// If parser hits "file" key again, its the start of the next song info.
 	was_file := false
-
-	before := p.offset
 	loop: for pair in parser_next_pair(p) {
-		defer before = p.offset
-
-		target_field: any
-		field_name: string
-		field_alias: string
-
-		for field in reflect.struct_fields_zipped(strct.id) {
-			field_name = field.name
-			field_alias = field.name
-
-			if field.tag != "" {
-				field_alias = string(field.tag)
-			}
-
-			if pair.key == field_alias {
-				switch {
-				case pair.key == FILE_KEY && was_file:
-					// Hit the next song info! Cancel the previous scan and return.
-					p.offset = before
-					break loop
-				case pair.key == FILE_KEY:
-					was_file = true
-				}
-
-				target_field = reflect.struct_field_value(strct, field)
-				break
-			}
+		switch {
+		case pair.key == "file" && was_file:
+			parser_cancel_line(p)
+			break loop
+		case pair.key == "file":
+			was_file = true
 		}
 
-		if target_field == nil do continue
+		_parse_struct_field_from_pair(song, pair, song.allocator, loc)
+	}
 
-		err := field_parse(target_field, pair.value)
-		if err != nil {
-			MSG :: "MPD: Failed to parse: %v\n\tfield = %T.%s: %T %q\n\tpair = %v"
-			log.errorf(
-				MSG,
-				err,
-				strct,
-				field_name,
-				target_field,
-				field_alias,
-				pair,
-				location = loc,
-			)
-			return false
+	return song, true
+}
+
+@(require_results)
+parser_next_status :: proc(p: ^Parser, loc := #caller_location) -> (status: Status, found: bool) {
+	if parser_will_finish(p) do return {}, false
+	for pair in parser_next_pair(p) {
+		// NOTE: `Status` has no strings, so it doesn't need an allocator.
+		_parse_struct_field_from_pair(status, pair, allocator = {}, loc = loc)
+	}
+	return status, true
+}
+
+parser_next_picture_info :: proc(
+	p: ^Parser,
+	allocator := context.allocator,
+	loc := #caller_location,
+) -> (
+	picture: Picture,
+	found: bool,
+) {
+	if parser_will_finish(p) do return {}, false
+
+	picture.allocator = allocator
+
+	for pair in parser_next_pair(p) {
+		if pair.key == "binary" {
+			parser_cancel_line(p)
+			break
+		}
+
+		_parse_struct_field_from_pair(picture, pair, picture.allocator, loc)
+	}
+	return picture, true
+}
+
+parser_next_binary :: proc(p: ^Parser, loc := #caller_location) -> (data: []u8, found: bool) {
+	if parser_will_finish(p) do return {}, false
+
+	pair := parser_next_pair(p) or_return
+	if pair.key != "binary" {
+		parser_cancel_line(p)
+		found = false
+		return
+	}
+
+	size, ok := strconv.parse_uint(pair.value)
+	if !ok {
+		log.errorf("MPD: Failed to parse binary size: %q", pair.value, location = loc)
+		found = false
+		return
+	}
+
+	data = transmute([]u8)(p.s[p.offset:][:size])
+	return data, true
+}
+
+_parse_struct_field_from_pair :: proc(
+	struct_: any,
+	pair: Pair,
+	allocator := context.allocator,
+	loc := #caller_location,
+) {
+	// Get pointer to the field.
+	value: any
+	for field in reflect.struct_fields_zipped(struct_.id) {
+		name := field.name if field.tag == "" else string(field.tag)
+		if name == pair.key {
+			value = reflect.struct_field_value(struct_, field)
 		}
 	}
 
-	return true
-}
+	if value == nil do return
 
-@(require_results)
-field_parse :: proc(field: any, s: string) -> (err: Parse_Error) {
-	sc :: strconv
 	type_base_type :: intrinsics.type_base_type
+	sclone :: strings.clone
 
-	// To not forget to update parsing implemention.
+	// So i don't forget to update parsing implemention:
 	#assert(type_base_type(Song_Pos) == int)
 	#assert(type_base_type(Song_Id) == int)
 	#assert(type_base_type(Seconds) == f32)
 
-	ok: bool
-	switch &v in field {
+	switch &v in value {
 	case nil:
-		ok = true
-	case bool:
-		v = s == "1"
-		ok = true
-	case int:
-		v, ok = sc.parse_int(s)
-	case f32:
-		v, ok = sc.parse_f32(s)
-	case string:
-		v = s
-		ok = true
 
+	case bool:
+		v = pair.key == "1"
+
+	case int:
+		v = _parse_number(int, pair, loc)
 	case Song_Id:
-		v = Song_Id(sc.parse_int(s) or_break)
-		ok = true
+		v = Song_Id(_parse_number(int, pair, loc))
 	case Song_Pos:
-		v = Song_Pos(sc.parse_int(s) or_break)
-		ok = true
-	case Song_File:
-		v = Song_File(s)
-		ok = true
+		v = Song_Pos(_parse_number(int, pair, loc))
+	case Maybe(Song_Id):
+		v = Song_Id(_parse_number(int, pair, loc))
+	case Maybe(Song_Pos):
+		v = Song_Pos(_parse_number(int, pair, loc))
+
+	case f32:
+		v = _parse_number(f32, pair, loc)
 	case Seconds:
-		v = Seconds(sc.parse_f32(s) or_break)
-		ok = true
+		v = Seconds(_parse_number(f32, pair, loc))
+
+	case string:
+		v = sclone(pair.value, allocator)
+	case Song_File:
+		v = Song_File(sclone(pair.value, allocator))
+
 	case Play_State:
-		v, ok = parse_enum(Play_State, s)
+		v, _ = _parse_enum(Play_State, pair, loc)
 	case Single_State:
-		v, ok = parse_enum(Single_State, s)
+		v, _ = _parse_enum(Single_State, pair, loc)
 
 	case:
-		return .Unsupported_Type
+		panic(fmt.tprintf("Unsupported type: %T", value))
+	}
+}
+
+_parse_number :: #force_inline proc($T: typeid, pair: Pair, loc := #caller_location) -> T {
+	when T == int {
+		n, ok := strconv.parse_int(pair.value)
+	} else when T == f32 {
+		n, ok := strconv.parse_f32(pair.value)
+	} else {
+		#panic("Unsupported type")
 	}
 
-	if !ok do return .Parse_Value
-	return nil
+	if !ok {
+		log.errorf("MPD: Failed to parse number: %v", pair, location = loc)
+		if ODIN_DEBUG do panic("Failed to parse number", loc)
+	}
+	return n
+}
+
+@(require_results)
+_parse_enum :: proc(
+	$T: typeid,
+	pair: Pair,
+	loc := #caller_location,
+) -> (
+	value: T,
+	ok: bool,
+) where intrinsics.type_is_enum(T) {
+	name := pair.value
+
+	for variant in reflect.enum_fields_zipped(T) {
+		switch {
+		case variant.name == "Off" && name == "0":
+			fallthrough
+		case variant.name == "On" && name == "1":
+			fallthrough
+		case strings.equal_fold(variant.name, name):
+			return T(variant.value), true
+		}
+	}
+
+	log.errorf("MPD: Failed to parse enum: %v", pair, location = loc)
+	if ODIN_DEBUG do panic("Failed to parse enum", loc)
+	return {}, false
 }
 
 parser_cur_rune :: proc(p: ^Parser) -> (rune: rune, ok: bool) {
@@ -236,30 +304,18 @@ parser_cur_rune :: proc(p: ^Parser) -> (rune: rune, ok: bool) {
 	return rune, true
 }
 
+// Cancel previous line scan.
+parser_cancel_line :: proc(p: ^Parser) {
+	p.offset = p.prev_line_offset
+}
+
 parser_advance :: proc(p: ^Parser, rune: rune) {
 	p.offset += utf8.rune_size(rune)
 }
 
-// Parses an enum from name of one of its variants.
-@(require_results)
-parse_enum :: proc(
-	$T: typeid,
-	name: string,
-) -> (
-	value: T,
-	ok: bool,
-) where intrinsics.type_is_enum(T) {
-	for variant in reflect.enum_fields_zipped(T) {
-		switch {
-		case strings.equal_fold(variant.name, name):
-			fallthrough
-		case variant.name == "Off" && name == "0":
-			fallthrough
-		case variant.name == "On" && name == "1":
-			return T(variant.value), true
-		}
-	}
-	return {}, false
+parser_will_finish :: proc(p: ^Parser) -> bool {
+	_, found := parser_peek_next_line(p)
+	return p.finished || !found
 }
 
 @(test)

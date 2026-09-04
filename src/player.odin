@@ -1,152 +1,118 @@
 #+vet explicit-allocators
 
+// FIXME!!!: MUPWIT may freeze if queue changes too quickly.
+// I don't know where the freeze happens because it may also freeze the main
+// thread which stops the app from responding, but sometimes only the player
+// thread freezes. Net-programming is fucking hard...
+// May be i should implement some kind of debounce to not request the queue
+// info right after it being changed?
+
 package mupwit
 
-import "core:strings"
+import "base:runtime"
+import "core:sync/chan"
+import "core:thread"
+import "core:time"
 import "lib:mpd"
 
-Song_Id :: mpd.Song_Id
-Song_Pos :: mpd.Song_Pos
-Song_File :: mpd.Song_File
-Play_State :: mpd.Play_State
+STATUS_REQUEST_INVERVAL :: Seconds(0.5)
+TARGET_CLIENT_THREAD_TPS :: 30
 
 Player :: struct {
-	client:    mpd.Client,
-	playstate: Play_State,
-	cur_song:  Maybe(Song_Pos),
-	queue:     [dynamic]Song,
-}
+	// Playback state.
+	playstate:        mpd.Play_State,
+	cur_song:         Maybe(mpd.Song_Handle),
+	queue:            mpd.Song_List,
 
-Song :: struct #all_or_none {
-	file:         Song_File,
-	artist:       string,
-	album_artist: string,
-	title:        string,
-	album:        string,
-	release_date: string,
-	genre:        string,
-	id:           Song_Id, // ID within current queue.
-	number:       Song_Pos,
-	disc:         int,
-	duration:     Seconds,
-
-	// All strings in this struct will slice themselves from this buffer.
-	_string_pool: strings.Builder,
+	// Client state.
+	thread:           ^thread.Thread,
+	commands:         chan.Chan(Command),
+	responses:        chan.Chan(Response),
+	status_req_timer: Seconds,
 }
 
 player_connect :: proc() {
-	p := &state.player
+	player := &state.player
 
-	err: mpd.Error
-	p.client, err = mpd.connect(context.allocator)
-	assert(err == nil) // TODO: handle error.c:W
+	player.thread = thread.create(_do_connect)
+	thread.start(player.thread)
 
-	_ = player_request_status()
-	_ = player_request_queue()
+	chan_err: runtime.Allocator_Error
+	player.commands, chan_err = chan.create_buffered(chan.Chan(Command), 10, context.allocator)
+	assert(chan_err == nil) // TODO: handle error.
+	player.responses, chan_err = chan.create_buffered(chan.Chan(Response), 10, context.allocator)
+	assert(chan_err == nil) // TODO: handle error.
+
+	player_request_status()
+	player_request_queue()
 }
 
 player_destroy :: proc() {
 	player := &state.player
 
-	mpd.disconnect(&player.client)
+	player_send_command(Command_Disconnect{})
 
-	player_clear_queue()
-	delete(player.queue)
+	thread.join(player.thread)
+
+	mpd.song_list_destroy(&player.queue)
+	chan.destroy(&player.commands)
+	chan.destroy(&player.responses)
 }
 
-song_make_from_info :: proc(info: ^mpd.Song_Info, allocator := context.allocator) -> Song {
-	cap := mpd.song_info_strings_len(info)
-	string_pool := strings.builder_make_len_cap(0, cap, allocator)
+player_update :: proc(dt: Seconds) {
+	player := &state.player
 
-	_put :: proc(pool: ^strings.Builder, s: $T) -> T {
-		start := len(pool.buf)
-		strings.write_string(pool, string(s))
-		end := len(pool.buf)
-		return T(pool.buf[start:end])
+	player.status_req_timer -= dt
+	if player.status_req_timer <= 0 {
+		player_request_status()
+		player.status_req_timer = STATUS_REQUEST_INVERVAL
 	}
 
-	pool := &string_pool
-	
-	// odinfmt:disable
-	return Song{
-		file         = _put(pool, info.file),
-		artist       = _put(pool, info.artist),
-		album_artist = _put(pool, info.album_artist),
-		title        = _put(pool, info.title),
-		album        = _put(pool, info.album),
-		release_date = _put(pool, info.release_date),
-		genre        = _put(pool, info.genre),
-		id           = info.id,
-		number       = info.number,
-		disc         = info.disc,
-		duration     = info.duration,
-		_string_pool = string_pool,
+	for response in chan.try_recv(player.responses) {
+		_player_handle_response(response)
 	}
-	// odinfmt:enable
 }
 
-song_destroy :: proc(song: ^Song) {
-	strings.builder_destroy(&song._string_pool)
+_do_connect :: proc(t: ^thread.Thread) {
+	context.logger = make_logger()
+
+	// NOTE: this thread may log stuff into console in a non-thread safe
+	// fashion and overlapping logs may appear, which is not that bad i guess?
+
+	TARGET_DELAY :: time.Second / TARGET_CLIENT_THREAD_TPS
+	MIN_DELAY :: 5 * time.Millisecond
+
+	client, err := mpd.connect(context.allocator)
+	assert(err == nil) // TODO: handle error.
+	defer mpd.disconnect(&client)
+
+	start := time.now()
+	for {
+		changes, _ := mpd.request_changes(&client)
+		_ = _player_handle_changes(&client, changes)
+
+		should_exit := _player_handle_commands(&client)
+		if should_exit do break
+
+		now := time.now()
+		elapsed := time.diff(start, now)
+		start = now
+		time.sleep(max(TARGET_DELAY - elapsed, MIN_DELAY))
+	}
 }
 
 @(require_results)
-player_request_status :: proc() -> (ok: bool) {
-	player := &state.player
+_player_handle_changes :: proc(client: ^mpd.Client, changes: mpd.Changes) -> (err: mpd.Error) {
+	if changes == nil do return
 
-	_send("status") or_return
-	s := _recv_blocking(context.allocator) or_return
-	defer delete(s, context.allocator)
-
-	p := mpd.parser_make(s)
-	status := mpd.parser_next_struct(mpd.Status, &p) or_return
-
-	player.playstate = status.playstate
-
-	return true
-}
-
-@(require_results)
-player_request_queue :: proc() -> (ok: bool) {
-	player := &state.player
-
-	_send("playlistid") or_return
-	s := _recv_blocking(context.allocator) or_return
-	defer delete(s, context.allocator)
-
-	// TODO!: should not rebuild the whole queue, should only replace songs
-	// that has been changed.
-	player_clear_queue()
-
-	p := mpd.parser_make(s)
-	for info in mpd.parser_next_struct(mpd.Song_Info, &p) {
-		info := info
-		song := song_make_from_info(&info, context.allocator)
-		append(&player.queue, song)
+	if .Player in changes {
+		status := mpd.request_status(client) or_return
+		player_send_response(status)
+	}
+	if .Playlist in changes {
+		queue := mpd.request_queue(client, context.allocator) or_return
+		player_send_response(Response_Queue{queue})
 	}
 
-	return true
-}
-
-player_clear_queue :: proc() {
-	player := &state.player
-
-	for &song in player.queue do song_destroy(&song)
-	clear(&player.queue)
-}
-
-@(require_results)
-_send :: proc($format: string, args: ..any, loc := #caller_location) -> (ok: bool) {
-	err := mpd.send(&state.player.client, format, ..args, loc = loc)
-	return err == nil
-}
-
-_recv_blocking :: proc(
-	allocator := context.allocator,
-	loc := #caller_location,
-) -> (
-	str: string,
-	ok: bool,
-) {
-	s, err := mpd.recv_blocking(&state.player.client, allocator, loc)
-	return s, err == nil
+	return nil
 }
