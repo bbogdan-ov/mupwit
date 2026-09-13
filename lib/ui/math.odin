@@ -1,7 +1,10 @@
-package mupwit
+package ui
 
 import "core:math"
 import "core:strings"
+
+Seconds :: f32
+
 Vec2 :: [2]i32
 
 Rect :: struct {

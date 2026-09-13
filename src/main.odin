@@ -4,31 +4,15 @@ import "core:log"
 import "core:time"
 
 import "lib:cairo"
-import "lib:mpd"
 import win "lib:my_window"
-
-Seconds :: mpd.Seconds
+import "lib:ui"
 
 State :: struct {
-	player:             Player,
-
-	// UI.
-	dragging:           Maybe(Element_ID),
-	drag_scroll_offset: f32,
-
-	// Input.
-	pointer:            Vec2,
-	prev_pointer:       Vec2,
-	press_pos:          Vec2,
-	buttons:            bit_set[win.Button;u8],
-	button_down:        bool,
-	button_pressed:     bool,
+	player:     Player,
 
 	// Assets.
-	font_library:       win.Font_Library,
-	font_kapli:         Font,
-	image_icons_sheet:  ^cairo.surface_t,
-	image_icons:        [Icon]^cairo.surface_t,
+	font_kapli: ui.Font,
+	icons:      ui.Sprites(Icon),
 }
 
 state: State
@@ -46,8 +30,8 @@ main :: proc() {
 	win.window_set_pointer_motion_callback(window, _window_on_pointer_motion)
 	win.window_set_pointer_scroll_callback(window, _window_on_pointer_scroll)
 
+	ui.init()
 	assets_load()
-
 	player_connect()
 
 	for win.window_should_run(window) {}
@@ -55,6 +39,7 @@ main :: proc() {
 	log.info("Closing the window...")
 	win.window_destroy(window)
 	assets_destroy()
+	ui.destroy()
 
 	player_destroy()
 
@@ -66,21 +51,20 @@ update :: proc(dt: Seconds) {
 
 	queue_ui_update(dt)
 
-	state.button_pressed = false
-	state.prev_pointer = state.pointer
+	ui.update()
 }
 
-draw :: proc(ctx: ^Context) {
+draw :: proc(ctx: ^ui.Context) {
 	defer free_all(context.temp_allocator)
 
 	cairo.set_antialias(ctx, .NONE)
 
 	// Fill background.
-	set_source_color(ctx, WHITE)
+	ui.set_source_color(ctx, WHITE)
 	cairo.paint(ctx)
 
 	// TEMPORARY: for now all text fonts will be the same.
-	set_font(ctx, state.font_kapli, 16)
+	ui.set_font(ctx, state.font_kapli, 16)
 
 	queue_ui_draw(ctx)
 }
@@ -88,11 +72,11 @@ draw :: proc(ctx: ^Context) {
 _window_draw :: proc "c" (window: ^win.Window, cr: ^cairo.cairo_t, surface: ^cairo.surface_t) {
 	context = make_default_context()
 
-	ctx: Context
+	ctx: ui.Context
 	ctx.cr = cr
 	ctx.surface = surface
-	ctx.screen = surface_rect(surface)
-	ctx.container = ctx.screen
+	ctx.screen = ui.surface_rect(surface)
+	ctx.container.rect = ctx.screen
 
 	draw(&ctx)
 }
@@ -117,24 +101,14 @@ _window_on_pointer_button :: proc "c" (
 	button: win.Button,
 	button_state: win.Button_State,
 ) {
-	switch button_state {
-	case .Released:
-		state.buttons -= {button}
-		state.button_down = false
-	case .Pressed:
-		state.buttons += {button}
-		state.button_down = true
-		state.button_pressed = true
-		state.press_pos = state.pointer
-	}
+	ui.on_pointer_button(button, button_state)
 }
 _window_on_pointer_motion :: proc "c" (window: ^win.Window, x, y: f64) {
-	state.pointer = {i32(x), i32(y)}
+	ui.on_pointer_motion({i32(x), i32(y)})
 }
 _window_on_pointer_scroll :: proc "c" (window: ^win.Window, x, y: f64, touchpad: bool) {
 	context = make_default_context()
-
 	scroll := f32(y)
 
-	queue_on_scroll(scroll, touchpad)
+	queue_ui_on_scroll(scroll, touchpad)
 }

@@ -1,4 +1,4 @@
-package mupwit
+package ui
 
 import win "lib:my_window"
 

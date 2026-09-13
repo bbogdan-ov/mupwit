@@ -1,4 +1,4 @@
-package mupwit
+package ui
 
 import "core:math"
 
@@ -98,7 +98,7 @@ scroll_set :: proc(s: ^Scroll, offset: f32) {
 	s.velocity = 0
 }
 
-scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32) {
+scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color: Color) {
 	cont := ctx.container
 
 	length := max(length, 1)
@@ -108,7 +108,7 @@ scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32) {
 	progress := s.offset / s.max_scroll
 
 	thumb: Rect
-	thumb.width = GAP
+	thumb.width = cont.padding.x
 	thumb.height = max(cont.height * cont.height / length, 32)
 	thumb.x = cont.x + cont.width
 	thumb.y = cont.y + i32(f32(cont.height - thumb.height) * progress)
@@ -117,14 +117,9 @@ scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32) {
 	s.is_hovering_thumb = overlap(state.pointer, thumb)
 
 	click := cont
-	click.width = GAP
+	click.width = cont.padding.x
 	click.x = cont.x + cont.width
 	s.is_hovering = overlap(state.pointer, click)
-
-	color := LIGHT_GRAY
-	if s.is_hovering || state.dragging == Element_ID(s) {
-		color = GRAY
-	}
 
 	{
 		rect := thumb

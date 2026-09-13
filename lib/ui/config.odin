@@ -1,0 +1,10 @@
+package ui
+
+import "core:math/ease"
+
+SCROLL_WHEEL_MULPLIER :: 6
+SCROLL_TOUCH_MULPLIER :: 4
+SCROLL_ANIM_DURATION :: Seconds(0.2)
+SCROLL_ANIM_EASE :: ease.sine_out
+SCROLL_VELOCITY_DRAG :: 10
+SCROLL_THUMB_THICKNESS :: 2
