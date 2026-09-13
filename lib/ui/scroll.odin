@@ -30,11 +30,12 @@ _scroll_update_offset :: proc(s: ^Scroll, dt: Seconds) {
 
 	s.offset += s.velocity
 
+	if s.offset >= s.max_scroll {
+		s.offset = s.max_scroll
+		s.velocity = 0
+	}
 	if s.offset <= 0 {
 		s.offset = 0
-		s.velocity = 0
-	} else if s.offset >= s.max_scroll {
-		s.offset = s.max_scroll
 		s.velocity = 0
 	}
 
