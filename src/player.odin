@@ -51,7 +51,6 @@ player_destroy :: proc() {
 	player := &state.player
 
 	player_send_command(Command_Disconnect{})
-
 	thread.join(player.thread)
 
 	mpd.song_list_destroy(&player.queue)
@@ -115,4 +114,12 @@ _player_handle_changes :: proc(client: ^mpd.Client, changes: mpd.Changes) -> (er
 	}
 
 	return nil
+}
+
+song_is_current :: proc(song: ^mpd.Song) -> bool {
+	if handle, ok := state.player.cur_song.?; ok {
+		return song.queue_id == handle.id
+	} else {
+		return false
+	}
 }

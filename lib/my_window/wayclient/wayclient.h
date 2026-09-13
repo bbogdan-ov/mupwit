@@ -29,24 +29,24 @@ typedef enum {
 	WAYCLIENT_ERR_GET_OBJECTS,
 	WAYCLIENT_ERR_CREATE_SURFACE,
 	WAYCLIENT_ERR_CREATE_TOPLEVEL,
-} wayclient_error;
+} Wayclient_Error;
 
 typedef struct {
 	struct wl_buffer *wl_buffer;
 	uint8_t          *data; // Pixel data of the wl_buffer.
 	bool             attached; // Whether the buffer is being used.
-} wayclient_buffer;
+} Wayclient_Buffer;
 
-typedef struct wayclient_state wayclient_state;
+typedef struct Wayclient_State Wayclient_State;
 
-struct wayclient_state {
+struct Wayclient_State {
 	struct wl_display    *wl_display;
 	struct wl_registry   *wl_registry;
 	struct wl_compositor *wl_compositor;
 	struct wl_surface    *wl_surface;
 	struct wl_shm        *wl_shm;
 	uint8_t              *pool_data;
-	wayclient_buffer     buffers[WAYCLIENT_BUFFER_COUNT];
+	Wayclient_Buffer     buffers[WAYCLIENT_BUFFER_COUNT];
 
 	struct wl_seat       *wl_seat;
 	struct wl_pointer    *wl_pointer;
@@ -60,6 +60,8 @@ struct wayclient_state {
 	struct xdg_surface   *xdg_surface;
 	struct xdg_toplevel  *xdg_toplevel;
 
+	enum wl_pointer_axis_source scroll_source;
+
 	uint32_t             width, height;
 	uint32_t             prev_width, prev_height;
 	bool                 should_close;
@@ -70,30 +72,30 @@ struct wayclient_state {
 	void *userdata;
 	// Called N times per second (usually 60) by the compositor when the window is displayed.
 	// May be called much less frequently if compositor decides so (for example when window is not visible).
-	void (*on_frame)(wayclient_state *state);
+	void (*on_frame)(Wayclient_State *state);
 	// Called everytime `wayclient_draw_and_commit` being called, usually 60
 	// times per second after `on_frame` callback. (see `on_frame`)
-	// You can set `wayclient_state.draw_each_frame` to false and call
+	// You can set `Wayclient_State.draw_each_frame` to false and call
 	// `wayclient_draw_and_commit` whenever you want.
-	void (*draw)(wayclient_state *state, uint8_t *pixel_data, size_t pixel_data_size);
-	void (*on_resize)(wayclient_state *state);
+	void (*draw)(Wayclient_State *state, uint8_t *pixel_data, size_t pixel_data_size);
+	void (*on_resize)(Wayclient_State *state);
 
-	void (*on_pointer_enter)(wayclient_state *state);
-	void (*on_pointer_leave)(wayclient_state *state);
-	void (*on_pointer_motion)(wayclient_state *state, double x, double y);
+	void (*on_pointer_enter)(Wayclient_State *state);
+	void (*on_pointer_leave)(Wayclient_State *state);
+	void (*on_pointer_motion)(Wayclient_State *state, double x, double y);
 	// `button` is a button code defined in the "linux/input-event-codes.h" header. (e.g. `BTN_LEFT`)
-	void (*on_pointer_button)(wayclient_state *state, uint32_t button, enum wl_pointer_button_state button_state);
-	void (*on_pointer_scroll)(wayclient_state *state, double x, double y);
+	void (*on_pointer_button)(Wayclient_State *state, uint32_t button, enum wl_pointer_button_state button_state);
+	void (*on_pointer_scroll)(Wayclient_State *state, double x, double y, enum wl_pointer_axis_source source);
 
 	// Keyboard focuses the window.
 	// I think it is similar to when user focuses the window?
-	void (*on_keyboard_enter)(wayclient_state *state);
+	void (*on_keyboard_enter)(Wayclient_State *state);
 	// Keyboard unfocuses the window.
 	// I think it is similar to when user unfocuses the window?
-	void (*on_keyboard_leave)(wayclient_state *state);
+	void (*on_keyboard_leave)(Wayclient_State *state);
 	// `keycode` is a keycode defined in the "linux/input-event-codes.h" header. (e.g. `KEY_Q`)
 	void (*on_keyboard_key)(
-		wayclient_state *state,
+		Wayclient_State *state,
 		uint32_t keycode,
 		xkb_keysym_t keysym,
 		enum wl_keyboard_key_state key_state
@@ -105,20 +107,20 @@ struct wayclient_state {
 // ------------------------------
 
 void
-wayclient_init(wayclient_state *state, uint32_t width, uint32_t height);
+wayclient_init(Wayclient_State *state, uint32_t width, uint32_t height);
 
-wayclient_error
-wayclient_run(wayclient_state *state);
+Wayclient_Error
+wayclient_run(Wayclient_State *state);
 
 // Clean up the memory and disconnect from the Wayland display.
 void
-wayclient_destroy(wayclient_state *state);
+wayclient_destroy(Wayclient_State *state);
 
 // Call user draw callback, damage and commit the surface to the compositor.
 // Returns whether the draw call was successfull or cancelled due to all
 // buffers are being used by the compositor.
 bool
-wayclient_draw_and_commit(wayclient_state *state);
+wayclient_draw_and_commit(Wayclient_State *state);
 
 // ------------------------------
 // Internal functions.
@@ -126,15 +128,15 @@ wayclient_draw_and_commit(wayclient_state *state);
 
 // Update buffers and SHM pool accordingly to the current window size.
 void
-wayclient__update_buffers_size(wayclient_state *state);
+wayclient__update_buffers_size(Wayclient_State *state);
 
 // Returns the index of the first buffer that is not used by the compositor.
 // Returns -1 if all buffers are being used.
 uint32_t
-wayclient__first_released_buffer_index(wayclient_state *state);
+wayclient__first_released_buffer_index(Wayclient_State *state);
 
 void
-wayclient__destroy_and_unmap_buffers(wayclient_state *state);
+wayclient__destroy_and_unmap_buffers(Wayclient_State *state);
 
 void
 wayclient__randname(char *buf, int n);

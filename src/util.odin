@@ -1,10 +1,17 @@
 package mupwit
 
+import "base:runtime"
 import "core:fmt"
 import "core:log"
 import "core:time"
 
-make_logger :: proc() -> log.Logger {
+make_default_context :: proc "contextless" () -> runtime.Context {
+	c := runtime.default_context()
+	c.logger = make_logger()
+	return c
+}
+
+make_logger :: proc "contextless" () -> log.Logger {
 	return log.Logger{procedure = _logger_proc}
 }
 

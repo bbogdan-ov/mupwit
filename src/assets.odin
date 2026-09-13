@@ -26,7 +26,7 @@ assets_load :: proc() -> (ok: bool) {
 	// Crop icons from the sheet.
 	target := state.image_icons_sheet
 	for icon, i in Icon {
-		surface := crop_from(target, f64(i * ICON_WIDTH), 0, ICON_WIDTH, ICON_HEIGHT)
+		surface := crop_from(target, f64(i * ICON_SIZE), 0, ICON_SIZE, ICON_SIZE)
 		state.image_icons[icon] = surface
 	}
 

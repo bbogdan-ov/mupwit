@@ -92,22 +92,23 @@ Status :: struct {
 }
 
 Song :: struct {
-	file:      Song_File,
-	artist:    string `Artist`,
-	title:     string `Title`,
-	album:     string `Album`,
-	date:      string `Date`,
-	genre:     string `Genre`, // TODO: this should be an array.
-	number:    Song_Pos `Track`,
-	disc:      int `Disc`,
-	duration:  Seconds,
+	file:         Song_File,
+	artist:       string `Artist`,
+	title:        string `Title`,
+	album:        string `Album`,
+	date:         string `Date`,
+	genre:        string `Genre`, // TODO: this should be an array.
+	duration_str: string, // Pre-formatted duration in human-readable format.
+	number:       Song_Pos `Track`,
+	disc:         int `Disc`,
+	duration:     Seconds,
 
 	// Queue-local data, if not in a queue, those fields are zeroed.
-	queue_id:  Song_Id `Id`, // Song ID within current queue.
-	queue_pos: Song_Pos `Pos`,
+	queue_id:     Song_Id `Id`, // Song ID within current queue.
+	queue_pos:    Song_Pos `Pos`,
 
 	// Allocator used to allocate strings.
-	allocator: runtime.Allocator,
+	allocator:    runtime.Allocator,
 }
 
 Song_List :: distinct [dynamic]Song
@@ -119,6 +120,7 @@ song_destroy :: proc(song: Song) {
 	delete(song.album, song.allocator)
 	delete(song.date, song.allocator)
 	delete(song.genre, song.allocator)
+	delete(song.duration_str, song.allocator)
 }
 
 // Destroy all songs inside a list and `clear()` it.

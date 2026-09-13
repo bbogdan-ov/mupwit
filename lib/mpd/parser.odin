@@ -135,6 +135,8 @@ parser_next_song :: proc(
 		_parse_struct_field_from_pair(song, pair, song.allocator, loc)
 	}
 
+	song.duration_str = format_seconds(song.duration, song.allocator)
+
 	return song, true
 }
 

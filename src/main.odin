@@ -1,7 +1,5 @@
 package mupwit
 
-import "base:runtime"
-import "core:fmt"
 import "core:log"
 import "core:time"
 
@@ -12,13 +10,25 @@ import win "lib:my_window"
 Seconds :: mpd.Seconds
 
 State :: struct {
-	player:            Player,
+	player:             Player,
+
+	// UI.
+	dragging:           Maybe(Element_ID),
+	drag_scroll_offset: f32,
+
+	// Input.
+	pointer:            Vec2,
+	prev_pointer:       Vec2,
+	press_pos:          Vec2,
+	buttons:            bit_set[win.Button;u8],
+	button_down:        bool,
+	button_pressed:     bool,
 
 	// Assets.
-	font_library:      win.Font_Library,
-	font_kapli:        Font,
-	image_icons_sheet: ^cairo.surface_t,
-	image_icons:       [Icon]^cairo.surface_t,
+	font_library:       win.Font_Library,
+	font_kapli:         Font,
+	image_icons_sheet:  ^cairo.surface_t,
+	image_icons:        [Icon]^cairo.surface_t,
 }
 
 state: State
@@ -32,7 +42,9 @@ main :: proc() {
 	win.window_set_resizable(window, false)
 	win.window_set_frame_callback(window, _window_on_frame)
 	win.window_set_draw_callback(window, _window_draw)
+	win.window_set_pointer_button_callback(window, _window_on_pointer_button)
 	win.window_set_pointer_motion_callback(window, _window_on_pointer_motion)
+	win.window_set_pointer_scroll_callback(window, _window_on_pointer_scroll)
 
 	assets_load()
 
@@ -51,58 +63,46 @@ main :: proc() {
 
 update :: proc(dt: Seconds) {
 	player_update(dt)
+
+	queue_ui_update(dt)
+
+	state.button_pressed = false
+	state.prev_pointer = state.pointer
 }
 
 draw :: proc(ctx: ^Context) {
 	defer free_all(context.temp_allocator)
 
-	player := &state.player
+	cairo.set_antialias(ctx, .NONE)
 
+	// Fill background.
 	set_source_color(ctx, WHITE)
 	cairo.paint(ctx)
 
-	cairo.set_font_face(ctx, state.font_kapli)
-	cairo.set_font_size(ctx, 16)
+	// TEMPORARY: for now all text fonts will be the same.
+	set_font(ctx, state.font_kapli, 16)
 
-	set_source_color(ctx, BLACK)
-	cairo.save(ctx)
-	cairo.move_to(ctx, 8, 16)
-	cairo.show_text(ctx, fmt.ctprintf("%v - %v", player.playstate, player.cur_song))
-	cairo.restore(ctx)
-
-	for i in 0 ..< min(len(player.queue), 10) {
-		song := &player.queue[i]
-
-		cairo.save(ctx)
-		cairo.move_to(ctx, 8, f64(i) * 20 + 64)
-		cairo.show_text(ctx, fmt.ctprintf("%v - %v", song.title, song.artist))
-		cairo.restore(ctx)
-	}
+	queue_ui_draw(ctx)
 }
 
 _window_draw :: proc "c" (window: ^win.Window, cr: ^cairo.cairo_t, surface: ^cairo.surface_t) {
-	context = runtime.default_context()
-	context.logger = make_logger()
+	context = make_default_context()
 
-	ctx := Context {
-		cr      = cr,
-		surface = surface,
-	}
-	ctx.view.x = 0
-	ctx.view.y = 0
-	ctx.view.width = cairo.image_surface_get_width(surface)
-	ctx.view.height = cairo.image_surface_get_height(surface)
+	ctx: Context
+	ctx.cr = cr
+	ctx.surface = surface
+	ctx.screen = surface_rect(surface)
+	ctx.container = ctx.screen
 
 	draw(&ctx)
 }
 
 _window_on_frame :: proc "c" (window: ^win.Window) {
-	context = runtime.default_context()
-	context.logger = make_logger()
-
-	@(static) start: time.Time
+	context = make_default_context()
 
 	now := time.now()
+
+	@(static) start: time.Time
 	if start._nsec == 0 do start = now
 
 	delta := time.diff(start, now)
@@ -112,4 +112,29 @@ _window_on_frame :: proc "c" (window: ^win.Window) {
 	update(dt)
 }
 
-_window_on_pointer_motion :: proc "c" (window: ^win.Window, x, y: f64) {}
+_window_on_pointer_button :: proc "c" (
+	window: ^win.Window,
+	button: win.Button,
+	button_state: win.Button_State,
+) {
+	switch button_state {
+	case .Released:
+		state.buttons -= {button}
+		state.button_down = false
+	case .Pressed:
+		state.buttons += {button}
+		state.button_down = true
+		state.button_pressed = true
+		state.press_pos = state.pointer
+	}
+}
+_window_on_pointer_motion :: proc "c" (window: ^win.Window, x, y: f64) {
+	state.pointer = {i32(x), i32(y)}
+}
+_window_on_pointer_scroll :: proc "c" (window: ^win.Window, x, y: f64, touchpad: bool) {
+	context = make_default_context()
+
+	scroll := f32(y)
+
+	queue_on_scroll(scroll, touchpad)
+}

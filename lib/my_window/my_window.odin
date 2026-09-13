@@ -16,9 +16,25 @@ Font_Face :: cairo.Font_Face
 
 Window :: struct {}
 
+Button :: enum {
+	Unknown = 0,
+	Left,
+	Middle,
+	Right,
+	Forward,
+	Back,
+}
+
+Button_State :: enum {
+	Released = 0,
+	Pressed,
+}
+
 Callback :: #type proc "c" (win: ^Window)
 Draw_Callback :: #type proc "c" (win: ^Window, cr: ^cairo.cairo_t, surface: ^cairo.surface_t)
+Pointer_Button_Callback :: #type proc "c" (win: ^Window, button: Button, state: Button_State)
 Pointer_Motion_Callback :: #type proc "c" (win: ^Window, x, y: f64)
+Pointer_Scroll_Callback :: #type proc "c" (win: ^Window, x, y: f64, touchpad: bool)
 
 @(default_calling_convention = "c", link_prefix = "my_")
 foreign lib {
@@ -32,7 +48,9 @@ foreign lib {
 	window_set_resizable :: proc(win: ^Window, resizable: bool) ---
 	window_set_frame_callback :: proc(win: ^Window, callback: Callback) ---
 	window_set_draw_callback :: proc(win: ^Window, callback: Draw_Callback) ---
+	window_set_pointer_button_callback :: proc(win: ^Window, callback: Pointer_Button_Callback) ---
 	window_set_pointer_motion_callback :: proc(win: ^Window, callback: Pointer_Motion_Callback) ---
+	window_set_pointer_scroll_callback :: proc(win: ^Window, callback: Pointer_Scroll_Callback) ---
 
 	window_userdata :: proc(win: ^Window) -> rawptr ---
 

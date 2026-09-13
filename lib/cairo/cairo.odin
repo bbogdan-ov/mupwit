@@ -1840,12 +1840,12 @@ foreign lib {
 	set_scaled_font :: proc(cr: ^cairo_t, scaled_font: ^scaled_font_t) ---
 	get_scaled_font :: proc(cr: ^cairo_t) -> ^scaled_font_t ---
 	show_text :: proc(cr: ^cairo_t, utf8: cstring) ---
-	show_glyphs :: proc(cr: ^cairo_t, glyphs: ^glyph_t, num_glyphs: i32) ---
+	show_glyphs :: proc(cr: ^cairo_t, glyphs: [^]glyph_t, num_glyphs: i32) ---
 	show_text_glyphs :: proc(cr: ^cairo_t, utf8: cstring, utf8_len: i32, glyphs: ^glyph_t, num_glyphs: i32, clusters: ^text_cluster_t, num_clusters: i32, cluster_flags: text_cluster_flags_t) ---
 	text_path :: proc(cr: ^cairo_t, utf8: cstring) ---
 	glyph_path :: proc(cr: ^cairo_t, glyphs: ^glyph_t, num_glyphs: i32) ---
 	text_extents :: proc(cr: ^cairo_t, utf8: cstring, extents: ^text_extents_t) ---
-	glyph_extents :: proc(cr: ^cairo_t, glyphs: ^glyph_t, num_glyphs: i32, extents: ^text_extents_t) ---
+	glyph_extents :: proc(cr: ^cairo_t, glyphs: [^]glyph_t, num_glyphs: i32, extents: ^text_extents_t) ---
 	font_extents :: proc(cr: ^cairo_t, extents: ^font_extents_t) ---
 
 	/* Generic identifier for a font style */
@@ -1964,7 +1964,7 @@ foreign lib {
 	scaled_font_extents :: proc(scaled_font: ^scaled_font_t, extents: ^font_extents_t) ---
 	scaled_font_text_extents :: proc(scaled_font: ^scaled_font_t, utf8: cstring, extents: ^text_extents_t) ---
 	scaled_font_glyph_extents :: proc(scaled_font: ^scaled_font_t, glyphs: ^glyph_t, num_glyphs: i32, extents: ^text_extents_t) ---
-	scaled_font_text_to_glyphs :: proc(scaled_font: ^scaled_font_t, x: f64, y: f64, utf8: cstring, utf8_len: i32, glyphs: ^^glyph_t, num_glyphs: ^i32, clusters: ^^text_cluster_t, num_clusters: ^i32, cluster_flags: ^text_cluster_flags_t) -> status_t ---
+	scaled_font_text_to_glyphs :: proc(scaled_font: ^scaled_font_t, x: f64, y: f64, utf8: cstring, utf8_len: i32, glyphs: ^[^]glyph_t, num_glyphs: ^i32, clusters: ^^text_cluster_t, num_clusters: ^i32, cluster_flags: ^text_cluster_flags_t) -> status_t ---
 	scaled_font_get_font_face :: proc(scaled_font: ^scaled_font_t) -> ^font_face_t ---
 	scaled_font_get_font_matrix :: proc(scaled_font: ^scaled_font_t, font_matrix: ^matrix_t) ---
 	scaled_font_get_ctm :: proc(scaled_font: ^scaled_font_t, ctm: ^matrix_t) ---
