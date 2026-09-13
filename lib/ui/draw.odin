@@ -99,11 +99,12 @@ draw_glyphs :: proc(
 
 // TODO: come up with a better text drawing without allocation.
 // I'll probably have to implement my own font and text rendering.
-draw_text :: proc(ctx: ^Context, str: string, pos: Vec2, color: Color) -> cairo.text_extents_t {
+draw_text :: proc(ctx: ^Context, str: string, pos: Vec2, color: Color) -> (advance: Vec2) {
 	glyphs := text_glyphs(ctx, str)
 	defer text_glyphs_delete(glyphs)
 
-	return draw_glyphs(ctx, glyphs, pos, color)
+	ext := draw_glyphs(ctx, glyphs, pos, color)
+	return {i32(ext.x_advance), i32(ext.height)}
 }
 
 measure_glyphs :: proc(
@@ -149,6 +150,13 @@ draw_rect :: proc(cr: ^cairo.cairo_t, rect: Rect, color: Color) {
 	_rectangle(cr, rect)
 	set_source_color(cr, color)
 	cairo.fill(cr)
+}
+
+draw_line_h :: proc(cr: ^cairo.cairo_t, rect: Rect, color: Color) {
+	set_source_color(cr, color)
+	cairo.move_to(cr, f64(rect.x), f64(rect.y) + 0.5)
+	cairo.line_to(cr, f64(rect.x + rect.width), f64(rect.y) + 0.5)
+	cairo.stroke(cr)
 }
 
 draw_box :: proc(ctx: ^Context, rect: Rect, color: Color, filled := false) {

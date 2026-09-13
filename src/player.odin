@@ -20,15 +20,16 @@ TARGET_CLIENT_THREAD_TPS :: 30
 
 Player :: struct {
 	// Playback state.
-	playstate:        mpd.Play_State,
-	cur_song:         Maybe(mpd.Song_Handle),
-	queue:            mpd.Song_List,
+	playstate:         mpd.Play_State,
+	elapsed, duration: Seconds,
+	cur_song:          Maybe(mpd.Song_Handle),
+	queue:             mpd.Song_List,
 
 	// Client state.
-	thread:           ^thread.Thread,
-	commands:         chan.Chan(Command),
-	responses:        chan.Chan(Response),
-	status_req_timer: Seconds,
+	thread:            ^thread.Thread,
+	commands:          chan.Chan(Command),
+	responses:         chan.Chan(Response),
+	status_req_timer:  Seconds,
 }
 
 player_connect :: proc() {
@@ -50,7 +51,7 @@ player_connect :: proc() {
 player_destroy :: proc() {
 	player := &state.player
 
-	player_send_command(Command_Disconnect{})
+	_player_send_command(Command_Disconnect{})
 	thread.join(player.thread)
 
 	mpd.song_list_destroy(&player.queue)
@@ -69,6 +70,20 @@ player_update :: proc(dt: Seconds) {
 
 	for response in chan.try_recv(player.responses) {
 		_player_handle_response(response)
+	}
+}
+
+_player_set_status :: proc(status: mpd.Status) {
+	player := &state.player
+
+	player.playstate = status.playstate
+	player.elapsed = Seconds(status.elapsed)
+	player.duration = Seconds(status.duration)
+
+	if status.cur_song_id > 0 {
+		player.cur_song = mpd.Song_Handle{status.cur_song_id, status.cur_song_number}
+	} else {
+		player.cur_song = nil
 	}
 }
 
@@ -114,6 +129,16 @@ _player_handle_changes :: proc(client: ^mpd.Client, changes: mpd.Changes) -> (er
 	}
 
 	return nil
+}
+
+player_cur_song :: proc() -> (song: ^mpd.Song, ok: bool) {
+	handle := state.player.cur_song.? or_return
+
+	if len(state.player.queue) > 0 {
+		song = &state.player.queue[handle.pos]
+		ok = true
+	}
+	return
 }
 
 song_is_current :: proc(song: ^mpd.Song) -> bool {

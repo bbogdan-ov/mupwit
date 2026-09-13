@@ -92,9 +92,28 @@ recv :: proc(
 	str: string,
 	err: Error,
 ) {
+	return _recv(client, true, allocator, loc)
+}
+
+@(require_results)
+recv_and_forget :: proc(client: ^Client, loc := #caller_location) -> (err: Error) {
+	_, err = _recv(client, false, {}, loc)
+	return
+}
+
+@(require_results)
+_recv :: proc(
+	client: ^Client,
+	collect: bool,
+	allocator := context.allocator,
+	loc := #caller_location,
+) -> (
+	str: string,
+	err: Error,
+) {
 	ss :: strings
 
-	sb: strings.Builder
+	sb := strings.builder_make(allocator)
 	stop_on_newline := false
 	is_error := false
 
@@ -110,26 +129,31 @@ recv :: proc(
 			return "", err
 		}
 
-		was_empty := len(sb.buf) == 0
-		ss.write_string(&sb, string(buffer[:size]))
-		as_str := ss.trim_space(ss.to_string(sb))
+		if collect {
+			was_empty := len(sb.buf) == 0
+			ss.write_string(&sb, string(buffer[:size]))
+			as_str := ss.trim_space(ss.to_string(sb))
 
-		if was_empty {
-			if ss.starts_with(as_str, "OK ") {
-				stop_on_newline = true
-			} else if ss.starts_with(as_str, "ACK ") {
-				is_error = true
-				stop_on_newline = true
+			if was_empty {
+				if ss.starts_with(as_str, "OK ") {
+					stop_on_newline = true
+				} else if ss.starts_with(as_str, "ACK ") {
+					is_error = true
+					stop_on_newline = true
+				}
 			}
+
+			if ss.ends_with(as_str, "\nOK") do break
+			if stop_on_newline && ss.ends_with(as_str, "\n") do break
 		}
 
 		if size < len(buffer) do break
-		if ss.ends_with(as_str, "\nOK") do break
-		if stop_on_newline && ss.ends_with(as_str, "\n") do break
 	}
 
-	// TODO!!: store message somewhere if it is an error. ("ACK ..." message)
-	str = ss.trim_space(ss.to_string(sb))
+	if collect {
+		// TODO!!: store message somewhere if it is an error. ("ACK ..." message)
+		str = ss.trim_space(ss.to_string(sb))
+	}
 	return
 }
 
@@ -174,4 +198,17 @@ send_string :: proc(client: ^Client, str: string, loc := #caller_location) -> (e
 		log.errorf("MPD: Failed to send: %v", err, location = loc)
 	}
 	return err
+}
+
+@(require_results)
+send_and_forget :: proc(
+	client: ^Client,
+	format: string,
+	args: ..any,
+	loc := #caller_location,
+) -> (
+	err: Error,
+) {
+	send(client, format, ..args, loc = loc) or_return
+	return recv_and_forget(client, loc)
 }

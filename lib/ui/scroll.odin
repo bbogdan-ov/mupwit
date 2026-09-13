@@ -3,7 +3,7 @@ package ui
 import "core:math"
 
 Scroll :: struct {
-	container:         Rect, // Container from previous draw frame.
+	container:         Container, // Container from previous draw frame.
 	offset:            f32,
 	from, to:          f32,
 	velocity:          f32,
@@ -55,14 +55,17 @@ _scroll_update_pointer_drag :: proc(s: ^Scroll) {
 
 	cont := s.container
 
-	if is_dragging && is_button_down(.Left) {
+	switch {
+	case is_dragging && is_mouse_down(.Left):
 		length := scroll_content_length(s)
 		factor := f32(cont.height) / f32(length)
 		delta := f32(state.pointer.y - state.press_pos.y) / factor
 		scroll_set(s, state.drag_scroll_offset + delta)
-	} else if is_dragging {
+
+	case is_dragging:
 		state.dragging = nil
-	} else if s.is_hovering && is_button_pressed(.Left) && state.dragging == nil {
+
+	case s.is_hovering && is_mouse_pressed(.Left) && state.dragging == nil:
 		state.dragging = id
 		if s.is_hovering_thumb {
 			state.drag_scroll_offset = s.offset

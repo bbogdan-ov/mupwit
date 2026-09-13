@@ -49,6 +49,7 @@ main :: proc() {
 update :: proc(dt: Seconds) {
 	player_update(dt)
 
+	status_ui_update()
 	queue_ui_update(dt)
 
 	ui.update()
@@ -60,13 +61,14 @@ draw :: proc(ctx: ^ui.Context) {
 	cairo.set_antialias(ctx, .NONE)
 
 	// Fill background.
-	ui.set_source_color(ctx, WHITE)
+	ui.set_source_color(ctx, BACKGROUND)
 	cairo.paint(ctx)
 
 	// TEMPORARY: for now all text fonts will be the same.
 	ui.set_font(ctx, state.font_kapli, 16)
 
 	queue_ui_draw(ctx)
+	status_ui_draw(ctx)
 }
 
 _window_draw :: proc "c" (window: ^win.Window, cr: ^cairo.cairo_t, surface: ^cairo.surface_t) {

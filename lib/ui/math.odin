@@ -44,6 +44,19 @@ rect_expand :: proc(rect: Rect, padding: Vec2) -> Rect {
 	return rect
 }
 
+cut_left :: proc(rect: Rect, padding: i32) -> Rect {
+	rect := rect
+	rect.x += padding
+	rect.width -= padding
+	return rect
+}
+cut_top :: proc(rect: Rect, padding: i32) -> Rect {
+	rect := rect
+	rect.y += padding
+	rect.height -= padding
+	return rect
+}
+
 point_rect_overlap :: proc(v: Vec2, rect: Rect) -> bool {
 	return(
 		v.x >= rect.x &&

@@ -17,7 +17,9 @@ queue_ui_on_scroll :: proc(scroll: f32, touchpad: bool) {
 }
 
 queue_ui_draw :: proc(ctx: ^ui.Context) {
-	ui.begin_container(ctx, ctx.container, GAP)
+	cont := ctx.container
+	cont.height -= PLAYER_HEIGHT
+	ui.begin_container(ctx, cont, GAP)
 
 	from, to := ui.scroll_visible_items_range(ctx, &queue_ui.scroll, SONG_HEIGHT)
 	to = min(to, len(state.player.queue))
@@ -59,7 +61,7 @@ song_draw :: proc(ctx: ^ui.Context, song: ^mpd.Song, y: i32, hovering: bool) {
 		rect.width = SONG_COVER_SIZE
 		rect.height = SONG_COVER_SIZE
 		ui.draw_box(ctx, rect, BLACK)
-		draw_icon(ctx, .Disk, rect_center(rect) - ICON_SIZE / 2, BLACK)
+		draw_icon(ctx, .Disk, icon_center_inside(rect), BLACK)
 	}
 
 	// Draw song duration.

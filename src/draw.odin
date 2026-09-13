@@ -1,9 +1,11 @@
 package mupwit
 
 import "lib:cairo"
+import "lib:mpd"
 import "lib:ui"
 
 Seconds :: ui.Seconds
+Rect :: ui.Rect
 Vec2 :: ui.Vec2
 Color :: ui.Color
 
@@ -27,4 +29,36 @@ Icon :: enum {
 draw_icon :: proc(ctx: ^ui.Context, icon: Icon, pos: Vec2, color: Color) {
 	ui.set_source_color(ctx, color)
 	cairo.mask_surface(ctx, state.icons.sprites[icon], f64(pos.x), f64(pos.y))
+}
+
+draw_icon_button :: proc(
+	ctx: ^ui.Context,
+	button: ^ui.Button,
+	icon: Icon,
+	pos: Vec2,
+	color: Color,
+) {
+	rect := Rect{pos.x, pos.y, ICON_BUTTON_SIZE, ICON_BUTTON_SIZE}
+	ui.button_on_draw(button, rect)
+
+	icon_pos := icon_center_inside(rect)
+	if button.is_down do icon_pos.y += 1
+	draw_icon(ctx, icon, icon_pos, color)
+}
+
+icon_center_inside :: proc(inside: Rect) -> Vec2 {
+	return rect_center(inside) - ICON_SIZE / 2
+}
+
+icon_from_playstate :: proc(playstate: mpd.Play_State) -> Icon {
+	switch state.player.playstate {
+	case .Stop:
+		return .Play
+	case .Pause:
+		return .Play
+	case .Play:
+		return .Pause
+	case:
+		unreachable()
+	}
 }

@@ -12,8 +12,12 @@ Command_Request_Status :: struct {}
 Command_Request_Queue :: struct {}
 
 Command_Play :: struct {}
+Command_Resume :: struct {}
 Command_Pause :: struct {}
 Command_Stop :: struct {}
+Command_Seek :: struct {
+	seconds: Seconds,
+}
 
 Command_Disconnect :: struct {}
 
@@ -21,21 +25,62 @@ Command :: union #no_nil {
 	Command_Request_Status,
 	Command_Request_Queue,
 	Command_Play,
+	Command_Resume,
 	Command_Pause,
 	Command_Stop,
+	Command_Seek,
 	Command_Disconnect,
 }
 
-player_send_command :: proc(command: Command) {
+_player_send_command :: proc(command: Command) {
 	chan.send(state.player.commands, command)
 }
 
+// ------------------------------
+// Playback commands.
+// ------------------------------
+
+player_toggle_play :: proc() {
+	switch state.player.playstate {
+	case .Play:
+		_player_send_command(Command_Pause{})
+		state.player.playstate = .Pause
+	case .Pause:
+		_player_send_command(Command_Resume{})
+		state.player.playstate = .Play
+	case .Stop:
+		_player_send_command(Command_Play{})
+		state.player.playstate = .Play
+	}
+}
+
+player_seek :: proc(seconds: Seconds) {
+	_player_send_command(Command_Seek{seconds})
+
+	// Update local elapsed time so the slider doesn't jump untill player
+	// receives an up-to-date status.
+	state.player.elapsed = seconds
+}
+
+player_seek_percent :: proc(percent: f32) {
+	secs := Seconds(percent) * state.player.duration
+	player_seek(secs)
+}
+
+// ------------------------------
+// Request commands.
+// ------------------------------
+
 player_request_status :: proc() {
-	player_send_command(Command_Request_Status{})
+	_player_send_command(Command_Request_Status{})
 }
 player_request_queue :: proc() {
-	player_send_command(Command_Request_Queue{})
+	_player_send_command(Command_Request_Queue{})
 }
+
+// ------------------------------
+// Handle.
+// ------------------------------
 
 _player_handle_commands :: proc(client: ^mpd.Client) -> (should_exit: bool) {
 	player := &state.player
@@ -64,49 +109,18 @@ _player_handle_command :: proc(client: ^mpd.Client, command: Command) -> (err: m
 		player_send_response(Response_Queue{queue})
 
 	case Command_Play:
-		panic("TODO!!!: Command_Play")
+		mpd.send_and_forget(client, "play") or_return
+	case Command_Resume:
+		mpd.send_and_forget(client, "pause 0") or_return
 	case Command_Pause:
-		panic("TODO!!!: Command_Pause")
+		mpd.send_and_forget(client, "pause 1") or_return
 	case Command_Stop:
-		panic("TODO!!!: Command_Stop")
+		mpd.send_and_forget(client, "stop") or_return
+	case Command_Seek:
+		mpd.send_and_forget(client, "seekcur", cmd.seconds) or_return
+
 	case Command_Disconnect: // Do nothing.
 	}
 
 	return nil
-}
-
-// ------------------------------
-// Respose.
-// ------------------------------
-
-Response_Queue :: struct {
-	list: mpd.Song_List,
-}
-
-Response :: union {
-	mpd.Status,
-	Response_Queue,
-}
-
-player_send_response :: proc(response: Response) {
-	chan.send(state.player.responses, response)
-}
-
-_player_handle_response :: proc(response: Response) {
-	player := &state.player
-
-	switch res in response {
-	case mpd.Status:
-		player.playstate = res.playstate
-
-		if res.cur_song_id > 0 {
-			player.cur_song = mpd.Song_Handle{res.cur_song_id, res.cur_song_number}
-		} else {
-			player.cur_song = nil
-		}
-
-	case Response_Queue:
-		mpd.song_list_destroy(&player.queue)
-		player.queue = res.list
-	}
 }
