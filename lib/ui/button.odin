@@ -8,7 +8,7 @@ Button :: struct {
 
 button_update :: proc(b: ^Button) -> (clicked: bool) {
 	was_down := b.is_down
-	b.is_hovering = overlap(state.pointer, b.rect)
+	b.is_hovering = state.dragging == nil && overlap(state.pointer, b.rect)
 	b.is_down = b.is_hovering && is_mouse_down(.Left)
 	return was_down && is_mouse_released(.Left)
 }

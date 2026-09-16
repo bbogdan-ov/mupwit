@@ -167,6 +167,8 @@ scroll_hovering_item_index :: proc(
 	index: int,
 	ok: bool,
 ) {
+	if state.dragging != nil do return -1, false
+
 	p := state.pointer
 	p.y += i32(s.offset)
 	rect := ctx.container
