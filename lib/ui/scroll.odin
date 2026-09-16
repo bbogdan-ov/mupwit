@@ -13,6 +13,11 @@ Scroll :: struct {
 	is_hovering_thumb: bool,
 }
 
+List_Params :: struct {
+	item_count:  int,
+	item_height: i32,
+}
+
 scroll_update :: proc(s: ^Scroll, dt: Seconds) {
 	_scroll_update_offset(s, dt)
 	_scroll_update_pointer_drag(s)
@@ -139,29 +144,39 @@ scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color: Color) {
 scroll_visible_items_range :: proc(
 	ctx: ^Context,
 	s: ^Scroll,
-	item_height: i32,
+	list: List_Params,
 ) -> (
 	from, to: int,
 ) {
 	off := i32(s.offset) - ctx.container.y
 
-	from = int(max(off, 0) / item_height)
-	to = int(max(off + ctx.screen.height + item_height, 0) / item_height)
+	from = int(max(off, 0) / list.item_height)
+	to = int(max(off + ctx.screen.height + list.item_height, 0) / list.item_height)
+	to = min(to, list.item_count)
 	return
 }
 
 // Returns index of an item within the current scrollable container that is
 // being hovered by the mouse pointer.
 // Returns -1 if nothing is being hovered.
-scroll_hovering_item_index :: proc(ctx: ^Context, s: ^Scroll, item_height: i32) -> (index: int) {
+scroll_hovering_item_index :: proc(
+	ctx: ^Context,
+	s: ^Scroll,
+	list: List_Params,
+) -> (
+	index: int,
+	ok: bool,
+) {
 	p := state.pointer
 	p.y += i32(s.offset)
 	rect := ctx.container
 	rect.height += i32(s.offset)
-	if !overlap(p, rect) do return -1
+	if !overlap(p, rect) do return -1, false
 
-	idx := (p.y - ctx.container.y) / item_height
-	return int(idx)
+	index = int((p.y - ctx.container.y) / list.item_height)
+	if !within(index, 0, list.item_count) do return index, false
+
+	return index, true
 }
 
 scroll_content_length :: proc(s: ^Scroll) -> i32 {

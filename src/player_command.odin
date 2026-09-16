@@ -15,6 +15,9 @@ Command_Play :: struct {}
 Command_Resume :: struct {}
 Command_Pause :: struct {}
 Command_Stop :: struct {}
+Command_Play_Song :: struct {
+	index: mpd.Song_Index,
+}
 Command_Seek :: struct {
 	seconds: Seconds,
 }
@@ -28,6 +31,7 @@ Command :: union #no_nil {
 	Command_Resume,
 	Command_Pause,
 	Command_Stop,
+	Command_Play_Song,
 	Command_Seek,
 	Command_Disconnect,
 }
@@ -52,6 +56,13 @@ player_toggle_play :: proc() {
 		_player_send_command(Command_Play{})
 		state.player.playstate = .Play
 	}
+}
+
+player_play_song :: proc(index: mpd.Song_Index, force := false) {
+	handle, has_song := state.player.cur_song.?
+	if !force && has_song && handle.index == index do return
+
+	_player_send_command(Command_Play_Song{index})
 }
 
 player_seek :: proc(seconds: Seconds) {
@@ -82,22 +93,6 @@ player_request_queue :: proc() {
 // Handle.
 // ------------------------------
 
-_player_handle_commands :: proc(client: ^mpd.Client) -> (should_exit: bool) {
-	player := &state.player
-
-	for command in chan.try_recv(player.commands) {
-		_, should_exit = command.(Command_Disconnect)
-		if should_exit do return
-
-		err := _player_handle_command(client, command)
-		if err != nil {
-			log.errorf("Failed to handle command %v: %v", command, err)
-		}
-	}
-
-	return false
-}
-
 _player_handle_command :: proc(client: ^mpd.Client, command: Command) -> (err: mpd.Error) {
 	switch cmd in command {
 	case Command_Request_Status:
@@ -116,6 +111,8 @@ _player_handle_command :: proc(client: ^mpd.Client, command: Command) -> (err: m
 		mpd.send_and_forget(client, "pause 1") or_return
 	case Command_Stop:
 		mpd.send_and_forget(client, "stop") or_return
+	case Command_Play_Song:
+		mpd.send_and_forget(client, "play", cmd.index) or_return
 	case Command_Seek:
 		mpd.send_and_forget(client, "seekcur", cmd.seconds) or_return
 
@@ -123,4 +120,20 @@ _player_handle_command :: proc(client: ^mpd.Client, command: Command) -> (err: m
 	}
 
 	return nil
+}
+
+_player_handle_commands :: proc(client: ^mpd.Client) -> (should_exit: bool) {
+	player := &state.player
+
+	for command in chan.try_recv(player.commands) {
+		_, should_exit = command.(Command_Disconnect)
+		if should_exit do return
+
+		err := _player_handle_command(client, command)
+		if err != nil {
+			log.errorf("Failed to handle command %v: %v", command, err)
+		}
+	}
+
+	return false
 }

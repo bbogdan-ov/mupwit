@@ -215,7 +215,7 @@ _parse_struct_field_from_pair :: proc(
 	sclone :: strings.clone
 
 	// So i don't forget to update parsing implemention:
-	#assert(type_base_type(Song_Pos) == int)
+	#assert(type_base_type(Song_Index) == int)
 	#assert(type_base_type(Song_Id) == int)
 	#assert(type_base_type(Seconds) == f32)
 
@@ -229,12 +229,12 @@ _parse_struct_field_from_pair :: proc(
 		v = _parse_number(int, pair, loc)
 	case Song_Id:
 		v = Song_Id(_parse_number(int, pair, loc))
-	case Song_Pos:
-		v = Song_Pos(_parse_number(int, pair, loc))
+	case Song_Index:
+		v = Song_Index(_parse_number(int, pair, loc))
 	case Maybe(Song_Id):
 		v = Song_Id(_parse_number(int, pair, loc))
-	case Maybe(Song_Pos):
-		v = Song_Pos(_parse_number(int, pair, loc))
+	case Maybe(Song_Index):
+		v = Song_Index(_parse_number(int, pair, loc))
 
 	case f32:
 		v = _parse_number(f32, pair, loc)

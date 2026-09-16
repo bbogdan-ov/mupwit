@@ -1,5 +1,6 @@
 package ui
 
+import "base:intrinsics"
 import "core:math"
 import "core:strings"
 
@@ -97,6 +98,13 @@ color_to_f64 :: proc(color: Color) -> [4]f64 {
 
 is_almost_zero :: #force_inline proc "contextless" (v: f32) -> bool {
 	return abs(v) <= math.F32_EPSILON
+}
+
+within :: #force_inline proc "contextless" (
+	v: $T,
+	from, to: T,
+) -> bool where intrinsics.type_is_ordered(T) {
+	return from <= v && v < to
 }
 
 // ------------------------------

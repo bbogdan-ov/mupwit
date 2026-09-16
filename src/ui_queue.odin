@@ -5,11 +5,22 @@ import "lib:ui"
 
 @(private = "file")
 queue_ui: struct {
-	scroll: ui.Scroll,
+	scroll:         ui.Scroll,
+	hovering_index: Maybe(int),
 }
 
 queue_ui_update :: proc(dt: Seconds) {
 	ui.scroll_update(&queue_ui.scroll, dt)
+
+	if ui.is_mouse_released(.Left) {
+		_queue_ui_play_hovering_song()
+	}
+}
+
+_queue_ui_play_hovering_song :: proc() -> (ok: bool) {
+	hovering := queue_ui.hovering_index.? or_return
+	player_play_song(mpd.Song_Index(hovering))
+	return true
 }
 
 queue_ui_on_scroll :: proc(scroll: f32, touchpad: bool) {
@@ -17,23 +28,30 @@ queue_ui_on_scroll :: proc(scroll: f32, touchpad: bool) {
 }
 
 queue_ui_draw :: proc(ctx: ^ui.Context) {
+	player := &state.player
+
 	cont := ctx.container
 	cont.height -= PLAYER_HEIGHT
 	ui.begin_container(ctx, cont, GAP)
 
-	from, to := ui.scroll_visible_items_range(ctx, &queue_ui.scroll, SONG_HEIGHT)
-	to = min(to, len(state.player.queue))
+	list := ui.List_Params{len(player.queue), SONG_HEIGHT}
 
-	hovering := ui.scroll_hovering_item_index(ctx, &queue_ui.scroll, SONG_HEIGHT)
+	from, to := ui.scroll_visible_items_range(ctx, &queue_ui.scroll, list)
+	to = min(to, len(player.queue))
 
-	for i in from ..< to {
-		song := &state.player.queue[i]
-		y := i32(i) * SONG_HEIGHT - i32(queue_ui.scroll.offset)
-
-		song_draw(ctx, song, y, i == hovering)
+	{
+		index, ok := ui.scroll_hovering_item_index(ctx, &queue_ui.scroll, list)
+		queue_ui.hovering_index = index if ok else nil
 	}
 
-	contents := i32(len(state.player.queue)) * SONG_HEIGHT
+	for i in from ..< to {
+		song := &player.queue[i]
+		y := i32(i) * SONG_HEIGHT - i32(queue_ui.scroll.offset)
+
+		song_draw(ctx, song, y, i == queue_ui.hovering_index)
+	}
+
+	contents := i32(len(player.queue)) * SONG_HEIGHT
 	ui.scroll_draw(ctx, &queue_ui.scroll, contents, LIGHT_GRAY)
 }
 

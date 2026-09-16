@@ -81,7 +81,7 @@ _player_set_status :: proc(status: mpd.Status) {
 	player.duration = Seconds(status.duration)
 
 	if status.cur_song_id > 0 {
-		player.cur_song = mpd.Song_Handle{status.cur_song_id, status.cur_song_number}
+		player.cur_song = mpd.Song_Handle{status.cur_song_id, status.cur_song_index}
 	} else {
 		player.cur_song = nil
 	}
@@ -135,7 +135,7 @@ player_cur_song :: proc() -> (song: ^mpd.Song, ok: bool) {
 	handle := state.player.cur_song.? or_return
 
 	if len(state.player.queue) > 0 {
-		song = &state.player.queue[handle.pos]
+		song = &state.player.queue[handle.index]
 		ok = true
 	}
 	return

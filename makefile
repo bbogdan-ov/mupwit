@@ -39,6 +39,12 @@ libs:
 	make -C./lib/my_window
 
 
-# Type check.
+# Miscellaneous.
 check:
 	@odin check src $(FLAGS)
+
+fmt:
+	@odinfmt src/ -w > /dev/null
+	@odinfmt prebuild/ -w > /dev/null
+	@odinfmt lib/ui/ -w > /dev/null
+	@odinfmt lib/my_window/ -w > /dev/null

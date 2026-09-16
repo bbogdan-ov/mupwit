@@ -15,11 +15,12 @@ import "base:runtime"
 Song_Id :: distinct int
 
 // Position of a song in queue or album.
-Song_Pos :: distinct int
+// Often referred as "SONGPOS" in the MPD protocol.
+Song_Index :: distinct int
 
 Song_Handle :: struct #all_or_none {
-	id:  Song_Id,
-	pos: Song_Pos,
+	id:    Song_Id,
+	index: Song_Index,
 }
 
 // Song file path relative to the MPD music dir.
@@ -68,27 +69,27 @@ Changes :: bit_set[Change;u16]
 // Player status.
 Status :: struct {
 	// Volume in range 0..=100
-	volume:           int,
+	volume:          int,
 	// Wheter to keep repeating the queue.
-	repeat:           bool,
+	repeat:          bool,
 	// Whether queue is shuffled.
-	random:           bool,
+	random:          bool,
 	// When enabled, playback is stopped after current song, or song is
 	// repeated if the `repeat` mode is enabled.
-	single:           Single_State,
+	single:          Single_State,
 	// When enabled, each song played is removed from queue.
-	consume:          Single_State,
+	consume:         Single_State,
 	// Number of songs in queue.
-	queue_count:      int `playlistlength`,
-	playstate:        Play_State `state`,
-	cur_song_number:  Song_Pos `song`,
-	cur_song_id:      Song_Id `songid`,
-	next_song_number: Song_Pos `nextsong`,
-	next_song_id:     Song_Id `nextsongid`,
+	queue_count:     int `playlistlength`,
+	playstate:       Play_State `state`,
+	cur_song_index:  Song_Index `song`,
+	cur_song_id:     Song_Id `songid`,
+	next_song_index: Song_Index `nextsong`,
+	next_song_id:    Song_Id `nextsongid`,
 	// Time elapsed within currently playing song.
-	elapsed:          Seconds,
+	elapsed:         Seconds,
 	// Duration of currently playing song.
-	duration:         Seconds,
+	duration:        Seconds,
 }
 
 Song :: struct {
@@ -99,13 +100,13 @@ Song :: struct {
 	date:         string `Date`,
 	genre:        string `Genre`, // TODO: this should be an array.
 	duration_str: string, // Pre-formatted duration in human-readable format.
-	number:       Song_Pos `Track`,
+	index:        Song_Index `Track`,
 	disc:         int `Disc`,
 	duration:     Seconds,
 
 	// Queue-local data, if not in a queue, those fields are zeroed.
 	queue_id:     Song_Id `Id`, // Song ID within current queue.
-	queue_pos:    Song_Pos `Pos`,
+	queue_index:  Song_Index `Pos`,
 
 	// Allocator used to allocate strings.
 	allocator:    runtime.Allocator,
