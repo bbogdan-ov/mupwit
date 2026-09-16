@@ -3,7 +3,6 @@ package ui
 import "core:math"
 
 Scroll :: struct {
-	container:         Container, // Container from previous draw frame.
 	offset:            f32,
 	from, to:          f32,
 	velocity:          f32,
@@ -13,14 +12,9 @@ Scroll :: struct {
 	is_hovering_thumb: bool,
 }
 
-List_Params :: struct {
-	item_count:  int,
-	item_height: i32,
-}
-
-scroll_update :: proc(s: ^Scroll, dt: Seconds) {
+scroll_update :: proc(box: Box, s: ^Scroll, dt: Seconds) {
 	_scroll_update_offset(s, dt)
-	_scroll_update_pointer_drag(s)
+	_scroll_update_pointer_drag(box, s)
 }
 
 _scroll_update_offset :: proc(s: ^Scroll, dt: Seconds) {
@@ -54,16 +48,14 @@ _scroll_update_offset :: proc(s: ^Scroll, dt: Seconds) {
 	}
 }
 
-_scroll_update_pointer_drag :: proc(s: ^Scroll) {
+_scroll_update_pointer_drag :: proc(box: Box, s: ^Scroll) {
 	id := Element_ID(s)
 	is_dragging := state.dragging == id
 
-	cont := s.container
-
 	switch {
 	case is_dragging && is_mouse_down(.Left):
-		length := scroll_content_length(s)
-		factor := f32(cont.height) / f32(length)
+		length := scroll_content_length(box, s)
+		factor := f32(box.height) / f32(length)
 		delta := f32(state.pointer.y - state.press_pos.y) / factor
 		scroll_set(s, state.drag_scroll_offset + delta)
 
@@ -75,9 +67,9 @@ _scroll_update_pointer_drag :: proc(s: ^Scroll) {
 		if s.is_hovering_thumb {
 			state.drag_scroll_offset = s.offset
 		} else {
-			pos := state.pointer.y - s.container.y
-			length := scroll_content_length(s)
-			offset := length * pos / cont.height - cont.height / 2
+			pos := state.pointer.y - box.y
+			length := scroll_content_length(box, s)
+			offset := length * pos / box.height - box.height / 2
 
 			state.drag_scroll_offset = f32(offset)
 		}
@@ -108,26 +100,25 @@ scroll_set :: proc(s: ^Scroll, offset: f32) {
 }
 
 scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color: Color) {
-	cont := ctx.container
+	box := ctx.box
 
 	length := max(length, 1)
-	s.max_scroll = f32(length - cont.height)
-	s.container = cont
+	s.max_scroll = f32(length - box.height)
 
 	progress := s.offset / s.max_scroll
 
 	thumb: Rect
-	thumb.width = cont.padding.x
-	thumb.height = max(cont.height * cont.height / length, 32)
-	thumb.x = cont.x + cont.width
-	thumb.y = cont.y + i32(f32(cont.height - thumb.height) * progress)
-	if thumb.height >= cont.height do return
+	thumb.width = box.padding.x
+	thumb.height = max(box.height * box.height / length, 32)
+	thumb.x = box.x + box.width
+	thumb.y = box.y + i32(f32(box.height - thumb.height) * progress)
+	if thumb.height >= box.height do return
 
 	s.is_hovering_thumb = overlap(state.pointer, thumb)
 
-	click := cont
-	click.width = cont.padding.x
-	click.x = cont.x + cont.width
+	click := box
+	click.width = box.padding.x
+	click.x = box.x + box.width
 	s.is_hovering = overlap(state.pointer, click)
 
 	{
@@ -138,31 +129,33 @@ scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color: Color) {
 	}
 }
 
-// Returns the range of items within the current scrollable container that are
-// visible on the screen.
+// Returns the range of items within a scrollable box that are visible on
+// the screen.
 // NOTE: all items must have the same height.
-scroll_visible_items_range :: proc(
-	ctx: ^Context,
+scroll_visible_items :: proc(
+	box: Box,
 	s: ^Scroll,
-	list: List_Params,
+	item_count: int,
+	item_height: i32,
 ) -> (
 	from, to: int,
 ) {
-	off := i32(s.offset) - ctx.container.y
+	off := i32(s.offset) - box.y
 
-	from = int(max(off, 0) / list.item_height)
-	to = int(max(off + ctx.screen.height + list.item_height, 0) / list.item_height)
-	to = min(to, list.item_count)
+	from = int(max(off, 0) / item_height)
+	to = int(max(off + state.view.height + item_height, 0) / item_height)
+	to = min(to, item_count)
 	return
 }
 
-// Returns index of an item within the current scrollable container that is
-// being hovered by the mouse pointer.
-// Returns -1 if nothing is being hovered.
-scroll_hovering_item_index :: proc(
-	ctx: ^Context,
+// Returns index of an item within a scrollable box that is being hovered
+// by the mouse pointer.
+// NOTE: all items must have the same height.
+scroll_hovering_item :: proc(
+	box: Box,
 	s: ^Scroll,
-	list: List_Params,
+	item_count: int,
+	item_height: i32,
 ) -> (
 	index: int,
 	ok: bool,
@@ -171,16 +164,16 @@ scroll_hovering_item_index :: proc(
 
 	p := state.pointer
 	p.y += i32(s.offset)
-	rect := ctx.container
+	rect := box
 	rect.height += i32(s.offset)
 	if !overlap(p, rect) do return -1, false
 
-	index = int((p.y - ctx.container.y) / list.item_height)
-	if !within(index, 0, list.item_count) do return index, false
+	index = int((p.y - box.y) / item_height)
+	if !within(index, 0, item_count) do return index, false
 
 	return index, true
 }
 
-scroll_content_length :: proc(s: ^Scroll) -> i32 {
-	return i32(s.max_scroll) + s.container.height
+scroll_content_length :: proc(box: Box, s: ^Scroll) -> i32 {
+	return i32(s.max_scroll) + box.height
 }

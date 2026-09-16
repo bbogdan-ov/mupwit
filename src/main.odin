@@ -76,11 +76,12 @@ draw :: proc(ctx: ^ui.Context) {
 _window_draw :: proc "c" (window: ^win.Window, cr: ^cairo.cairo_t, surface: ^cairo.surface_t) {
 	context = make_default_context()
 
+	ui.state.view = ui.surface_rect(surface)
+
 	ctx: ui.Context
 	ctx.cr = cr
 	ctx.surface = surface
-	ctx.screen = ui.surface_rect(surface)
-	ctx.container.rect = ctx.screen
+	ctx.box.rect = ui.state.view
 
 	draw(&ctx)
 }

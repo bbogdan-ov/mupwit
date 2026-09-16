@@ -36,24 +36,33 @@ rect_center_inside :: proc(rect, inside: Rect) -> Rect {
 	return rect
 }
 
-rect_expand :: proc(rect: Rect, padding: Vec2) -> Rect {
+pad :: proc(rect: Rect, padding: Vec2) -> Rect {
 	rect := rect
-	rect.x -= padding.x
-	rect.y -= padding.y
-	rect.width += padding.x * 2
-	rect.height += padding.y * 2
+	rect.x += padding.x
+	rect.y += padding.y
+	rect.width -= padding.x * 2
+	rect.height -= padding.y * 2
 	return rect
 }
-
-cut_left :: proc(rect: Rect, padding: i32) -> Rect {
+pad_l :: proc(rect: Rect, padding: i32) -> Rect {
 	rect := rect
 	rect.x += padding
 	rect.width -= padding
 	return rect
 }
-cut_top :: proc(rect: Rect, padding: i32) -> Rect {
+pad_t :: proc(rect: Rect, padding: i32) -> Rect {
 	rect := rect
 	rect.y += padding
+	rect.height -= padding
+	return rect
+}
+pad_r :: proc(rect: Rect, padding: i32) -> Rect {
+	rect := rect
+	rect.width -= padding
+	return rect
+}
+pad_b :: proc(rect: Rect, padding: i32) -> Rect {
+	rect := rect
 	rect.height -= padding
 	return rect
 }

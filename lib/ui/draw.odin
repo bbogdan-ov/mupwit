@@ -6,7 +6,7 @@ import "lib:cairo"
 
 Element_ID :: distinct uintptr
 
-Container :: struct {
+Box :: struct {
 	using rect: Rect,
 	padding:    Vec2,
 }
@@ -15,30 +15,24 @@ Container :: struct {
 Context :: struct {
 	using cr:    ^cairo.cairo_t,
 	surface:     ^cairo.surface_t,
-	screen:      Rect,
-	container:   Container, // Current container rect. Elements should adapt to this container.
+	box:         Box, // Current box rect. Elements should adapt to this box.
 	font_height: i32, // Current font height.
 }
 
-Container_Guard :: struct {
-	ctx:            ^Context,
-	prev_container: Rect,
-}
-
-@(deferred_in_out = _container_end)
-begin_container :: proc(ctx: ^Context, rect: Rect, padding: Vec2) -> (prev: Container) {
-	prev = ctx.container
-	ctx.container.rect = rect_expand(rect, -padding)
-	ctx.container.padding = padding
+@(deferred_in_out = _box_end)
+begin_box :: proc(ctx: ^Context, rect: Rect, padding: Vec2) -> (prev: Box) {
+	prev = ctx.box
+	ctx.box.rect = pad(rect, padding)
+	ctx.box.padding = padding
 	return prev
 }
-_container_end :: proc(ctx: ^Context, _: Rect, _: Vec2, prev: Container) {
-	ctx.container = prev
+_box_end :: proc(ctx: ^Context, _: Rect, _: Vec2, prev: Box) {
+	ctx.box = prev
 }
 
 @(deferred_in = _clip_end)
 begin_clip :: proc(ctx: ^Context) -> bool {
-	_rectangle(ctx, ctx.container)
+	_rectangle(ctx, ctx.box)
 	cairo.clip(ctx)
 	return true
 }
@@ -67,7 +61,7 @@ draw_glyphs :: proc(
 ) -> cairo.text_extents_t {
 	x, y := f64(pos.x), f64(pos.y)
 
-	max_advance := ctx.container.width - (pos.x - ctx.container.x)
+	max_advance := ctx.box.width - (pos.x - ctx.box.x)
 
 	count: i32
 	text_ext: cairo.text_extents_t

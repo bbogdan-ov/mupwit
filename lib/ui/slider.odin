@@ -51,7 +51,7 @@ slider_draw :: proc(
 	}
 
 	draw_box(ctx, rect, color)
-	bar := rect_expand(rect, {0, -1})
+	bar := pad(rect, {0, 1})
 	bar.width = i32(f32(bar.width) * s.progress)
 	draw_rect(ctx, bar, color)
 
