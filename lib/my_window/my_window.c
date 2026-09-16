@@ -86,13 +86,13 @@ struct My_Window {
 	My_Pointer_Scroll_Callback on_pointer_scroll;
 };
 
-void my_window__on_frame(Wayclient_State *state) {
+void my__on_frame(Wayclient_State *state) {
 	My_Window *window = state->userdata;
 	if (window->on_frame != NULL)
 		window->on_frame(window);
 }
 
-void my_window__draw(Wayclient_State *state, uint8_t *pixel_data, size_t pixel_data_size) {
+void my__draw(Wayclient_State *state, uint8_t *pixel_data, size_t pixel_data_size) {
 	My_Window *window = state->userdata;
 	if (window->draw == NULL) return;
 
@@ -111,7 +111,7 @@ void my_window__draw(Wayclient_State *state, uint8_t *pixel_data, size_t pixel_d
 	cairo_surface_destroy(surface);
 }
 
-void my_window__on_pointer_button(Wayclient_State *state, uint32_t wl_button, enum wl_pointer_button_state wl_state) {
+void my__on_pointer_button(Wayclient_State *state, uint32_t wl_button, enum wl_pointer_button_state wl_state) {
 	My_Window *window = state->userdata;
 	if (window->on_pointer_button == NULL) return;
 
@@ -140,14 +140,14 @@ void my_window__on_pointer_button(Wayclient_State *state, uint32_t wl_button, en
 	window->on_pointer_button(window, button, button_state);
 }
 
-void my_window__on_pointer_motion(Wayclient_State *state, double x, double y) {
+void my__on_pointer_motion(Wayclient_State *state, double x, double y) {
 	My_Window *window = state->userdata;
 
 	if (window->on_pointer_motion != NULL)
 		window->on_pointer_motion(window, x, y);
 }
 
-void my_window__on_pointer_scroll(Wayclient_State *state, double x, double y, enum wl_pointer_axis_source source) {
+void my__on_pointer_scroll(Wayclient_State *state, double x, double y, enum wl_pointer_axis_source source) {
 	My_Window *window = state->userdata;
 
 	if (window->on_pointer_scroll != NULL) {
@@ -157,7 +157,7 @@ void my_window__on_pointer_scroll(Wayclient_State *state, double x, double y, en
 }
 
 My_Window *
-my_window_new(uint32_t width, uint32_t height) {
+my_new(uint32_t width, uint32_t height) {
 	My_Window *window = calloc(1, sizeof(My_Window));
 	if (window == NULL)
 		return NULL;
@@ -165,11 +165,11 @@ my_window_new(uint32_t width, uint32_t height) {
 	wayclient_init(&window->state, width, height);
 
 	window->state.userdata = window;
-	window->state.on_frame = my_window__on_frame;
-	window->state.draw = my_window__draw;
-	window->state.on_pointer_button = my_window__on_pointer_button;
-	window->state.on_pointer_motion = my_window__on_pointer_motion;
-	window->state.on_pointer_scroll = my_window__on_pointer_scroll;
+	window->state.on_frame = my__on_frame;
+	window->state.draw = my__draw;
+	window->state.on_pointer_button = my__on_pointer_button;
+	window->state.on_pointer_motion = my__on_pointer_motion;
+	window->state.on_pointer_scroll = my__on_pointer_scroll;
 
 	Wayclient_Error err = wayclient_run(&window->state);
 	if (err != WAYCLIENT_OK)
@@ -179,38 +179,38 @@ my_window_new(uint32_t width, uint32_t height) {
 }
 
 void
-my_window_destroy(My_Window *window) {
+my_destroy(My_Window *window) {
 	wayclient_destroy(&window->state);
 	free(window);
 }
 
 bool
-my_window_should_run(My_Window *window) {
+my_should_run(My_Window *window) {
 	return wl_display_dispatch(window->state.wl_display) != -1 && !window->state.should_close;
 }
 
 void
-my_window_set_userdata(My_Window *window, void *userdata) {
+my_set_userdata(My_Window *window, void *userdata) {
 	window->userdata = userdata;
 }
 void
-my_window_set_resizable(My_Window *window, bool resizable) {
+my_set_resizable(My_Window *window, bool resizable) {
 	window->state.resizable = resizable;
 }
 
 void
-my_window_set_cursor(My_Window *window, My_Cursor cursor) {
+my_set_cursor(My_Window *window, My_Cursor cursor) {
 	wayclient_set_cursor(&window->state, (enum wp_cursor_shape_device_v1_shape)(cursor + 1));
 }
 
-void my_window_set_frame_callback(My_Window *w, My_Frame_Callback cb)                   { w->on_frame = cb; }
-void my_window_set_draw_callback(My_Window *w, My_Draw_Callback cb)                     { w->draw = cb; }
-void my_window_set_pointer_button_callback(My_Window *w, My_Pointer_Button_Callback cb) { w->on_pointer_button = cb; }
-void my_window_set_pointer_motion_callback(My_Window *w, My_Pointer_Motion_Callback cb) { w->on_pointer_motion = cb; }
-void my_window_set_pointer_scroll_callback(My_Window *w, My_Pointer_Scroll_Callback cb) { w->on_pointer_scroll = cb; }
+void my_set_frame_callback(My_Window *w, My_Frame_Callback cb)                   { w->on_frame = cb; }
+void my_set_draw_callback(My_Window *w, My_Draw_Callback cb)                     { w->draw = cb; }
+void my_set_pointer_button_callback(My_Window *w, My_Pointer_Button_Callback cb) { w->on_pointer_button = cb; }
+void my_set_pointer_motion_callback(My_Window *w, My_Pointer_Motion_Callback cb) { w->on_pointer_motion = cb; }
+void my_set_pointer_scroll_callback(My_Window *w, My_Pointer_Scroll_Callback cb) { w->on_pointer_scroll = cb; }
 
 void *
-my_window_userdata(My_Window *window) {
+my_userdata(My_Window *window) {
 	return window->userdata;
 }
 

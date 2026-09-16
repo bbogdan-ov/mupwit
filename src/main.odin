@@ -8,6 +8,7 @@ import win "lib:my_window"
 import "lib:ui"
 
 State :: struct {
+	window:     ^win.Window,
 	player:     Player,
 
 	// Assets.
@@ -20,24 +21,24 @@ state: State
 main :: proc() {
 	context.logger = make_logger()
 
-	window := win.window_new(WINDOW_WIDTH, WINDOW_HEIGHT)
-	assert(window != nil) // TODO: handle error.
+	state.window = win.new(WINDOW_WIDTH, WINDOW_HEIGHT)
+	assert(state.window != nil) // TODO: handle error.
 
-	win.window_set_resizable(window, false)
-	win.window_set_frame_callback(window, _window_on_frame)
-	win.window_set_draw_callback(window, _window_draw)
-	win.window_set_pointer_button_callback(window, _window_on_pointer_button)
-	win.window_set_pointer_motion_callback(window, _window_on_pointer_motion)
-	win.window_set_pointer_scroll_callback(window, _window_on_pointer_scroll)
+	win.set_resizable(state.window, false)
+	win.set_frame_callback(state.window, _window_on_frame)
+	win.set_draw_callback(state.window, _window_draw)
+	win.set_pointer_button_callback(state.window, _window_on_pointer_button)
+	win.set_pointer_motion_callback(state.window, _window_on_pointer_motion)
+	win.set_pointer_scroll_callback(state.window, _window_on_pointer_scroll)
 
 	ui.init()
 	assets_load()
 	player_connect()
 
-	for win.window_should_run(window) {}
+	for win.should_run(state.window) {}
 
 	log.info("Closing the window...")
-	win.window_destroy(window)
+	win.destroy(state.window)
 	assets_destroy()
 	ui.destroy()
 
@@ -52,6 +53,7 @@ update :: proc(dt: Seconds) {
 	status_ui_update()
 	queue_ui_update(dt)
 
+	win.set_cursor(state.window, ui.state.cursor)
 	ui.update()
 }
 

@@ -78,21 +78,21 @@ Pointer_Scroll_Callback :: #type proc "c" (win: ^Window, x, y: f64, touchpad: bo
 @(default_calling_convention = "c", link_prefix = "my_")
 foreign lib {
 	@(require_results)
-	window_new :: proc(width, height: u32) -> ^Window ---
-	window_destroy :: proc(win: ^Window) ---
+	new :: proc(width, height: u32) -> ^Window ---
+	destroy :: proc(win: ^Window) ---
 
-	window_should_run :: proc(win: ^Window) -> bool ---
+	should_run :: proc(win: ^Window) -> bool ---
 
-	window_set_userdata :: proc(win: ^Window, userdata: rawptr) ---
-	window_set_resizable :: proc(win: ^Window, resizable: bool) ---
-	window_set_cursor :: proc(win: ^Window, cursor: Cursor) ---
-	window_set_frame_callback :: proc(win: ^Window, callback: Callback) ---
-	window_set_draw_callback :: proc(win: ^Window, callback: Draw_Callback) ---
-	window_set_pointer_button_callback :: proc(win: ^Window, callback: Pointer_Button_Callback) ---
-	window_set_pointer_motion_callback :: proc(win: ^Window, callback: Pointer_Motion_Callback) ---
-	window_set_pointer_scroll_callback :: proc(win: ^Window, callback: Pointer_Scroll_Callback) ---
+	set_userdata :: proc(win: ^Window, userdata: rawptr) ---
+	set_resizable :: proc(win: ^Window, resizable: bool) ---
+	set_cursor :: proc(win: ^Window, cursor: Cursor) ---
+	set_frame_callback :: proc(win: ^Window, callback: Callback) ---
+	set_draw_callback :: proc(win: ^Window, callback: Draw_Callback) ---
+	set_pointer_button_callback :: proc(win: ^Window, callback: Pointer_Button_Callback) ---
+	set_pointer_motion_callback :: proc(win: ^Window, callback: Pointer_Motion_Callback) ---
+	set_pointer_scroll_callback :: proc(win: ^Window, callback: Pointer_Scroll_Callback) ---
 
-	window_userdata :: proc(win: ^Window) -> rawptr ---
+	userdata :: proc(win: ^Window) -> rawptr ---
 
 	@(require_results)
 	font_library_init :: proc(library: ^Font_Library) -> (ok: bool) ---

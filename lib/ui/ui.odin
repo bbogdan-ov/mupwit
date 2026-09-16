@@ -17,6 +17,7 @@ state: struct {
 	mouse_down:             bool,
 	mouse_pressed:          bool,
 	mouse_relesed:          bool,
+	cursor:                 win.Cursor,
 
 	// Assets.
 	font_library:           win.Font_Library,
@@ -35,6 +36,11 @@ update :: proc() {
 	state.mouse_pressed = false
 	state.mouse_relesed = false
 	state.prev_pointer = state.pointer
+	state.cursor = .Default
+}
+
+set_cursor :: proc(cursor: win.Cursor) {
+	state.cursor = cursor
 }
 
 on_pointer_button :: proc "contextless" (button: win.Button, button_state: win.Button_State) {
