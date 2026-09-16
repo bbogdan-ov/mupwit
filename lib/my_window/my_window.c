@@ -29,6 +29,46 @@ typedef enum {
 	MY_BUTTON_PRESSED,
 } My_Button_State;
 
+// Simply renamed `enum wp_cursor_shape_device_v1_shape - 1`.
+typedef enum {
+	MY_CURSOR_DEFAULT = 0,
+	MY_CURSOR_CONTEXT_MENU,
+	MY_CURSOR_HELP,
+	MY_CURSOR_POINTER,
+	MY_CURSOR_PROGRESS,
+	MY_CURSOR_WAIT,
+	MY_CURSOR_CELL,
+	MY_CURSOR_CROSSHAIR,
+	MY_CURSOR_TEXT,
+	MY_CURSOR_VERTICAL_TEXT,
+	MY_CURSOR_ALIAS,
+	MY_CURSOR_COPY,
+	MY_CURSOR_MOVE,
+	MY_CURSOR_NO_DROP,
+	MY_CURSOR_NOT_ALLOWED,
+	MY_CURSOR_GRAB,
+	MY_CURSOR_GRABBING,
+	MY_CURSOR_E_RESIZE,
+	MY_CURSOR_N_RESIZE,
+	MY_CURSOR_NE_RESIZE,
+	MY_CURSOR_NW_RESIZE,
+	MY_CURSOR_S_RESIZE,
+	MY_CURSOR_SE_RESIZE,
+	MY_CURSOR_SW_RESIZE,
+	MY_CURSOR_W_RESIZE,
+	MY_CURSOR_EW_RESIZE,
+	MY_CURSOR_NS_RESIZE,
+	MY_CURSOR_NESW_RESIZE,
+	MY_CURSOR_NWSE_RESIZE,
+	MY_CURSOR_COL_RESIZE,
+	MY_CURSOR_ROW_RESIZE,
+	MY_CURSOR_ALL_SCROLL,
+	MY_CURSOR_ZOOM_IN,
+	MY_CURSOR_ZOOM_OUT,
+	MY_CURSOR_DND_ASK,
+	MY_CURSOR_ALL_RESIZE,
+} My_Cursor;
+
 typedef void (*My_Frame_Callback)(My_Window *window);
 typedef void (*My_Draw_Callback)(My_Window *window, cairo_t *cr, cairo_surface_t *surface);
 typedef void (*My_Pointer_Button_Callback)(My_Window *window, My_Button button, My_Button_State state);
@@ -156,6 +196,11 @@ my_window_set_userdata(My_Window *window, void *userdata) {
 void
 my_window_set_resizable(My_Window *window, bool resizable) {
 	window->state.resizable = resizable;
+}
+
+void
+my_window_set_cursor(My_Window *window, My_Cursor cursor) {
+	wayclient_set_cursor(&window->state, (enum wp_cursor_shape_device_v1_shape)(cursor + 1));
 }
 
 void my_window_set_frame_callback(My_Window *w, My_Frame_Callback cb)                   { w->on_frame = cb; }

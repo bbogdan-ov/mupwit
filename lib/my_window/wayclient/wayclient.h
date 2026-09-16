@@ -5,6 +5,7 @@
 
 #include <wayland-client.h>
 #include "xdg_shell.h"
+#include "cursor_shape_v1.h"
 #include <xkbcommon/xkbcommon.h>
 #include <linux/input-event-codes.h>
 
@@ -53,6 +54,11 @@ struct Wayclient_State {
 	struct wl_keyboard   *wl_keyboard;
 	struct xkb_context   *xkb_context;
 	struct xkb_state     *xkb_state;
+
+	struct wp_cursor_shape_manager_v1 *wp_cursor_manager;
+	struct wp_cursor_shape_device_v1  *wp_cursor_device;
+	enum wp_cursor_shape_device_v1_shape cursor;
+	uint32_t pointer_enter_serial;
 
 	struct wl_callback   *wl_frame_callback;
 
@@ -121,6 +127,9 @@ wayclient_destroy(Wayclient_State *state);
 // buffers are being used by the compositor.
 bool
 wayclient_draw_and_commit(Wayclient_State *state);
+
+bool
+wayclient_set_cursor(Wayclient_State *state, enum wp_cursor_shape_device_v1_shape cursor);
 
 // ------------------------------
 // Internal functions.

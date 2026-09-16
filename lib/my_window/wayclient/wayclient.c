@@ -41,6 +41,7 @@ wayclient__registry_handle_global(
 	BIND(wl_shm,        wl_shm_interface);
 	BIND(wl_seat,       wl_seat_interface);
 	BIND(xdg_wm_base,   xdg_wm_base_interface);
+	BIND(wp_cursor_manager, wp_cursor_shape_manager_v1_interface);
 }
 
 // TODO: do i have to handle this event?
@@ -70,6 +71,11 @@ wayclient__wl_seat_handle_capabilities(
 
 	if ((capabilities & WL_SEAT_CAPABILITY_POINTER) != 0 && state->wl_pointer == NULL) {
 		state->wl_pointer = wl_seat_get_pointer(wl_seat);
+		if (state->wl_pointer != NULL) {
+			state->wp_cursor_device = wp_cursor_shape_manager_v1_get_pointer(state->wp_cursor_manager, state->wl_pointer);
+			wayclient_logf("Bound wp_cursor_shape_device_v1: %p", state->wp_cursor_device);
+		}
+
 		wayclient_logf("Bound wl_pointer: %p", state->wl_pointer);
 	}
 	if ((capabilities & WL_SEAT_CAPABILITY_KEYBOARD) != 0 && state->wl_keyboard == NULL) {
@@ -104,6 +110,13 @@ wayclient__wl_pointer_handle_enter(
 	wl_fixed_t surface_y
 ) {
 	Wayclient_State *state = data;
+
+	state->pointer_enter_serial = serial;
+	if (state->cursor > 0) {
+		// NOTE: we have to update cursor shape everytime cursor enters the surface.
+		wayclient_set_cursor(state, state->cursor);
+	}
+
 	if (state->on_pointer_enter != NULL)
 		state->on_pointer_enter(state);
 }
@@ -589,6 +602,9 @@ wayclient_destroy(Wayclient_State *state) {
 	if (state->xdg_surface != NULL)  xdg_surface_destroy(state->xdg_surface);
 	if (state->xdg_wm_base != NULL)  xdg_wm_base_destroy(state->xdg_wm_base);
 
+	if (state->wp_cursor_device != NULL)  wp_cursor_shape_device_v1_destroy(state->wp_cursor_device);
+	if (state->wp_cursor_manager != NULL) wp_cursor_shape_manager_v1_destroy(state->wp_cursor_manager);
+
 	if (state->xkb_context != NULL) xkb_context_unref(state->xkb_context);
 	if (state->xkb_state != NULL)   xkb_state_unref(state->xkb_state);
 	if (state->wl_pointer != NULL)  wl_pointer_release(state->wl_pointer);
@@ -624,6 +640,17 @@ wayclient_draw_and_commit(Wayclient_State *state) {
 	wl_surface_damage_buffer(state->wl_surface, 0, 0, state->width, state->height);
 	wl_surface_commit(state->wl_surface);
 
+	return true;
+}
+
+bool
+wayclient_set_cursor(Wayclient_State *state, enum wp_cursor_shape_device_v1_shape cursor) {
+	if (state->wp_cursor_device == NULL) return false;
+
+	state->cursor = cursor;
+
+	if (state->pointer_enter_serial > 0)
+		wp_cursor_shape_device_v1_set_shape(state->wp_cursor_device, state->pointer_enter_serial, cursor);
 	return true;
 }
 

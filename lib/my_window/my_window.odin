@@ -16,7 +16,7 @@ Font_Face :: cairo.Font_Face
 
 Window :: struct {}
 
-Button :: enum {
+Button :: enum i32 {
 	Unknown = 0,
 	Left,
 	Middle,
@@ -25,9 +25,48 @@ Button :: enum {
 	Back,
 }
 
-Button_State :: enum {
+Button_State :: enum i32 {
 	Released = 0,
 	Pressed,
+}
+
+Cursor :: enum i32 {
+	Default = 0,
+	Context_Menu,
+	Help,
+	Pointer,
+	Progress,
+	Wait,
+	Cell,
+	Crosshair,
+	Text,
+	Vertical_Text,
+	Alias,
+	Copy,
+	Move,
+	No_Drop,
+	Not_Allowed,
+	Grab,
+	Grabbing,
+	E_Resize,
+	N_Resize,
+	NE_Resize,
+	NW_Resize,
+	S_Resize,
+	SE_Resize,
+	SW_Resize,
+	W_Resize,
+	EW_Resize,
+	NS_Resize,
+	NESW_Resize,
+	NWSE_Resize,
+	Col_Resize,
+	Row_Resize,
+	All_Scroll,
+	Zoom_In,
+	Zoom_Out,
+	Dnd_Ask,
+	All_Resize,
 }
 
 Callback :: #type proc "c" (win: ^Window)
@@ -46,6 +85,7 @@ foreign lib {
 
 	window_set_userdata :: proc(win: ^Window, userdata: rawptr) ---
 	window_set_resizable :: proc(win: ^Window, resizable: bool) ---
+	window_set_cursor :: proc(win: ^Window, cursor: Cursor) ---
 	window_set_frame_callback :: proc(win: ^Window, callback: Callback) ---
 	window_set_draw_callback :: proc(win: ^Window, callback: Draw_Callback) ---
 	window_set_pointer_button_callback :: proc(win: ^Window, callback: Pointer_Button_Callback) ---
