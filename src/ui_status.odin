@@ -1,3 +1,8 @@
+//
+// Playback status panel that sits at the bottom of the screen and displays the
+// currently playing song and elapsed time within it.
+//
+
 package mupwit
 
 import "core:fmt"

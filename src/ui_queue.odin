@@ -1,3 +1,7 @@
+//
+// Current song queue screen. "Song queue" is also referred as "playlist" in MPD.
+//
+
 package mupwit
 
 import "lib:mpd"
