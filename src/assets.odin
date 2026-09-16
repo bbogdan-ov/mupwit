@@ -14,7 +14,7 @@ assets_load :: proc() -> (ok: bool) {
 	state.font_kapli = _load_ttf("kaplimono_regular") or_return
 
 	// Load images
-	state.icons.sheet = _load_png("icons", 112, 16)
+	state.icons.sheet = _load_image("icons", IMAGE_ICONS_SIZE)
 
 	// Crop icons from the sheet.
 	target := state.icons.sheet
@@ -36,10 +36,10 @@ _load_ttf :: proc($name: string) -> (font: ui.Font, ok: bool) {
 	return ui.font_load_from_bytes(data)
 }
 
-_load_png :: proc($name: cstring, $width, $height: i32) -> ^cairo.surface_t {
+_load_image :: #force_inline proc($name: cstring, $size: [2]i32) -> ^cairo.surface_t {
 	data := #load(IMAGES_PATH + name + ".argb32")
-	assert(i32(len(data)) == width * height * ui.PIXEL_CHANNELS)
-	return _load_image_from_data(data, width, height, .ARGB32)
+	when ODIN_DEBUG do assert(i32(len(data)) == size.x * size.y * ui.PIXEL_CHANNELS)
+	return _load_image_from_data(data, size.x, size.y, .ARGB32)
 }
 
 _load_image_from_data :: proc(
