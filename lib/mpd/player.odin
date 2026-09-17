@@ -18,11 +18,6 @@ Song_Id :: distinct int
 // Often referred as "SONGPOS" in the MPD protocol.
 Song_Index :: distinct int
 
-Song_Handle :: struct #all_or_none {
-	id:    Song_Id,
-	index: Song_Index,
-}
-
 // Song file path relative to the MPD music dir.
 Song_File :: distinct string
 
@@ -106,7 +101,6 @@ Song :: struct {
 
 	// Queue-local data, if not in a queue, those fields are zeroed.
 	queue_id:     Song_Id `Id`, // Song ID within current queue.
-	queue_index:  Song_Index `Pos`,
 
 	// Allocator used to allocate strings.
 	allocator:    runtime.Allocator,
@@ -133,6 +127,18 @@ song_list_clear :: proc(list: ^Song_List) {
 song_list_destroy :: proc(list: ^Song_List) {
 	song_list_clear(list)
 	delete(list^)
+}
+
+song_lists_differ :: proc(a, b: Song_List) -> bool {
+	if len(a) != len(b) do return true
+
+	for i in 0 ..< len(a) {
+		if a[i].queue_id != b[i].queue_id {
+			return true
+		}
+	}
+
+	return false
 }
 
 Picture :: struct {

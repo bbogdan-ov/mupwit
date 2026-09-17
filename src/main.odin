@@ -2,6 +2,7 @@ package mupwit
 
 import "core:log"
 import "core:time"
+import "lib:mpd"
 
 import "lib:cairo"
 import win "lib:my_window"
@@ -34,6 +35,8 @@ main :: proc() {
 	ui.init()
 	assets_load()
 	player_connect()
+
+	queue_ui_init()
 
 	for win.should_run(state.window) {}
 
@@ -72,6 +75,17 @@ draw :: proc(ctx: ^ui.Context) {
 	queue_ui_draw(ctx)
 	status_ui_draw(ctx)
 }
+
+// These functions are called by the `Player` struct whenever something happens.
+
+on_received_queue :: proc(queue: mpd.Song_List) {
+	queue_ui_on_received_queue(queue)
+}
+on_song_reordered :: proc(from, to: mpd.Song_Index) {
+	queue_ui_on_song_reordered(from, to)
+}
+
+// These functions are listeners for window events.
 
 _window_draw :: proc "c" (window: ^win.Window, cr: ^cairo.cairo_t, surface: ^cairo.surface_t) {
 	context = make_default_context()

@@ -1,8 +1,10 @@
 package mupwit
 
+import "base:intrinsics"
 import "core:log"
 import "core:sync/chan"
 import "lib:mpd"
+import "lib:ui"
 
 // ------------------------------
 // Command.
@@ -21,6 +23,9 @@ Command_Play_Song :: struct {
 Command_Seek :: struct {
 	seconds: Seconds,
 }
+Command_Reorder_Song :: struct {
+	from, to: mpd.Song_Index,
+}
 
 Command_Disconnect :: struct {}
 
@@ -33,6 +38,7 @@ Command :: union #no_nil {
 	Command_Stop,
 	Command_Play_Song,
 	Command_Seek,
+	Command_Reorder_Song,
 	Command_Disconnect,
 }
 
@@ -59,8 +65,7 @@ player_toggle_play :: proc() {
 }
 
 player_play_song :: proc(index: mpd.Song_Index, force := false) {
-	handle, has_song := state.player.cur_song.?
-	if !force && has_song && handle.index == index do return
+	if !force && state.player.cur_song == index do return
 
 	_player_send_command(Command_Play_Song{index})
 }
@@ -76,6 +81,22 @@ player_seek :: proc(seconds: Seconds) {
 player_seek_percent :: proc(percent: f32) {
 	secs := Seconds(percent) * state.player.duration
 	player_seek(secs)
+}
+
+player_reorder_song :: proc(from, to: mpd.Song_Index) {
+	player := &state.player
+
+	if from == to do return
+
+	ui.slice_reorder(player.queue[:], int(from), int(to))
+
+	cur_song, has_cur_song := player.cur_song.?
+	if has_cur_song {
+		player.cur_song = ui.shifted_index(cur_song, from, to)
+	}
+
+	on_song_reordered(from, to)
+	_player_send_command(Command_Reorder_Song{from, to})
 }
 
 // ------------------------------
@@ -98,28 +119,39 @@ _player_handle_command :: proc(client: ^mpd.Client, command: Command) -> (err: m
 	case Command_Request_Status:
 		status := mpd.request_status(client) or_return
 		player_send_response(status)
+		return nil
 
 	case Command_Request_Queue:
 		queue := mpd.request_queue(client, context.allocator) or_return
-		player_send_response(Response_Queue{queue})
+		status := mpd.request_status(client) or_return
+		player_send_response(Response_Queue{queue, status})
+		return nil
 
 	case Command_Play:
-		mpd.send_and_forget(client, "play") or_return
+		return mpd.send_and_forget(client, "play")
 	case Command_Resume:
-		mpd.send_and_forget(client, "pause 0") or_return
+		return mpd.send_and_forget(client, "pause 0")
 	case Command_Pause:
-		mpd.send_and_forget(client, "pause 1") or_return
+		return mpd.send_and_forget(client, "pause 1")
 	case Command_Stop:
-		mpd.send_and_forget(client, "stop") or_return
+		return mpd.send_and_forget(client, "stop")
 	case Command_Play_Song:
-		mpd.send_and_forget(client, "play", cmd.index) or_return
+		return mpd.send_and_forget(client, "play", cmd.index)
 	case Command_Seek:
-		mpd.send_and_forget(client, "seekcur", cmd.seconds) or_return
+		return mpd.send_and_forget(client, "seekcur", cmd.seconds)
+	case Command_Reorder_Song:
+		mpd.send_and_forget(client, "move", cmd.from, cmd.to) or_return
+		status := mpd.request_status(client) or_return
+		player_send_response(status)
+		return nil
 
-	case Command_Disconnect: // Do nothing.
+	case Command_Disconnect:
+		// Do nothing.
+		return nil
+
+	case:
+		unreachable()
 	}
-
-	return nil
 }
 
 _player_handle_commands :: proc(client: ^mpd.Client) -> (should_exit: bool) {

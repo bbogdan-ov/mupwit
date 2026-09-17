@@ -43,7 +43,7 @@ status_ui_draw :: proc(ctx: ^ui.Context) {
 	{
 		box := ui.pad_l(ctx.box, btn_play.rect.width + GAP)
 		box.width -= GAP
-		ui.begin_box(ctx, box, 0)
+		ui.begin_box(ctx, box)
 
 		offset: Vec2
 		offset.y = ctx.box.height / 2

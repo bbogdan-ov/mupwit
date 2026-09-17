@@ -12,9 +12,11 @@ Scroll :: struct {
 	is_hovering_thumb: bool,
 }
 
-scroll_update :: proc(box: Box, s: ^Scroll, dt: Seconds) {
+scroll_update :: proc(box: ^Box, s: ^Scroll, dt: Seconds) {
 	_scroll_update_offset(s, dt)
-	_scroll_update_pointer_drag(box, s)
+	_scroll_update_pointer_drag(box^, s)
+
+	box.scroll = s.offset
 }
 
 _scroll_update_offset :: proc(s: ^Scroll, dt: Seconds) {
@@ -60,10 +62,10 @@ _scroll_update_pointer_drag :: proc(box: Box, s: ^Scroll) {
 		scroll_set(s, state.drag_scroll_offset + delta)
 
 	case is_dragging:
-		state.dragging = nil
+		stop_dragging(id)
 
 	case s.is_hovering && is_mouse_pressed(.Left) && state.dragging == nil:
-		state.dragging = id
+		start_dragging(id)
 		if s.is_hovering_thumb {
 			state.drag_scroll_offset = s.offset
 		} else {
@@ -114,12 +116,12 @@ scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color: Color) {
 	thumb.y = box.y + i32(f32(box.height - thumb.height) * progress)
 	if thumb.height >= box.height do return
 
-	s.is_hovering_thumb = overlap(state.pointer, thumb)
+	s.is_hovering_thumb = is_hovering(thumb)
 
 	click := box
 	click.width = box.padding.x
 	click.x = box.x + box.width
-	s.is_hovering = overlap(state.pointer, click)
+	s.is_hovering = is_hovering(click)
 
 	{
 		rect := thumb
@@ -132,15 +134,10 @@ scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color: Color) {
 // Returns the range of items within a scrollable box that are visible on
 // the screen.
 // NOTE: all items must have the same height.
-scroll_visible_items :: proc(
-	box: Box,
-	s: ^Scroll,
-	item_count: int,
-	item_height: i32,
-) -> (
-	from, to: int,
-) {
-	off := i32(s.offset) - box.y
+scroll_visible_range :: proc(box: Box, item_count: int, item_height: i32) -> (from, to: int) {
+	assert(item_height > 0)
+
+	off := i32(box.scroll) - box.y
 
 	from = int(max(off, 0) / item_height)
 	to = int(max(off + state.view.height + item_height, 0) / item_height)
@@ -153,19 +150,20 @@ scroll_visible_items :: proc(
 // NOTE: all items must have the same height.
 scroll_hovering_item :: proc(
 	box: Box,
-	s: ^Scroll,
 	item_count: int,
 	item_height: i32,
 ) -> (
 	index: int,
 	ok: bool,
 ) {
+	assert(item_height > 0)
+
 	if state.dragging != nil do return -1, false
 
 	p := state.pointer
-	p.y += i32(s.offset)
+	p.y += i32(box.scroll)
 	rect := box
-	rect.height += i32(s.offset)
+	rect.height += i32(box.scroll)
 	if !overlap(p, rect) do return -1, false
 
 	index = int((p.y - box.y) / item_height)

@@ -4,9 +4,20 @@ import win "lib:my_window"
 
 PIXEL_CHANNELS :: 4
 
+DRAG_START_THRESHOLD :: 10
+
 State :: struct {
 	view:                   Rect,
+
+	// Currently dragged element.
 	dragging:               Maybe(Element_ID),
+	just_started_dragging:  Element_ID,
+	just_stopped_dragging:  Element_ID,
+	// Element was pressed and might be started dragging when user moves
+	// mouse with a button held down by some distance.
+	can_drag:               Maybe(Element_ID),
+	// Offset of the currently dragged element relative to the mouse pointer.
+	drag_offset:            Vec2,
 	drag_scroll_offset:     f32,
 
 	// Input.
@@ -35,10 +46,55 @@ destroy :: proc() {
 }
 
 update :: proc() {
+	_update_drag()
+
 	state.mouse_pressed = false
 	state.prev_pointer = state.pointer
 	state.mouse_released_buttons = {}
 	state.cursor = .Default
+}
+
+_update_drag :: proc() {
+	state.just_started_dragging = 0
+	state.just_stopped_dragging = 0
+
+	dragging, has_dragging := state.dragging.?
+
+	if !has_dragging {
+		can_drag, ok := state.can_drag.?
+		if is_mouse_down(.Left) && ok {
+			diff := state.pointer - state.press_pos
+			if abs(diff.x) + abs(diff.y) > DRAG_START_THRESHOLD {
+				start_dragging(can_drag)
+				state.can_drag = nil
+			}
+		} else {
+			state.can_drag = nil
+		}
+	} else if is_mouse_released(.Left) {
+		stop_dragging(dragging)
+	}
+}
+
+start_dragging :: proc(id: Element_ID) {
+	if state.dragging != nil {
+		if ODIN_DEBUG do panic("Cannot start dragging when already dragging something else")
+		return
+	}
+	state.dragging = id
+	state.just_started_dragging = id
+}
+stop_dragging :: proc(id: Element_ID) {
+	if state.dragging != id {
+		if ODIN_DEBUG do panic("Stopped dragging a wrong element")
+		return
+	}
+	state.dragging = nil
+	state.just_stopped_dragging = id
+}
+set_can_drag :: proc(id: Element_ID, offset: Vec2) {
+	state.can_drag = id
+	state.drag_offset = offset
 }
 
 set_cursor :: proc(cursor: win.Cursor) {

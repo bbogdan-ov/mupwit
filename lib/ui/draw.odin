@@ -9,6 +9,7 @@ Element_ID :: distinct uintptr
 Box :: struct {
 	using rect: Rect,
 	padding:    Vec2,
+	scroll:     f32,
 }
 
 // Drawing context.
@@ -20,13 +21,14 @@ Context :: struct {
 }
 
 @(deferred_in_out = _box_end)
-begin_box :: proc(ctx: ^Context, rect: Rect, padding: Vec2) -> (prev: Box) {
+begin_box :: proc(ctx: ^Context, rect: Rect, padding: Vec2 = {}, scroll: f32 = 0) -> (prev: Box) {
 	prev = ctx.box
 	ctx.box.rect = pad(rect, padding)
 	ctx.box.padding = padding
+	ctx.box.scroll = scroll
 	return prev
 }
-_box_end :: proc(ctx: ^Context, _: Rect, _: Vec2, prev: Box) {
+_box_end :: proc(ctx: ^Context, _: Rect, _: Vec2, _: f32, prev: Box) {
 	ctx.box = prev
 }
 

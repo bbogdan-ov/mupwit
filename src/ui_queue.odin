@@ -7,71 +7,89 @@ package mupwit
 import "lib:mpd"
 import "lib:ui"
 
+Song_Item :: struct {
+	using item: ui.Item,
+	song_index: mpd.Song_Index,
+}
+
 @(private = "file")
 self: struct {
-	box:            ui.Box,
-	scroll:         ui.Scroll,
-	hovering_index: Maybe(int),
+	list:   ui.Item_List(Song_Item),
+	box:    ui.Box,
+	scroll: ui.Scroll,
+}
+
+queue_ui_init :: proc() {
+	self.list.item_height = SONG_HEIGHT
 }
 
 queue_ui_update :: proc(dt: Seconds) {
-	ui.scroll_update(self.box, &self.scroll, dt)
+	ui.scroll_update(&self.box, &self.scroll, dt)
 
-	{
-		index, ok := ui.scroll_hovering_item(
-			self.box,
-			&self.scroll,
-			len(state.player.queue),
-			SONG_HEIGHT,
-		)
-		self.hovering_index = index if ok else nil
-	}
+	ui.item_list_update(self.box, &self.list, dt)
 
-	if ui.is_mouse_released(.Left) {
-		_queue_ui_play_hovering_song()
+	if self.list.just_reordered {
+		from := mpd.Song_Index(self.list.reorder.from)
+		to := mpd.Song_Index(self.list.reorder.to)
+		player_reorder_song(from, to)
+		state.player.ignore_next_queue_response = true
 	}
 }
 
-_queue_ui_play_hovering_song :: proc() -> (ok: bool) {
-	hovering := self.hovering_index.? or_return
-	player_play_song(mpd.Song_Index(hovering))
-	return true
+queue_ui_draw :: proc(ctx: ^ui.Context) {
+	player := &state.player
+
+	ui.begin_box(ctx, ui.pad_b(ctx.box, PLAYER_HEIGHT), GAP, self.scroll.offset)
+	self.box = ctx.box
+
+	from, to := ui.item_list_visible_range(ctx.box, &self.list)
+	for i in from ..< to {
+		item := &self.list.items[i]
+		song_item_draw(ctx, item)
+	}
+
+	contents := i32(len(player.queue)) * self.list.item_height
+	ui.scroll_draw(ctx, &self.scroll, contents, LIGHT_GRAY)
 }
 
 queue_ui_on_scroll :: proc(scroll: f32, touchpad: bool) {
 	ui.scroll_on_scroll(&self.scroll, scroll, touchpad)
 }
 
-queue_ui_draw :: proc(ctx: ^ui.Context) {
-	player := &state.player
+queue_ui_on_received_queue :: proc(queue: mpd.Song_List) {
+	clear(&self.list.items)
+	non_zero_reserve(&self.list.items, len(queue))
 
-	ui.begin_box(ctx, ui.pad_b(ctx.box, PLAYER_HEIGHT), GAP)
-	self.box = ctx.box
-
-	from, to := ui.scroll_visible_items(ctx.box, &self.scroll, len(player.queue), SONG_HEIGHT)
-
-	for i in from ..< to {
-		song := &player.queue[i]
-		y := i32(i) * SONG_HEIGHT - i32(self.scroll.offset)
-
-		song_draw(ctx, song, y, i == self.hovering_index)
+	for _, index in queue {
+		item := Song_Item {
+			position   = i32(index) * self.list.item_height,
+			song_index = mpd.Song_Index(index),
+		}
+		append(&self.list.items, item)
 	}
-
-	contents := i32(len(player.queue)) * SONG_HEIGHT
-	ui.scroll_draw(ctx, &self.scroll, contents, LIGHT_GRAY)
 }
 
-song_draw :: proc(ctx: ^ui.Context, song: ^mpd.Song, y: i32, hovering: bool) {
-	rect := ctx.box
-	rect.y += y
-	rect.height = SONG_HEIGHT
+queue_ui_on_song_reordered :: proc(from, to: mpd.Song_Index) {
+	start, end := ui.range_unflip(from, to)
+	for i in start ..= end {
+		item := &self.list.items[i]
+		item.song_index = mpd.Song_Index(i)
+	}
+}
 
-	if hovering {
+song_item_draw :: proc(ctx: ^ui.Context, item: ^Song_Item) {
+	song := &state.player.queue[item.song_index]
+	id := ui.Element_ID(item)
+
+	pos := ui.item_tweened_pos(item)
+	rect := ui.item_rect(ctx.box, pos, self.list.item_height)
+
+	if item.is_hovering || ui.state.dragging == id {
 		ui.draw_box_rounded(ctx, rect, LIGHT_GRAY, filled = true)
 	}
 
-	// Current marker.
-	if song_is_current(song) {
+	// Draw "current marker".
+	if item.song_index == state.player.cur_song {
 		pos := rect_pos(rect) - ICON_SIZE / 2
 		pos.y += rect.height / 2
 		draw_icon(ctx, .Small_Arrow_Right, pos, BLACK)
@@ -107,7 +125,7 @@ song_draw :: proc(ctx: ^ui.Context, song: ^mpd.Song, y: i32, hovering: bool) {
 	{
 		box := ctx.box
 		box.width += -duration_advance - GAP
-		ui.begin_box(ctx, box, 0)
+		ui.begin_box(ctx, box)
 
 		pos := rect_pos(ctx.box)
 		pos.x += SONG_COVER_SIZE + GAP

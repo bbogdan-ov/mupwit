@@ -20,16 +20,19 @@ TARGET_CLIENT_THREAD_TPS :: 30
 
 Player :: struct {
 	// Playback state.
-	playstate:         mpd.Play_State,
-	elapsed, duration: Seconds,
-	cur_song:          Maybe(mpd.Song_Handle),
-	queue:             mpd.Song_List,
+	playstate:                  mpd.Play_State,
+	elapsed, duration:          Seconds,
+	cur_song:                   Maybe(mpd.Song_Index),
+	queue:                      mpd.Song_List,
 
 	// Client state.
-	thread:            ^thread.Thread,
-	commands:          chan.Chan(Command),
-	responses:         chan.Chan(Response),
-	status_req_timer:  Seconds,
+	thread:                     ^thread.Thread,
+	commands:                   chan.Chan(Command),
+	responses:                  chan.Chan(Response),
+	status_req_timer:           Seconds,
+	// Whether to ignore the next incoming "queue" response. Usually set after
+	// reordering items so it doesn't rebuild the items list.
+	ignore_next_queue_response: bool,
 }
 
 player_connect :: proc() {
@@ -81,7 +84,7 @@ _player_set_status :: proc(status: mpd.Status) {
 	player.duration = Seconds(status.duration)
 
 	if status.cur_song_id > 0 {
-		player.cur_song = mpd.Song_Handle{status.cur_song_id, status.cur_song_index}
+		player.cur_song = status.cur_song_index
 	} else {
 		player.cur_song = nil
 	}
@@ -125,26 +128,18 @@ _player_handle_changes :: proc(client: ^mpd.Client, changes: mpd.Changes) -> (er
 	}
 	if .Playlist in changes {
 		queue := mpd.request_queue(client, context.allocator) or_return
-		player_send_response(Response_Queue{queue})
+		status := mpd.request_status(client) or_return
+		player_send_response(Response_Queue{queue, status})
 	}
 
 	return nil
 }
 
 player_cur_song :: proc() -> (song: ^mpd.Song, ok: bool) {
-	handle := state.player.cur_song.? or_return
-
 	if len(state.player.queue) > 0 {
-		song = &state.player.queue[handle.index]
+		index := state.player.cur_song.? or_return
+		song = &state.player.queue[index]
 		ok = true
 	}
 	return
-}
-
-song_is_current :: proc(song: ^mpd.Song) -> bool {
-	if handle, ok := state.player.cur_song.?; ok {
-		return song.queue_id == handle.id
-	} else {
-		return false
-	}
 }

@@ -17,11 +17,11 @@ slider_update :: proc(s: ^Slider) -> (changed: bool) {
 		s.progress = clamp(s.progress, 0, 1)
 
 	case is_dragging:
-		state.dragging = nil
+		stop_dragging(id)
 		changed = true
 
 	case s.is_hovering && is_mouse_pressed(.Left) && state.dragging == nil:
-		state.dragging = id
+		start_dragging(id)
 	}
 
 	return changed
@@ -43,7 +43,7 @@ slider_draw :: proc(
 	click.y += (rect.height - click.height) / 2
 
 	s.rect = rect
-	s.is_hovering = overlap(state.pointer, click)
+	s.is_hovering = is_hovering(click)
 
 	is_dragging := state.dragging == Element_ID(s)
 	if !is_dragging {
