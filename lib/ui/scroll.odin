@@ -11,11 +11,13 @@ Scroll :: struct {
 	max_scroll:        f32,
 	is_hovering:       bool,
 	is_hovering_thumb: bool,
+	is_dragging:       bool,
 }
 
 scroll_update :: proc(box: ^Box, s: ^Scroll, dt: Seconds) {
 	s.is_hovering = is_hovering(s.rect)
 	s.is_hovering_thumb = is_hovering(s.thumb)
+	s.is_dragging = state.dragging == Element_ID(s)
 
 	_scroll_update_offset(s, dt)
 	_scroll_update_pointer_drag(box^, s)
@@ -27,8 +29,12 @@ _scroll_update_offset :: proc(s: ^Scroll, dt: Seconds) {
 	if s.timer > 0 {
 		s.timer -= dt
 
-		progress := 1.0 - f32(s.timer / SCROLL_ANIM_DURATION)
-		s.offset = math.lerp(s.from, s.to, SCROLL_ANIM_EASE(progress))
+		if s.timer <= 0 {
+			s.offset = s.to
+		} else {
+			progress := 1.0 - f32(s.timer / SCROLL_ANIM_DURATION)
+			s.offset = math.lerp(s.from, s.to, SCROLL_ANIM_EASE(progress))
+		}
 	} else {
 		s.timer = 0
 	}
@@ -56,14 +62,13 @@ _scroll_update_offset :: proc(s: ^Scroll, dt: Seconds) {
 
 _scroll_update_pointer_drag :: proc(box: Box, s: ^Scroll) {
 	id := Element_ID(s)
-	is_dragging := state.dragging == id
 
-	if s.is_hovering || is_dragging {
+	if s.is_hovering || s.is_dragging {
 		set_cursor(.Pointer)
 	}
 
 	switch {
-	case is_dragging:
+	case s.is_dragging:
 		length := scroll_content_length(box, s)
 		factor := f32(box.height) / f32(length)
 		delta := f32(state.pointer.y - state.press_pos.y) / factor
@@ -91,17 +96,20 @@ scroll_on_scroll :: proc(s: ^Scroll, scroll: f32, touchpad: bool) {
 			s.to = s.offset
 		}
 
-		s.from = s.offset
+		s.from = math.floor(s.offset)
 		s.to += scroll * SCROLL_WHEEL_MULPLIER
-		s.to = clamp(s.to, 0, s.max_scroll)
+		s.to = clamp(math.floor(s.to), 0, s.max_scroll)
 
-		s.velocity = 0
-		s.timer = SCROLL_ANIM_DURATION
+		if s.from != s.to {
+			s.velocity = 0
+			s.timer = SCROLL_ANIM_DURATION
+		}
 	}
 }
 
 scroll_set :: proc(s: ^Scroll, offset: f32) {
 	s.offset = clamp(offset, 0, s.max_scroll)
+	s.to = s.offset
 	s.timer = 0
 	s.velocity = 0
 }
@@ -133,7 +141,10 @@ scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color, active_color:
 	rect.width = SCROLL_THUMB_THICKNESS
 	rect.x += s.thumb.width / 2 - rect.width / 2
 
-	draw_rect(ctx, rect, active_color if scroll_is_active(s) else color)
+	color := color
+	if s.is_hovering || s.is_dragging do color = active_color
+
+	draw_rect(ctx, rect, color)
 }
 
 // Returns the range of items within a scrollable box that are visible on
@@ -179,8 +190,4 @@ scroll_hovering_item :: proc(
 
 scroll_content_length :: proc(box: Box, s: ^Scroll) -> i32 {
 	return i32(s.max_scroll) + box.height
-}
-
-scroll_is_active :: proc(s: ^Scroll) -> bool {
-	return s.is_hovering || state.dragging == Element_ID(s)
 }

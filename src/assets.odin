@@ -7,7 +7,7 @@ ASSETS_PATH :: "../assets/"
 IMAGES_PATH :: ASSETS_PATH + "images/"
 FONTS_PATH :: ASSETS_PATH + "fonts/"
 
-assets_load :: proc() -> (ok: bool) {
+assets_load :: proc(state: ^State) -> (ok: bool) {
 	crop_from :: cairo.surface_create_for_rectangle
 
 	// Load fonts.
@@ -26,7 +26,7 @@ assets_load :: proc() -> (ok: bool) {
 	return true
 }
 
-assets_destroy :: proc() {
+assets_destroy :: proc(state: ^State) {
 	ui.font_destroy(state.font_kapli)
 	ui.sprites_destroy(state.icons)
 }

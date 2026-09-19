@@ -3,8 +3,48 @@ package mupwit
 import "base:runtime"
 import "core:fmt"
 import "core:log"
+import "core:mem"
 import "core:os"
+import "core:sync"
 import "core:time"
+
+// ------------------------------
+// Sync.
+// ------------------------------
+
+Mutex :: struct($T: typeid) {
+	_v:     T,
+	_mutex: sync.Mutex,
+}
+
+mutex_lock :: proc(mutex: ^Mutex($T)) -> ^T {
+	sync.lock(&mutex._mutex)
+	return &mutex._v
+}
+mutex_unlock :: proc(mutex: ^Mutex($T)) {
+	sync.unlock(&mutex._mutex)
+}
+
+// ------------------------------
+// Misc.
+// ------------------------------
+
+make_tracking_allocator :: proc(allocator := context.allocator) -> mem.Tracking_Allocator {
+	track: mem.Tracking_Allocator
+	mem.tracking_allocator_init(&track, allocator)
+	return track
+}
+
+tracking_allocator_report_and_destroy :: proc(track: ^mem.Tracking_Allocator) {
+	if len(track.allocation_map) > 0 {
+		fmt.println("------------------------------")
+		for _, leak in track.allocation_map {
+			fmt.printfln("LEAK: %v bytes", leak.location, leak.size)
+		}
+	}
+
+	mem.tracking_allocator_destroy(track)
+}
 
 make_default_context :: proc "contextless" () -> runtime.Context {
 	c := runtime.default_context()

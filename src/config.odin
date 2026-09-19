@@ -3,7 +3,7 @@ package mupwit
 import "lib:ui"
 
 // ------------------------------
-// Values.
+// UI.
 // ------------------------------
 
 GAP :: 8 // Base gap or padding between UI elements.
@@ -13,10 +13,22 @@ ICON_BUTTON_SIZE :: 32
 SONG_COVER_SIZE :: 32
 SONG_HEIGHT :: SONG_COVER_SIZE + GAP * 2
 
-PLAYER_HEIGHT :: ICON_BUTTON_SIZE + GAP * 2
-
 WINDOW_WIDTH :: 360
 WINDOW_HEIGHT :: SONG_HEIGHT * 10 + GAP * 2
+
+STATUS_HEIGHT :: ICON_BUTTON_SIZE + GAP * 2
+
+PLAYER_PADDING :: GAP * 5
+
+// ------------------------------
+// Values.
+// ------------------------------
+
+HUGE_COVER_SIZE :: WINDOW_WIDTH - PLAYER_PADDING * 2
+
+// Delay between update of the current song (e.g. after you press "next") and
+// requesting its cover.
+PLAYER_COVER_UPDATE_DELAY :: Seconds(0.1)
 
 // ------------------------------
 // Colors.

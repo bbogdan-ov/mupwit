@@ -21,6 +21,10 @@ Song_Index :: distinct int
 // Song file path relative to the MPD music dir.
 Song_File :: distinct string
 
+Song_Title :: string
+Artist_Name :: string
+Album_Name :: string
+
 Seconds :: distinct f32
 
 // Playback state.
@@ -89,9 +93,9 @@ Status :: struct {
 
 Song :: struct {
 	file:         Song_File,
-	artist:       string `Artist`,
-	title:        string `Title`,
-	album:        string `Album`,
+	artist:       Artist_Name `Artist`,
+	title:        Song_Title `Title`,
+	album:        Album_Name `Album`,
 	date:         string `Date`,
 	genre:        string `Genre`, // TODO: this should be an array.
 	duration_str: string, // Pre-formatted duration in human-readable format.
@@ -148,7 +152,7 @@ Picture :: struct {
 	allocator: runtime.Allocator,
 }
 
-picture_destroy :: proc(picture: ^Picture) {
+picture_destroy :: proc(picture: Picture) {
 	delete(picture.data, picture.allocator)
 	delete(picture.mimetype, picture.allocator)
 }

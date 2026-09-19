@@ -177,7 +177,15 @@ send :: proc(
 
 		switch a in reflect.any_core(arg) {
 		case string:
-			strings.write_quoted_string(&sb, a)
+			strings.write_byte(&sb, '"')
+			for char in a {
+				switch char {
+				case '"', '\\':
+					strings.write_byte(&sb, '\\')
+				}
+				strings.write_rune(&sb, char)
+			}
+			strings.write_byte(&sb, '"')
 		case:
 			fmt.sbprint(&sb, a)
 		}

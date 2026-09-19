@@ -61,7 +61,7 @@ request_queue :: proc(
 	}
 
 	log.debugf(
-		"Received queue of %v songs in %v, parsed in %v",
+		"MPD: Received queue of %v songs in %v, parsed in %v",
 		len(queue),
 		time.since(start),
 		time.since(parse_start),
@@ -78,8 +78,12 @@ request_song_picture :: proc(
 	loc := #caller_location,
 ) -> (
 	picture: Picture,
+	missing: bool,
 	err: Error,
 ) {
+	assert(len(file) > 0)
+
+	start := time.now()
 	offset: int
 
 	for {
@@ -94,7 +98,10 @@ request_song_picture :: proc(
 		if offset == 0 {
 			picture, found = parser_next_picture_info(&parser, allocator)
 			if !found {
-				panic("TODO!!!: handle missing picture info")
+				log.debugf("MPD: Picture is missing for %q", file)
+				missing = true
+				err = nil
+				return
 			}
 
 			picture.data = make([]u8, picture.data_size, allocator)
@@ -105,6 +112,8 @@ request_song_picture :: proc(
 		part: []u8
 		part, found = parser_next_binary(&parser, loc)
 		if !found {
+			log.errorf("MPD: For %q", file)
+			log.errorf("MPD: %s", parser.s)
 			panic("TODO!!!: handle missing picture binary")
 		}
 
@@ -118,5 +127,7 @@ request_song_picture :: proc(
 		}
 	}
 
-	return picture, nil
+	log.debugf("MPD: Received picture info in %v for %q", time.since(start), file)
+
+	return picture, false, nil
 }

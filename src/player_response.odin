@@ -1,5 +1,6 @@
 package mupwit
 
+import "base:runtime"
 import "core:sync/chan"
 import "lib:mpd"
 
@@ -8,37 +9,42 @@ Response_Queue :: struct #all_or_none {
 	status: mpd.Status,
 }
 
+Response_Cover :: struct #all_or_none {
+	key:       Cover_Key,
+	size:      Cover_Size,
+	surface:   Maybe(Cover_Surface),
+	allocator: runtime.Allocator,
+}
+
 Response :: union {
 	mpd.Status,
 	Response_Queue,
+	Response_Cover,
 }
 
-player_send_response :: proc(response: Response) {
-	chan.send(state.player.responses, response)
+_response_destroy :: proc(response: Response) {
+	#partial switch res in response {
+	case Response_Cover:
+		delete(string(res.key), res.allocator)
+	}
 }
 
-_player_handle_response :: proc(response: Response) {
-	response := response
-	player := &state.player
+_response_send :: proc(ch: Responses_Chan, response: Response) {
+	chan.send(ch, response)
+}
 
-	switch &res in response {
+_player_handle_response :: proc(player: ^Player, response: Response) {
+	defer _response_destroy(response)
+
+	switch res in response {
 	case mpd.Status:
-		_player_set_status(res)
+		_player_set_status(player, res)
 
 	case Response_Queue:
-		_player_set_status(res.status)
+		_player_set_queue(player, res.list)
+		_player_set_status(player, res.status)
 
-		if player.ignore_next_queue_response {
-			player.ignore_next_queue_response = false
-			if !mpd.song_lists_differ(player.queue, res.list) {
-				mpd.song_list_destroy(&res.list)
-				break
-			}
-		}
-
-		mpd.song_list_destroy(&player.queue)
-		player.queue = res.list
-
-		on_received_queue(res.list)
+	case Response_Cover:
+		_player_handle_response_cover(player, res)
 	}
 }

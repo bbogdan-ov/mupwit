@@ -20,6 +20,12 @@ Context :: struct {
 	font_height: i32, // Current font height.
 }
 
+Align :: enum {
+	Start = 0,
+	Center,
+	End,
+}
+
 @(deferred_in_out = _box_end)
 begin_box :: proc(ctx: ^Context, rect: Rect, padding: Vec2 = {}, scroll: f32 = 0) -> (prev: Box) {
 	prev = ctx.box
@@ -60,10 +66,11 @@ draw_glyphs :: proc(
 	glyphs: []cairo.glyph_t,
 	pos: Vec2,
 	color: Color,
+	bold := false,
 ) -> cairo.text_extents_t {
 	x, y := f64(pos.x), f64(pos.y)
 
-	max_advance := ctx.box.width - (pos.x - ctx.box.x)
+	max_advance := ctx.box.width - (pos.x - ctx.box.x) + 1
 
 	count: i32
 	text_ext: cairo.text_extents_t
@@ -89,17 +96,44 @@ draw_glyphs :: proc(
 
 	set_source_color(ctx, color)
 	cairo.show_glyphs(ctx, raw_data(glyphs), count)
+	if bold {
+		// TODO!: come up with a better system to draw bold text.
+		for &glyph in glyphs do glyph.x += 1
+		cairo.show_glyphs(ctx, raw_data(glyphs), count)
+	}
 
 	return text_ext
 }
 
 // TODO: come up with a better text drawing without allocation.
 // I'll probably have to implement my own font and text rendering.
-draw_text :: proc(ctx: ^Context, str: string, pos: Vec2, color: Color) -> (advance: Vec2) {
+draw_text :: proc(
+	ctx: ^Context,
+	str: string,
+	pos: Vec2,
+	color: Color,
+	align := Align.Start,
+	bold := false,
+) -> (
+	advance: Vec2,
+) {
+	pos := pos
+
 	glyphs := text_glyphs(ctx, str)
 	defer text_glyphs_delete(glyphs)
 
-	ext := draw_glyphs(ctx, glyphs, pos, color)
+	switch align {
+	case .Start:
+	case .Center:
+		ext := measure_glyphs(ctx, glyphs)
+		pos.x -= i32(ext.x_advance / 2)
+	case .End:
+		ext := measure_glyphs(ctx, glyphs)
+		pos.x -= i32(ext.x_advance) - 1
+	}
+
+	ext := draw_glyphs(ctx, glyphs, pos, color, bold = bold)
+
 	return {i32(ext.x_advance), i32(ext.height)}
 }
 
@@ -150,6 +184,7 @@ draw_rect :: proc(cr: ^cairo.cairo_t, rect: Rect, color: Color) {
 
 draw_line_h :: proc(cr: ^cairo.cairo_t, rect: Rect, color: Color) {
 	set_source_color(cr, color)
+	cairo.set_line_width(cr, 1)
 	cairo.move_to(cr, f64(rect.x), f64(rect.y) + 0.5)
 	cairo.line_to(cr, f64(rect.x + rect.width), f64(rect.y) + 0.5)
 	cairo.stroke(cr)
@@ -158,6 +193,16 @@ draw_line_h :: proc(cr: ^cairo.cairo_t, rect: Rect, color: Color) {
 draw_box :: proc(ctx: ^Context, rect: Rect, color: Color, filled := false) {
 	x, y := f64(rect.x), f64(rect.y)
 	w, h := f64(rect.width), f64(rect.height)
+
+	set_source_color(ctx, color)
+	cairo.set_line_width(ctx, 1)
+
+	if w <= 3 || h <= 3 {
+		cairo.rectangle(ctx, x, y, w, h)
+		if filled do cairo.fill(ctx)
+		else do cairo.stroke(ctx)
+		return
+	}
 
 	if !filled {
 		x += 0.5
@@ -169,9 +214,6 @@ draw_box :: proc(ctx: ^Context, rect: Rect, color: Color, filled := false) {
 	l, r := x + 1, x + w - 1
 	t, b := y + 1, y + h - 1
 	lb, rb := l, r
-
-	set_source_color(ctx, color)
-	cairo.set_line_width(ctx, 1)
 
 	if filled {
 		b -= 1
@@ -227,6 +269,16 @@ draw_box_rounded :: proc(ctx: ^Context, rect: Rect, color: Color, filled := fals
 	x, y := f64(rect.x), f64(rect.y)
 	w, h := f64(rect.width), f64(rect.height)
 
+	set_source_color(ctx, color)
+	cairo.set_line_width(ctx, 1)
+
+	if w <= 4 || h <= 4 {
+		cairo.rectangle(ctx, x, y, w, h)
+		if filled do cairo.fill(ctx)
+		else do cairo.stroke(ctx)
+		return
+	}
+
 	if !filled {
 		x += 1
 		y += 1
@@ -236,9 +288,6 @@ draw_box_rounded :: proc(ctx: ^Context, rect: Rect, color: Color, filled := fals
 
 	l, r := x + 2, x + w - 2
 	t, b := y + 2, y + h - 2
-
-	set_source_color(ctx, color)
-	cairo.set_line_width(ctx, 1)
 
 	if filled {
 		cairo.move_to(ctx, l, y)

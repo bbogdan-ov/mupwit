@@ -277,6 +277,11 @@ wayclient__wl_keyboard_handle_keymap(
 		XKB_KEYMAP_FORMAT_TEXT_V1,
 		XKB_KEYMAP_COMPILE_NO_FLAGS
 	);
+
+	state->shift_mask = xkb_keymap_mod_get_mask(keymap, XKB_MOD_NAME_SHIFT);
+	state->ctrl_mask = xkb_keymap_mod_get_mask(keymap, XKB_MOD_NAME_CTRL);
+	state->alt_mask = xkb_keymap_mod_get_mask(keymap, XKB_MOD_NAME_ALT);
+
 	state->xkb_state = xkb_state_new(keymap);
 	xkb_keymap_unref(keymap);
 
@@ -338,6 +343,8 @@ wayclient__wl_keyboard_handle_modifiers(
 	uint32_t group
 ) {
 	Wayclient_State *state = data;
+
+	state->pressed_mods_mask = mods_depressed;
 
 	xkb_state_update_mask(
 		state->xkb_state,

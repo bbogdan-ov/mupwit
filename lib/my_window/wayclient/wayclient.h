@@ -54,6 +54,17 @@ struct Wayclient_State {
 	struct wl_keyboard   *wl_keyboard;
 	struct xkb_context   *xkb_context;
 	struct xkb_state     *xkb_state;
+	xkb_mod_mask_t       shift_mask;
+	xkb_mod_mask_t       ctrl_mask;
+	xkb_mod_mask_t       alt_mask;
+	// Use this field to determine what modifiers were pressed.
+	// For example:
+	// ```c
+	// if ((state.pressed_mods_mask & state.shift_mask) != 0) {
+	//     // Shift is pressed!
+	// }
+	// ```
+	xkb_mod_mask_t       pressed_mods_mask;
 
 	struct wp_cursor_shape_manager_v1 *wp_cursor_manager;
 	struct wp_cursor_shape_device_v1  *wp_cursor_device;

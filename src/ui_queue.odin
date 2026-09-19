@@ -24,7 +24,9 @@ queue_ui_init :: proc() {
 	self.list.item_height = SONG_HEIGHT
 }
 
-queue_ui_update :: proc(dt: Seconds) {
+queue_ui_update :: proc(state: ^State, dt: Seconds) {
+	if state.screen != .Queue do return
+
 	ui.scroll_update(&self.box, &self.scroll, dt)
 
 	ui.item_list_update(self.box, &self.list, dt)
@@ -32,16 +34,16 @@ queue_ui_update :: proc(dt: Seconds) {
 	if self.list.just_reordered {
 		from := mpd.Song_Index(self.list.reorder.from)
 		to := mpd.Song_Index(self.list.reorder.to)
-		player_reorder_song(from, to)
-		state.player.ignore_next_queue_response = true
+		player_reorder_song(&state.player, from, to)
+		state.player.ignore_next_queue_update = true
 	}
 
 	if ui.is_clicked(.Left) {
-		_queue_ui_play_hovered_song()
+		_queue_ui_play_hovered_song(state)
 	}
 }
 
-_queue_ui_play_hovered_song :: proc() -> bool {
+_queue_ui_play_hovered_song :: proc(state: ^State) -> bool {
 	hovering := self.list.hovering.? or_return
 
 	item := &self.list.items[hovering]
@@ -54,31 +56,37 @@ _queue_ui_play_hovered_song :: proc() -> bool {
 	return true
 }
 
-queue_ui_draw :: proc(ctx: ^ui.Context) {
+queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
+	if state.screen != .Queue do return
+
 	player := &state.player
 
-	ui.begin_box(ctx, ui.pad_b(ctx.box, PLAYER_HEIGHT), GAP, self.scroll.offset)
+	ui.begin_box(ctx, ui.pad_b(ctx.box, STATUS_HEIGHT), GAP, self.scroll.offset)
 	self.box = ctx.box
 
 	from, to := ui.item_list_visible_range(ctx.box, &self.list)
 	for i in from ..< to {
 		item := &self.list.items[i]
-		song_item_draw(ctx, item)
+		song_item_draw(state, ctx, item)
 	}
 
 	contents := i32(len(player.queue)) * self.list.item_height
 	ui.scroll_draw(ctx, &self.scroll, contents, LIGHT_GRAY, GRAY)
 }
 
-queue_ui_on_scroll :: proc(scroll: f32, touchpad: bool) {
+queue_ui_on_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
+	if state.screen != .Queue do return
+
 	ui.scroll_on_scroll(&self.scroll, scroll, touchpad)
 }
 
-queue_ui_on_received_queue :: proc(queue: mpd.Song_List) {
-	clear(&self.list.items)
-	non_zero_reserve(&self.list.items, len(queue))
+queue_ui_on_received_queue :: proc(state: ^State) {
+	player := &state.player
 
-	for _, index in queue {
+	clear(&self.list.items)
+	non_zero_reserve(&self.list.items, len(player.queue))
+
+	for _, index in player.queue {
 		item := Song_Item {
 			position   = i32(index) * self.list.item_height,
 			song_index = mpd.Song_Index(index),
@@ -95,7 +103,7 @@ queue_ui_on_song_reordered :: proc(from, to: mpd.Song_Index) {
 	}
 }
 
-song_item_draw :: proc(ctx: ^ui.Context, item: ^Song_Item) {
+song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item) {
 	song := &state.player.queue[item.song_index]
 
 	pos := ui.item_tweened_pos(item)
@@ -109,7 +117,7 @@ song_item_draw :: proc(ctx: ^ui.Context, item: ^Song_Item) {
 	if item.song_index == state.player.cur_song {
 		pos := rect_pos(rect) - ICON_SIZE / 2
 		pos.y += rect.height / 2
-		draw_icon(ctx, .Small_Arrow_Right, pos, BLACK)
+		draw_icon(state, ctx, .Small_Arrow_Right, pos, BLACK)
 	}
 
 	ui.begin_box(ctx, rect, GAP)
@@ -120,22 +128,18 @@ song_item_draw :: proc(ctx: ^ui.Context, item: ^Song_Item) {
 		rect.width = SONG_COVER_SIZE
 		rect.height = SONG_COVER_SIZE
 		ui.draw_box(ctx, rect, BLACK)
-		draw_icon(ctx, .Disk, icon_center_inside(rect), BLACK)
+		draw_icon(state, ctx, .Disk, icon_center_inside(rect), BLACK)
 	}
 
 	// Draw song duration.
 	duration_advance: i32
 	{
-		glyphs := ui.text_glyphs(ctx, song.duration_str)
-		defer ui.text_glyphs_delete(glyphs)
-
-		ext := ui.measure_glyphs(ctx, glyphs)
 		pos := rect_pos(ctx.box)
-		pos.x += ctx.box.width - i32(ext.x_advance)
-		pos.y += ctx.box.height / 2 - i32(ext.height / 2 - ext.height)
-		duration_advance = i32(ext.x_advance)
+		pos.x += ctx.box.width
+		pos.y += ctx.box.height / 2 + ctx.font_height / 2
 
-		ui.draw_glyphs(ctx, glyphs, pos, GRAY)
+		adv := ui.draw_text(ctx, song.duration_str, pos, GRAY, align = .End)
+		duration_advance = adv.x
 	}
 
 	// Draw song title and artist.

@@ -11,7 +11,6 @@ FLAGS := \
 	-vet-unused-variables \
 	-vet-unused-imports \
 	-vet-using-stmt \
-	-terse-errors \
 	-collection:lib=lib
 
 .PHONY: libs check

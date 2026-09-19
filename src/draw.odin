@@ -26,24 +26,29 @@ Icon :: enum {
 	Disk,
 }
 
-draw_icon :: proc(ctx: ^ui.Context, icon: Icon, pos: Vec2, color: Color) {
+draw_icon :: proc(state: ^State, ctx: ^ui.Context, icon: Icon, pos: Vec2, color: Color) {
 	ui.set_source_color(ctx, color)
 	cairo.mask_surface(ctx, state.icons.sprites[icon], f64(pos.x), f64(pos.y))
 }
 
 draw_icon_button :: proc(
+	state: ^State,
 	ctx: ^ui.Context,
 	button: ^ui.Button,
 	icon: Icon,
 	pos: Vec2,
 	color: Color,
+) -> (
+	size: i32,
 ) {
 	rect := Rect{pos.x, pos.y, ICON_BUTTON_SIZE, ICON_BUTTON_SIZE}
 	ui.button_on_draw(button, rect)
 
 	icon_pos := icon_center_inside(rect)
 	if button.is_down do icon_pos.y += 1
-	draw_icon(ctx, icon, icon_pos, color)
+	draw_icon(state, ctx, icon, icon_pos, color)
+
+	return ICON_BUTTON_SIZE
 }
 
 icon_center_inside :: proc(inside: Rect) -> Vec2 {
@@ -51,7 +56,7 @@ icon_center_inside :: proc(inside: Rect) -> Vec2 {
 }
 
 icon_from_playstate :: proc(playstate: mpd.Play_State) -> Icon {
-	switch state.player.playstate {
+	switch playstate {
 	case .Stop:
 		return .Play
 	case .Pause:

@@ -18,97 +18,169 @@ import "lib:mpd"
 STATUS_REQUEST_INVERVAL :: Seconds(0.5)
 TARGET_CLIENT_THREAD_TPS :: 30
 
+Commands_Chan :: distinct chan.Chan(Command)
+Responses_Chan :: distinct chan.Chan(Response)
+
+// Player state shared between threads. All fields are thread-safe.
+Player_Shared :: struct {
+	commands:           Commands_Chan,
+	responses:          Responses_Chan,
+	covers_thread_pool: Mutex(thread.Pool),
+	allocator:          runtime.Allocator,
+}
+
 Player :: struct {
 	// Playback state.
-	playstate:                  mpd.Play_State,
-	elapsed, duration:          Seconds,
-	cur_song:                   Maybe(mpd.Song_Index),
-	queue:                      mpd.Song_List,
+	playstate:                mpd.Play_State,
+	elapsed, duration:        Seconds,
+	cur_song:                 Maybe(mpd.Song_Index),
+	queue:                    mpd.Song_List,
 
-	// Client state.
-	thread:                     ^thread.Thread,
-	commands:                   chan.Chan(Command),
-	responses:                  chan.Chan(Response),
-	status_req_timer:           Seconds,
+	// Cache.
+	_covers_cache:            Covers_Cache,
+
+	// Flags.
 	// Whether to ignore the next incoming "queue" response. Usually set after
 	// reordering items so it doesn't rebuild the items list.
-	ignore_next_queue_response: bool,
+	ignore_next_queue_update: bool,
+
+	// Client state.
+	_shared:                  Player_Shared,
+	_client_thread:           ^thread.Thread,
+	_status_req_timer:        Seconds,
+
+	//
+	allocator:                runtime.Allocator,
 }
 
-player_connect :: proc() {
-	player := &state.player
+player_init :: proc(player: ^Player, allocator := context.allocator) {
+	player.allocator = allocator
+	player._shared.allocator = allocator
 
-	player.thread = thread.create(_do_connect)
-	thread.start(player.thread)
+	player._client_thread = thread.create(_do_connect)
+	player._client_thread.data = &player._shared
 
-	chan_err: runtime.Allocator_Error
-	player.commands, chan_err = chan.create_buffered(chan.Chan(Command), 10, context.allocator)
-	assert(chan_err == nil) // TODO: handle error.
-	player.responses, chan_err = chan.create_buffered(chan.Chan(Response), 10, context.allocator)
-	assert(chan_err == nil) // TODO: handle error.
+	player._covers_cache = make(Covers_Cache, allocator)
 
-	player_request_status()
-	player_request_queue()
+	{
+		mutex := &player._shared.covers_thread_pool
+		pool := mutex_lock(mutex)
+		defer mutex_unlock(mutex)
+
+		thread.pool_init(pool, player.allocator, MAX_COVER_DECODE_THREADS)
+		thread.pool_start(pool)
+	}
+
+	{
+		ch, err := chan.create_buffered(chan.Chan(Command), 10, player.allocator)
+		assert(err == nil) // TODO: handle error.
+		player._shared.commands = Commands_Chan(ch)
+	}
+	{
+		ch, err := chan.create_buffered(chan.Chan(Response), 10, player.allocator)
+		assert(err == nil) // TODO: handle error.
+		player._shared.responses = Responses_Chan(ch)
+	}
 }
 
-player_destroy :: proc() {
-	player := &state.player
+player_connect :: proc(player: ^Player) {
+	assert(player._client_thread != nil)
 
-	_player_send_command(Command_Disconnect{})
-	thread.join(player.thread)
+	thread.start(player._client_thread)
+
+	player_request_status(player)
+	player_request_queue(player)
+}
+
+player_destroy :: proc(player: ^Player) {
+	_command_send(player._shared.commands, Command_Disconnect{})
+
+	thread.join(player._client_thread)
+	thread.destroy(player._client_thread)
+
+	{
+		mutex := &player._shared.covers_thread_pool
+		pool := mutex_lock(mutex)
+		defer mutex_unlock(mutex)
+
+		thread.pool_shutdown(pool)
+		thread.pool_destroy(pool)
+	}
+
+	_covers_cache_destroy(player._covers_cache)
 
 	mpd.song_list_destroy(&player.queue)
-	chan.destroy(&player.commands)
-	chan.destroy(&player.responses)
+	chan.destroy(&player._shared.commands)
+	chan.destroy(&player._shared.responses)
 }
 
-player_update :: proc(dt: Seconds) {
-	player := &state.player
-
-	player.status_req_timer -= dt
-	if player.status_req_timer <= 0 {
-		player_request_status()
-		player.status_req_timer = STATUS_REQUEST_INVERVAL
+player_update :: proc(player: ^Player, dt: Seconds) {
+	player._status_req_timer -= dt
+	if player._status_req_timer <= 0 {
+		player_request_status(player)
+		player._status_req_timer = STATUS_REQUEST_INVERVAL
 	}
 
-	for response in chan.try_recv(player.responses) {
-		_player_handle_response(response)
+	for response in chan.try_recv(player._shared.responses) {
+		_player_handle_response(player, response)
 	}
 }
 
-_player_set_status :: proc(status: mpd.Status) {
-	player := &state.player
-
+_player_set_status :: proc(player: ^Player, status: mpd.Status) {
 	player.playstate = status.playstate
 	player.elapsed = Seconds(status.elapsed)
 	player.duration = Seconds(status.duration)
 
-	if status.cur_song_id > 0 {
+	prev_song := player.cur_song
+	if status.cur_song_id > 0 && len(player.queue) > 0 {
 		player.cur_song = status.cur_song_index
 	} else {
 		player.cur_song = nil
 	}
+
+	if prev_song != player.cur_song {
+		on_cur_song_updated()
+	}
+}
+
+_player_set_queue :: proc(player: ^Player, queue: mpd.Song_List) {
+	queue := queue
+
+	if player.ignore_next_queue_update {
+		player.ignore_next_queue_update = false
+		if !mpd.song_lists_differ(player.queue, queue) {
+			mpd.song_list_destroy(&queue)
+			return
+		}
+	}
+
+	mpd.song_list_destroy(&player.queue)
+	player.queue = queue
+
+	on_queue_updated()
 }
 
 _do_connect :: proc(t: ^thread.Thread) {
 	context.logger = make_logger()
 
-	// NOTE: this thread may log stuff into console in a non-thread safe
+	// NOTE: this thread may log stuff into a console in a non-thread safe
 	// fashion and overlapping logs may appear, which is not that bad i guess?
 
 	TARGET_DELAY :: time.Second / TARGET_CLIENT_THREAD_TPS
 	MIN_DELAY :: 5 * time.Millisecond
 
-	client, err := mpd.connect(context.allocator)
+	shared := cast(^Player_Shared)t.data
+
+	client, err := mpd.connect(shared.allocator)
 	assert(err == nil) // TODO: handle error.
 	defer mpd.disconnect(&client)
 
 	start := time.now()
 	for {
 		changes, _ := mpd.request_changes(&client)
-		_ = _player_handle_changes(&client, changes)
+		_ = _player_handle_changes(shared, &client, changes)
 
-		should_exit := _player_handle_commands(&client)
+		should_exit := _player_handle_commands(shared, &client)
 		if should_exit do break
 
 		now := time.now()
@@ -119,26 +191,37 @@ _do_connect :: proc(t: ^thread.Thread) {
 }
 
 @(require_results)
-_player_handle_changes :: proc(client: ^mpd.Client, changes: mpd.Changes) -> (err: mpd.Error) {
+_player_handle_changes :: proc(
+	shared: ^Player_Shared,
+	client: ^mpd.Client,
+	changes: mpd.Changes,
+) -> (
+	err: mpd.Error,
+) {
 	if changes == nil do return
 
 	if .Player in changes {
 		status := mpd.request_status(client) or_return
-		player_send_response(status)
+		_response_send(shared.responses, status)
 	}
 	if .Playlist in changes {
-		queue := mpd.request_queue(client, context.allocator) or_return
+		queue := mpd.request_queue(client, shared.allocator) or_return
 		status := mpd.request_status(client) or_return
-		player_send_response(Response_Queue{queue, status})
+		_response_send(shared.responses, Response_Queue{queue, status})
 	}
 
 	return nil
 }
 
-player_cur_song :: proc() -> (song: ^mpd.Song, ok: bool) {
-	if len(state.player.queue) > 0 {
-		index := state.player.cur_song.? or_return
-		song = &state.player.queue[index]
+player_progress :: proc(player: ^Player) -> f32 {
+	if player.duration <= 0 do return 0.0
+	return f32(player.elapsed / player.duration)
+}
+
+player_cur_song :: proc(player: ^Player) -> (song: ^mpd.Song, ok: bool) {
+	if len(player.queue) > 0 {
+		index := player.cur_song.? or_return
+		song = &player.queue[index]
 		ok = true
 	}
 	return

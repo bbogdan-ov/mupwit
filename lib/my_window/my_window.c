@@ -14,6 +14,14 @@
 static_assert(sizeof(bool) == 1);
 
 typedef struct My_Window My_Window;
+typedef enum wl_pointer_button_state My_Button_State;
+typedef enum wl_keyboard_key_state My_Key_State;
+
+typedef enum {
+	MY_MOD_SHIFT = 1 << 0,
+	MY_MOD_CTRL  = 1 << 1,
+	MY_MOD_ALT   = 1 << 2,
+} My_Mods;
 
 typedef enum {
 	MY_BUTTON_UNKNOWN = 0,
@@ -23,11 +31,6 @@ typedef enum {
 	MY_BUTTON_FORWARD,
 	MY_BUTTON_BACK,
 } My_Button;
-
-typedef enum {
-	MY_BUTTON_RELEASED = 0,
-	MY_BUTTON_PRESSED,
-} My_Button_State;
 
 // Simply renamed `enum wp_cursor_shape_device_v1_shape - 1`.
 typedef enum {
@@ -75,6 +78,7 @@ typedef void (*My_Pointer_Button_Callback)(My_Window *window, My_Button button, 
 typedef void (*My_Pointer_Motion_Callback)(My_Window *window, double x, double y);
 typedef void (*My_Pointer_Scroll_Callback)(My_Window *window, double x, double y, bool touchpad);
 typedef void (*My_Pointer_Enter_Callback)(My_Window *window, bool leave);
+typedef void (*My_Keyboard_Key_Callback)(My_Window *window, uint32_t keycode, My_Key_State key_state, My_Mods mods);
 
 struct My_Window {
 	Wayclient_State state;
@@ -86,6 +90,7 @@ struct My_Window {
 	My_Pointer_Motion_Callback on_pointer_motion;
 	My_Pointer_Scroll_Callback on_pointer_scroll;
 	My_Pointer_Enter_Callback on_pointer_enter;
+	My_Keyboard_Key_Callback on_keyboard_key;
 };
 
 void my__on_frame(Wayclient_State *state) {
@@ -118,7 +123,6 @@ void my__on_pointer_button(Wayclient_State *state, uint32_t wl_button, enum wl_p
 	if (window->on_pointer_button == NULL) return;
 
 	My_Button button = MY_BUTTON_UNKNOWN;
-	My_Button_State button_state = MY_BUTTON_PRESSED;
 
 	switch (wl_button) {
 	case BTN_LEFT:   button = MY_BUTTON_LEFT; break;
@@ -134,12 +138,7 @@ void my__on_pointer_button(Wayclient_State *state, uint32_t wl_button, enum wl_p
 	case BTN_TASK: break;
 	}
 
-	switch (wl_state) {
-	case WL_POINTER_BUTTON_STATE_RELEASED: button_state = MY_BUTTON_RELEASED; break;
-	case WL_POINTER_BUTTON_STATE_PRESSED:  button_state = MY_BUTTON_PRESSED; break;
-	}
-
-	window->on_pointer_button(window, button, button_state);
+	window->on_pointer_button(window, button, wl_state);
 }
 
 void my__on_pointer_motion(Wayclient_State *state, double x, double y) {
@@ -169,6 +168,27 @@ void my__on_pointer_leave(Wayclient_State *state) {
 		window->on_pointer_enter(window, true);
 }
 
+void my__on_keyboard_key(
+	Wayclient_State *state,
+	uint32_t keycode,
+	xkb_keysym_t keysym,
+	enum wl_keyboard_key_state key_state
+) {
+	My_Window *window = state->userdata;
+	if (window->on_keyboard_key == NULL) return;
+
+	My_Mods mods = 0;
+
+	if ((state->pressed_mods_mask & state->shift_mask) != 0)
+		mods |= MY_MOD_SHIFT;
+	if ((state->pressed_mods_mask & state->ctrl_mask) != 0)
+		mods |= MY_MOD_CTRL;
+	if ((state->pressed_mods_mask & state->alt_mask) != 0)
+		mods |= MY_MOD_ALT;
+
+	window->on_keyboard_key(window, keycode, key_state, mods);
+}
+
 My_Window *
 my_new(uint32_t width, uint32_t height) {
 	My_Window *window = calloc(1, sizeof(My_Window));
@@ -185,6 +205,7 @@ my_new(uint32_t width, uint32_t height) {
 	window->state.on_pointer_scroll = my__on_pointer_scroll;
 	window->state.on_pointer_enter = my__on_pointer_enter;
 	window->state.on_pointer_leave = my__on_pointer_leave;
+	window->state.on_keyboard_key = my__on_keyboard_key;
 
 	Wayclient_Error err = wayclient_run(&window->state);
 	if (err != WAYCLIENT_OK)
@@ -224,6 +245,7 @@ void my_set_pointer_button_callback(My_Window *w, My_Pointer_Button_Callback cb)
 void my_set_pointer_motion_callback(My_Window *w, My_Pointer_Motion_Callback cb) { w->on_pointer_motion = cb; }
 void my_set_pointer_scroll_callback(My_Window *w, My_Pointer_Scroll_Callback cb) { w->on_pointer_scroll = cb; }
 void my_set_pointer_enter_callback(My_Window *w, My_Pointer_Enter_Callback cb)   { w->on_pointer_enter = cb; }
+void my_set_keyboard_key_callback(My_Window *w, My_Keyboard_Key_Callback cb)     { w->on_keyboard_key = cb; }
 
 void *
 my_userdata(My_Window *window) {

@@ -140,7 +140,7 @@ range_unflip :: #force_inline proc "contextless" (
 }
 
 // Returns and updated index of some element in some list that has been reordered.
-shifted_index :: proc(index: $T, from, to: T) -> T where intrinsics.type_is_numeric(T) {
+shifted_index :: proc(index, from, to: $T) -> T where intrinsics.type_is_numeric(T) {
 	switch {
 	case from == to:
 		return index
@@ -153,6 +153,13 @@ shifted_index :: proc(index: $T, from, to: T) -> T where intrinsics.type_is_nume
 	case:
 		return index
 	}
+}
+
+// Wraps a value inside a range `0 ..< max`.
+wrap :: proc(v, max: $T) -> T where intrinsics.type_is_integer(T) {
+	v := v % max
+	if v < 0 do return max + v
+	return v
 }
 
 // ------------------------------
