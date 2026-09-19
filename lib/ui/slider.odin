@@ -10,19 +10,19 @@ slider_update :: proc(s: ^Slider) -> (changed: bool) {
 	id := Element_ID(s)
 	is_dragging := state.dragging == id
 
+	s.is_hovering = is_hovering(s.rect)
+
 	if s.is_hovering || is_dragging {
 		set_cursor(.Pointer)
 	}
 
 	switch {
-	case is_dragging && is_mouse_down(.Left):
+	case is_dragging:
 		px := f32(state.pointer.x - s.rect.x)
 		s.progress = px / f32(s.rect.width)
 		s.progress = clamp(s.progress, 0, 1)
 
-	case is_dragging:
-		stop_dragging(id)
-		changed = true
+		changed = is_mouse_released(.Left)
 
 	case s.is_hovering && is_mouse_pressed(.Left) && state.dragging == nil:
 		start_dragging(id)
@@ -42,12 +42,9 @@ slider_draw :: proc(
 	rect := rect
 	rect.height = SLIDER_THICKNESS
 
-	click := rect
-	click.height = SLIDER_CLICK_THICKNESS
-	click.y += (rect.height - click.height) / 2
-
 	s.rect = rect
-	s.is_hovering = is_hovering(click)
+	s.rect.height = SLIDER_CLICK_THICKNESS
+	s.rect.y += (rect.height - s.rect.height) / 2
 
 	is_dragging := state.dragging == Element_ID(s)
 	if !is_dragging {

@@ -3,6 +3,7 @@ package ui
 import "core:math"
 
 Scroll :: struct {
+	rect, thumb:       Rect,
 	offset:            f32,
 	from, to:          f32,
 	velocity:          f32,
@@ -13,6 +14,9 @@ Scroll :: struct {
 }
 
 scroll_update :: proc(box: ^Box, s: ^Scroll, dt: Seconds) {
+	s.is_hovering = is_hovering(s.rect)
+	s.is_hovering_thumb = is_hovering(s.thumb)
+
 	_scroll_update_offset(s, dt)
 	_scroll_update_pointer_drag(box^, s)
 
@@ -110,23 +114,24 @@ scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color, active_color:
 
 	progress := s.offset / s.max_scroll
 
-	thumb: Rect
-	thumb.width = box.padding.x
-	thumb.height = max(box.height * box.height / length, 32)
-	thumb.x = box.x + box.width
-	thumb.y = box.y + i32(f32(box.height - thumb.height) * progress)
-	if thumb.height >= box.height do return
+	s.thumb.width = box.padding.x
+	s.thumb.height = max(box.height * box.height / length, 32)
+	s.thumb.x = box.x + box.width
+	s.thumb.y = box.y + i32(f32(box.height - s.thumb.height) * progress)
+	if s.thumb.height >= box.height {
+		// Box contents fully fit into the view.
+		s.thumb = {}
+		s.rect = {}
+		return
+	}
 
-	s.is_hovering_thumb = is_hovering(thumb)
+	s.rect = box
+	s.rect.width = box.padding.x
+	s.rect.x = box.x + box.width
 
-	click := box
-	click.width = box.padding.x
-	click.x = box.x + box.width
-	s.is_hovering = is_hovering(click)
-
-	rect := thumb
+	rect := s.thumb
 	rect.width = SCROLL_THUMB_THICKNESS
-	rect.x += thumb.width / 2 - rect.width / 2
+	rect.x += s.thumb.width / 2 - rect.width / 2
 
 	draw_rect(ctx, rect, active_color if scroll_is_active(s) else color)
 }
