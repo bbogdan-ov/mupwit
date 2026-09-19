@@ -94,7 +94,6 @@ item_update :: proc(box: Box, list: ^Item_List($T), item: ^Item, index: Item_Ind
 
 		py := rel_pointer(box).y / list.item_height
 		item.is_hovering = is_pointer_inside(box) && py == index
-		list.hovering = index
 	}
 
 	switch {
@@ -115,6 +114,10 @@ item_update :: proc(box: Box, list: ^Item_List($T), item: ^Item, index: Item_Ind
 	case item.is_hovering && is_mouse_pressed(.Left):
 		set_can_drag(id, {0, rect.y - state.press_pos.y})
 		list.reordering = index
+	}
+
+	if item.is_hovering {
+		list.hovering = index
 	}
 }
 

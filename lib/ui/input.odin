@@ -12,6 +12,10 @@ is_mouse_released :: proc(button: win.Button) -> bool {
 	return button in state.mouse_released_buttons
 }
 
+is_clicked :: proc(button: win.Button) -> bool {
+	return state.dragging == nil && is_mouse_released(button)
+}
+
 is_pointer_inside :: proc(rect: Rect) -> bool {
 	return overlap(state.pointer, rect)
 }

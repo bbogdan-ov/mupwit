@@ -4,6 +4,7 @@
 
 package mupwit
 
+import "core:log"
 import "lib:mpd"
 import "lib:ui"
 
@@ -34,6 +35,23 @@ queue_ui_update :: proc(dt: Seconds) {
 		player_reorder_song(from, to)
 		state.player.ignore_next_queue_response = true
 	}
+
+	if ui.is_clicked(.Left) {
+		_queue_ui_play_hovered_song()
+	}
+}
+
+_queue_ui_play_hovered_song :: proc() -> bool {
+	hovering := self.list.hovering.? or_return
+
+	item := &self.list.items[hovering]
+	song := &state.player.queue[item.song_index]
+
+	// TEMPORARY:
+	log.info("Play", song.title, "-", song.artist)
+	// player_play_song(item.song_index)
+
+	return true
 }
 
 queue_ui_draw :: proc(ctx: ^ui.Context) {
