@@ -74,6 +74,7 @@ Draw_Callback :: #type proc "c" (win: ^Window, cr: ^cairo.cairo_t, surface: ^cai
 Pointer_Button_Callback :: #type proc "c" (win: ^Window, button: Button, state: Button_State)
 Pointer_Motion_Callback :: #type proc "c" (win: ^Window, x, y: f64)
 Pointer_Scroll_Callback :: #type proc "c" (win: ^Window, x, y: f64, touchpad: bool)
+Pointer_Enter_Callback :: #type proc "c" (win: ^Window, leave: bool)
 
 @(default_calling_convention = "c", link_prefix = "my_")
 foreign lib {
@@ -91,6 +92,7 @@ foreign lib {
 	set_pointer_button_callback :: proc(win: ^Window, callback: Pointer_Button_Callback) ---
 	set_pointer_motion_callback :: proc(win: ^Window, callback: Pointer_Motion_Callback) ---
 	set_pointer_scroll_callback :: proc(win: ^Window, callback: Pointer_Scroll_Callback) ---
+	set_pointer_enter_callback :: proc(win: ^Window, callback: Pointer_Enter_Callback) ---
 
 	userdata :: proc(win: ^Window) -> rawptr ---
 

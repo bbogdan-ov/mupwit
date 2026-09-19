@@ -74,6 +74,7 @@ typedef void (*My_Draw_Callback)(My_Window *window, cairo_t *cr, cairo_surface_t
 typedef void (*My_Pointer_Button_Callback)(My_Window *window, My_Button button, My_Button_State state);
 typedef void (*My_Pointer_Motion_Callback)(My_Window *window, double x, double y);
 typedef void (*My_Pointer_Scroll_Callback)(My_Window *window, double x, double y, bool touchpad);
+typedef void (*My_Pointer_Enter_Callback)(My_Window *window, bool leave);
 
 struct My_Window {
 	Wayclient_State state;
@@ -84,6 +85,7 @@ struct My_Window {
 	My_Pointer_Button_Callback on_pointer_button;
 	My_Pointer_Motion_Callback on_pointer_motion;
 	My_Pointer_Scroll_Callback on_pointer_scroll;
+	My_Pointer_Enter_Callback on_pointer_enter;
 };
 
 void my__on_frame(Wayclient_State *state) {
@@ -156,6 +158,17 @@ void my__on_pointer_scroll(Wayclient_State *state, double x, double y, enum wl_p
 	}
 }
 
+void my__on_pointer_enter(Wayclient_State *state) {
+	My_Window *window = state->userdata;
+	if (window->on_pointer_enter != NULL)
+		window->on_pointer_enter(window, false);
+}
+void my__on_pointer_leave(Wayclient_State *state) {
+	My_Window *window = state->userdata;
+	if (window->on_pointer_enter != NULL)
+		window->on_pointer_enter(window, true);
+}
+
 My_Window *
 my_new(uint32_t width, uint32_t height) {
 	My_Window *window = calloc(1, sizeof(My_Window));
@@ -170,6 +183,8 @@ my_new(uint32_t width, uint32_t height) {
 	window->state.on_pointer_button = my__on_pointer_button;
 	window->state.on_pointer_motion = my__on_pointer_motion;
 	window->state.on_pointer_scroll = my__on_pointer_scroll;
+	window->state.on_pointer_enter = my__on_pointer_enter;
+	window->state.on_pointer_leave = my__on_pointer_leave;
 
 	Wayclient_Error err = wayclient_run(&window->state);
 	if (err != WAYCLIENT_OK)
@@ -208,6 +223,7 @@ void my_set_draw_callback(My_Window *w, My_Draw_Callback cb)                    
 void my_set_pointer_button_callback(My_Window *w, My_Pointer_Button_Callback cb) { w->on_pointer_button = cb; }
 void my_set_pointer_motion_callback(My_Window *w, My_Pointer_Motion_Callback cb) { w->on_pointer_motion = cb; }
 void my_set_pointer_scroll_callback(My_Window *w, My_Pointer_Scroll_Callback cb) { w->on_pointer_scroll = cb; }
+void my_set_pointer_enter_callback(My_Window *w, My_Pointer_Enter_Callback cb)   { w->on_pointer_enter = cb; }
 
 void *
 my_userdata(My_Window *window) {

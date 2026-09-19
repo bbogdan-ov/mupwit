@@ -31,6 +31,7 @@ main :: proc() {
 	win.set_pointer_button_callback(state.window, _window_on_pointer_button)
 	win.set_pointer_motion_callback(state.window, _window_on_pointer_motion)
 	win.set_pointer_scroll_callback(state.window, _window_on_pointer_scroll)
+	win.set_pointer_enter_callback(state.window, _window_on_pointer_enter)
 
 	ui.init()
 	assets_load()
@@ -130,4 +131,9 @@ _window_on_pointer_scroll :: proc "c" (window: ^win.Window, x, y: f64, touchpad:
 	scroll := f32(y)
 
 	queue_ui_on_scroll(scroll, touchpad)
+}
+_window_on_pointer_enter :: proc "c" (window: ^win.Window, leave: bool) {
+	if leave {
+		ui.state.pointer = {-999, -999}
+	}
 }
