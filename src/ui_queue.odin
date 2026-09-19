@@ -67,7 +67,7 @@ queue_ui_draw :: proc(ctx: ^ui.Context) {
 	}
 
 	contents := i32(len(player.queue)) * self.list.item_height
-	ui.scroll_draw(ctx, &self.scroll, contents, LIGHT_GRAY)
+	ui.scroll_draw(ctx, &self.scroll, contents, LIGHT_GRAY, GRAY)
 }
 
 queue_ui_on_scroll :: proc(scroll: f32, touchpad: bool) {

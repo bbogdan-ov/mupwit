@@ -55,14 +55,11 @@ _scroll_update_pointer_drag :: proc(box: Box, s: ^Scroll) {
 	is_dragging := state.dragging == id
 
 	switch {
-	case is_dragging && is_mouse_down(.Left):
+	case is_dragging:
 		length := scroll_content_length(box, s)
 		factor := f32(box.height) / f32(length)
 		delta := f32(state.pointer.y - state.press_pos.y) / factor
 		scroll_set(s, state.drag_scroll_offset + delta)
-
-	case is_dragging:
-		stop_dragging(id)
 
 	case s.is_hovering && is_mouse_pressed(.Left) && state.dragging == nil:
 		start_dragging(id)
@@ -101,7 +98,7 @@ scroll_set :: proc(s: ^Scroll, offset: f32) {
 	s.velocity = 0
 }
 
-scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color: Color) {
+scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color, active_color: Color) {
 	box := ctx.box
 
 	length := max(length, 1)
@@ -123,12 +120,11 @@ scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color: Color) {
 	click.x = box.x + box.width
 	s.is_hovering = is_hovering(click)
 
-	{
-		rect := thumb
-		rect.width = SCROLL_THUMB_THICKNESS
-		rect.x += thumb.width / 2 - rect.width / 2
-		draw_rect(ctx, rect, color)
-	}
+	rect := thumb
+	rect.width = SCROLL_THUMB_THICKNESS
+	rect.x += thumb.width / 2 - rect.width / 2
+
+	draw_rect(ctx, rect, active_color if scroll_is_active(s) else color)
 }
 
 // Returns the range of items within a scrollable box that are visible on
@@ -174,4 +170,8 @@ scroll_hovering_item :: proc(
 
 scroll_content_length :: proc(box: Box, s: ^Scroll) -> i32 {
 	return i32(s.max_scroll) + box.height
+}
+
+scroll_is_active :: proc(s: ^Scroll) -> bool {
+	return s.is_hovering || state.dragging == Element_ID(s)
 }
