@@ -54,6 +54,10 @@ _scroll_update_pointer_drag :: proc(box: Box, s: ^Scroll) {
 	id := Element_ID(s)
 	is_dragging := state.dragging == id
 
+	if s.is_hovering || is_dragging {
+		set_cursor(.Pointer)
+	}
+
 	switch {
 	case is_dragging:
 		length := scroll_content_length(box, s)

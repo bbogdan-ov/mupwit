@@ -97,12 +97,11 @@ queue_ui_on_song_reordered :: proc(from, to: mpd.Song_Index) {
 
 song_item_draw :: proc(ctx: ^ui.Context, item: ^Song_Item) {
 	song := &state.player.queue[item.song_index]
-	id := ui.Element_ID(item)
 
 	pos := ui.item_tweened_pos(item)
 	rect := ui.item_rect(ctx.box, pos, self.list.item_height)
 
-	if item.is_hovering || ui.state.dragging == id {
+	if item.is_hovering {
 		ui.draw_box_rounded(ctx, rect, LIGHT_GRAY, filled = true)
 	}
 

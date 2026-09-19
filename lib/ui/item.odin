@@ -60,6 +60,16 @@ item_list_update :: proc(box: Box, list: ^Item_List($T), dt: Seconds) {
 			list._cur_reorder = {}
 		}
 	}
+
+	if state.dragging == nil && is_mouse_released(.Left) {
+		list.reordering = nil
+	}
+
+	if list.reordering != nil && state.dragging != nil {
+		set_cursor(.Grabbing)
+	} else if list.hovering != nil {
+		set_cursor(.Pointer)
+	}
 }
 
 _item_list_reorder :: proc(list: ^Item_List($T), reorder: Item_Reorder) {
@@ -108,11 +118,17 @@ item_update :: proc(box: Box, list: ^Item_List($T), item: ^Item, index: Item_Ind
 		list.just_reordered = list.reorder.from != list.reorder.to
 
 	case state.dragging == id:
+		item.is_hovering = true
 		item.position = rel_pointer(box).y + state.drag_offset.y
 		_item_update_index(list, item, index)
 
 	case item.is_hovering && is_mouse_pressed(.Left):
 		set_can_drag(id, {0, rect.y - state.press_pos.y})
+
+		// NOTE: setting it right away so that this item is being updated
+		// separately even before being dragged. This is helpfull when user
+		// helds LMB on an item and scrolls away, this hack prevents the held
+		// item from not being updated due to it not being visible.
 		list.reordering = index
 	}
 

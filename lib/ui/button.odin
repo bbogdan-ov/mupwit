@@ -10,6 +10,11 @@ button_update :: proc(b: ^Button) -> (clicked: bool) {
 	was_down := b.is_down
 	b.is_hovering = is_hovering(b.rect)
 	b.is_down = b.is_hovering && is_mouse_down(.Left)
+
+	if b.is_hovering {
+		set_cursor(.Pointer)
+	}
+
 	return was_down && is_mouse_released(.Left)
 }
 

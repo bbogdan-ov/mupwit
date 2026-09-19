@@ -10,6 +10,10 @@ slider_update :: proc(s: ^Slider) -> (changed: bool) {
 	id := Element_ID(s)
 	is_dragging := state.dragging == id
 
+	if s.is_hovering || is_dragging {
+		set_cursor(.Pointer)
+	}
+
 	switch {
 	case is_dragging && is_mouse_down(.Left):
 		px := f32(state.pointer.x - s.rect.x)
