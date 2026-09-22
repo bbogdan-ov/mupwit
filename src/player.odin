@@ -21,6 +21,12 @@ TARGET_CLIENT_THREAD_TPS :: 30
 Commands_Chan :: distinct chan.Chan(Command)
 Responses_Chan :: distinct chan.Chan(Response)
 
+Switch_Direction :: enum {
+	None = 0, // This is the first song to be played.
+	Next,
+	Previous,
+}
+
 // Player state shared between threads. All fields are thread-safe.
 Player_Shared :: struct {
 	commands:           Commands_Chan,
@@ -35,6 +41,8 @@ Player :: struct {
 	elapsed, duration:        Seconds,
 	cur_song:                 Maybe(mpd.Song_Index),
 	queue:                    mpd.Song_List,
+	// In which direction current song was skipped.
+	switch_direction:         Switch_Direction,
 
 	// Cache.
 	_covers_cache:            Covers_Cache,
@@ -136,6 +144,16 @@ _player_set_status :: proc(player: ^Player, status: mpd.Status) {
 		player.cur_song = status.cur_song_index
 	} else {
 		player.cur_song = nil
+	}
+
+	prev, has_prev := prev_song.?
+	cur, has_cur := player.cur_song.?
+	if cur > prev {
+		player.switch_direction = .Next
+	} else if cur < prev {
+		player.switch_direction = .Previous
+	} else if !has_prev && has_cur {
+		player.switch_direction = .None
 	}
 
 	if prev_song != player.cur_song {

@@ -155,7 +155,7 @@ item_rect :: proc(box: Box, position: i32, height: i32) -> Rect {
 }
 
 item_tweened_pos :: proc(item: ^Item) -> i32 {
-	return i32(tween_sine_out(&item.tween, f32(item.position)))
+	return i32(tween_ease(&item.tween, f32(item.position), .Sine_Out))
 }
 
 item_list_visible_range :: proc(box: Box, list: ^Item_List($T)) -> (from, to: int) {

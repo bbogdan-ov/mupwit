@@ -29,6 +29,8 @@ HUGE_COVER_SIZE :: WINDOW_WIDTH - PLAYER_PADDING * 2
 // Delay between update of the current song (e.g. after you press "next") and
 // requesting its cover.
 PLAYER_COVER_UPDATE_DELAY :: Seconds(0.1)
+// Cover transition duration.
+PLAYER_COVER_ANIM_DURATION :: Seconds(0.5)
 
 // ------------------------------
 // Colors.

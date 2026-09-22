@@ -111,6 +111,8 @@ on_keyboard_key :: proc(key: win.Key, key_state: win.Key_State, mods: win.Mods) 
 		v += -1 if shift else +1
 		state.screen = Screen(ui.wrap(v, len(Screen)))
 	}
+
+	player_ui_on_keyboard_key(&state, key, mods)
 }
 
 on_pointer_scroll :: proc(scroll: f32, touchpad: bool) {
