@@ -16,13 +16,15 @@ Screen :: enum {
 }
 
 State :: struct {
-	window:     ^win.Window,
-	player:     Player,
-	screen:     Screen,
+	window:       ^win.Window,
+	player:       Player,
+	screen:       Screen,
+	prev_screen:  Screen,
+	screen_tween: ui.Tween(f32),
 
 	// Assets.
-	font_kapli: ui.Font,
-	icons:      ui.Sprites(Icon),
+	font_kapli:   ui.Font,
+	icons:        ui.Sprites(Icon),
 }
 
 @(private = "file")
@@ -68,6 +70,8 @@ main :: proc() {
 }
 
 update :: proc(dt: Seconds) {
+	ui.tween_update(&state.screen_tween, dt)
+
 	player_update(&state.player, dt)
 
 	status_ui_update(&state, dt)
@@ -90,8 +94,8 @@ draw :: proc(ctx: ^ui.Context) {
 	// TEMPORARY: for now all text fonts will be the same.
 	ui.set_font(ctx, state.font_kapli, 16)
 
-	queue_ui_draw(&state, ctx)
 	player_ui_draw(&state, ctx)
+	queue_ui_draw(&state, ctx)
 	status_ui_draw(&state, ctx)
 
 	@(static) time: f32 = 0
@@ -99,6 +103,21 @@ draw :: proc(ctx: ^ui.Context) {
 	y := i32(math.sin(time / 5.0) * 10)
 	ui.draw_rect(ctx, {10, 20 + y, 16, 16}, RED)
 }
+
+set_screen :: proc(state: ^State, screen: Screen) {
+	state.prev_screen = state.screen
+	state.screen = screen
+	ui.tween_play(&state.screen_tween, 0.9, SCREEN_ANIM_DURATION)
+}
+
+screen_y_offset :: proc(state: ^State) -> i32 {
+	p := 1 - ui.tween_ease(&state.screen_tween, 1, .Cubic_Out)
+	return i32(128 * p)
+}
+
+// ------------------------------
+// Listeners.
+// ------------------------------
 
 on_keyboard_key :: proc(key: win.Key, key_state: win.Key_State, mods: win.Mods) {
 	if key_state != .Pressed do return
@@ -109,7 +128,7 @@ on_keyboard_key :: proc(key: win.Key, key_state: win.Key_State, mods: win.Mods) 
 	case key == .Tab:
 		v := int(state.screen)
 		v += -1 if shift else +1
-		state.screen = Screen(ui.wrap(v, len(Screen)))
+		set_screen(&state, Screen(ui.wrap(v, len(Screen))))
 	}
 
 	player_ui_on_keyboard_key(&state, key, mods)

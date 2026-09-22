@@ -61,7 +61,9 @@ queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 
 	player := &state.player
 
-	ui.begin_box(ctx, ui.pad_b(ctx.box, STATUS_HEIGHT), GAP, self.scroll.offset)
+	box := ui.pad_b(ctx.box, STATUS_HEIGHT)
+	box.y += screen_y_offset(state)
+	ui.begin_box(ctx, box, GAP, self.scroll.offset)
 	self.box = ctx.box
 
 	from, to := ui.item_list_visible_range(ctx.box, &self.list)

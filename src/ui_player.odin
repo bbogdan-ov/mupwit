@@ -69,7 +69,9 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	player := &state.player
 	song, has_song := player_cur_song(player)
 
-	ui.begin_box(ctx, ctx.box, PLAYER_PADDING)
+	box := ctx.box
+	box.y += screen_y_offset(state)
+	ui.begin_box(ctx, box, PLAYER_PADDING)
 
 	offset: Vec2
 
