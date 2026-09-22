@@ -6,16 +6,27 @@
 package mupwit
 
 import "core:fmt"
+
 import "lib:ui"
 
 @(private = "file")
 self: struct {
 	button_play: ui.Button,
 	slider:      ui.Slider,
+	tween:       ui.Tween(f32),
+	reveal:      f32,
 }
 
-status_ui_update :: proc(state: ^State) {
-	if state.screen == .Player do return
+status_ui_update :: proc(state: ^State, dt: Seconds) {
+	ui.tween_update(&self.tween, dt)
+
+	if state.screen == .Player {
+		_status_ui_set_reveal(0)
+		return
+	}
+
+	_status_ui_set_reveal(1)
+
 	player := &state.player
 
 	if ui.button_update(&self.button_play) {
@@ -28,13 +39,16 @@ status_ui_update :: proc(state: ^State) {
 }
 
 status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
-	if state.screen == .Player do return
+	p := ui.tween_ease(&self.tween, self.reveal, .Cubic_Out)
+	offset := i32(STATUS_HEIGHT * (1 - p))
+	if offset >= STATUS_HEIGHT do return
 
 	btn_play := &self.button_play
 
 	rect := ui.state.view
 	rect.height = STATUS_HEIGHT
 	rect.y = ui.state.view.height - rect.height
+	rect.y += offset
 
 	ui.draw_rect(ctx, rect, BACKGROUND)
 	ui.draw_line_h(ctx, rect, GRAY)
@@ -72,4 +86,10 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 			ui.slider_draw(ctx, &self.slider, progress, rect, BLACK, GRAY, thumb = false)
 		}
 	}
+}
+
+_status_ui_set_reveal :: proc(reveal: f32) {
+	if self.reveal == reveal do return
+	ui.tween_play(&self.tween, self.reveal, STATUS_REVEAL_ANIM_DURATION)
+	self.reveal = reveal
 }

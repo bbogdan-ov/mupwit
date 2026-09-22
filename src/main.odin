@@ -70,7 +70,7 @@ main :: proc() {
 update :: proc(dt: Seconds) {
 	player_update(&state.player, dt)
 
-	status_ui_update(&state)
+	status_ui_update(&state, dt)
 	queue_ui_update(&state, dt)
 	player_ui_update(&state, dt)
 

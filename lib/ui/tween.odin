@@ -41,5 +41,7 @@ tween_progress :: proc(t: ^Tween($T)) -> f32 {
 //     https://github.com/odin-lang/Odin/issues/5977
 tween_ease :: proc(t: ^Tween($T), to: T, kind: ease.Ease) -> T {
 	p := tween_progress(t)
+	if p <= 0.0 do return t.from
+	if p >= 1.0 do return to
 	return math.lerp(t.from, to, ease.ease(kind, p))
 }
