@@ -49,6 +49,7 @@ main :: proc() {
 	state.window = win.new(WINDOW_WIDTH, WINDOW_HEIGHT)
 	assert(state.window != nil) // TODO: handle error.
 
+	win.set_title(state.window, "mupwit", "mupwit")
 	win.set_resizable(state.window, false)
 	win.set_frame_callback(state.window, _window_on_frame)
 	win.set_draw_callback(state.window, _window_draw)

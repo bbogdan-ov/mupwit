@@ -235,6 +235,12 @@ my_set_resizable(My_Window *window, bool resizable) {
 }
 
 void
+my_set_title(My_Window *window, const char *title, const char *app_id) {
+	xdg_toplevel_set_title(window->state.xdg_toplevel, title);
+	xdg_toplevel_set_app_id(window->state.xdg_toplevel, app_id);
+}
+
+void
 my_set_cursor(My_Window *window, My_Cursor cursor) {
 	wayclient_set_cursor(&window->state, (enum wp_cursor_shape_device_v1_shape)(cursor + 1));
 }
