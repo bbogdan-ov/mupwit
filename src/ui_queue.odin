@@ -27,6 +27,8 @@ queue_ui_init :: proc() {
 queue_ui_update :: proc(state: ^State, dt: Seconds) {
 	if state.screen != .Queue do return
 
+	length := _queue_ui_contents_length()
+	ui.scroll_update_max_offset(self.box, &self.scroll, length)
 	ui.scroll_update(&self.box, &self.scroll, dt)
 
 	ui.item_list_update(self.box, &self.list, dt)
@@ -59,10 +61,8 @@ _queue_ui_play_hovered_song :: proc(state: ^State) -> bool {
 queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if state.screen != .Queue do return
 
-	player := &state.player
-
 	box := ui.pad_b(ctx.box, STATUS_HEIGHT)
-	box.y += screen_y_offset(state)
+	// box.y += screen_y_offset(state)
 	ui.begin_box(ctx, box, GAP, self.scroll.offset)
 	self.box = ctx.box
 
@@ -72,8 +72,28 @@ queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		song_item_draw(state, ctx, item)
 	}
 
-	contents := i32(len(player.queue)) * self.list.item_height
-	ui.scroll_draw(ctx, &self.scroll, contents, LIGHT_GRAY, GRAY)
+	length := _queue_ui_contents_length()
+	ui.scroll_draw(ctx, &self.scroll, length, LIGHT_GRAY, GRAY)
+}
+
+_queue_ui_contents_length :: proc() -> i32 {
+	length := i32(len(self.list.items)) * self.list.item_height
+	length += self.list.item_height
+	return length
+}
+
+queue_ui_on_screen_updated :: proc(state: ^State) {
+	if state.screen != .Queue do return
+
+	index, has_song := state.player.cur_song.?
+	if !has_song do return
+
+	// TODO: it should also scroll to the current song when it is out of the view.
+	// FIXME!!: if length of the content changes without a "draw" function being
+	// called, `scroll_set` clamps offset to the old content length (which might
+	// be 0 if "draw" function was never called before).
+	off := i32(index - 1) * self.list.item_height
+	ui.scroll_set(&self.scroll, f32(off))
 }
 
 queue_ui_on_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {

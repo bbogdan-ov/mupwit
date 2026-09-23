@@ -1,7 +1,6 @@
 package mupwit
 
 import "core:log"
-import "core:math"
 import "core:mem"
 import "core:time"
 import "lib:mpd"
@@ -97,17 +96,13 @@ draw :: proc(ctx: ^ui.Context) {
 	player_ui_draw(&state, ctx)
 	queue_ui_draw(&state, ctx)
 	status_ui_draw(&state, ctx)
-
-	@(static) time: f32 = 0
-	time += 1
-	y := i32(math.sin(time / 5.0) * 10)
-	ui.draw_rect(ctx, {10, 20 + y, 16, 16}, RED)
 }
 
 set_screen :: proc(state: ^State, screen: Screen) {
 	state.prev_screen = state.screen
 	state.screen = screen
 	ui.tween_play(&state.screen_tween, 0.9, SCREEN_ANIM_DURATION)
+	on_screen_updated()
 }
 
 screen_y_offset :: proc(state: ^State) -> i32 {
@@ -136,6 +131,10 @@ on_keyboard_key :: proc(key: win.Key, key_state: win.Key_State, mods: win.Mods) 
 
 on_pointer_scroll :: proc(scroll: f32, touchpad: bool) {
 	queue_ui_on_scroll(&state, scroll, touchpad)
+}
+
+on_screen_updated :: proc() {
+	queue_ui_on_screen_updated(&state)
 }
 
 // These functions are called by the `Player` struct whenever something happens.

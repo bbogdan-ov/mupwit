@@ -6,9 +6,9 @@ Scroll :: struct {
 	rect, thumb:       Rect,
 	offset:            f32,
 	from, to:          f32,
+	max_offset:        f32,
 	velocity:          f32,
 	timer:             Seconds,
-	max_scroll:        f32,
 	is_hovering:       bool,
 	is_hovering_thumb: bool,
 	is_dragging:       bool,
@@ -23,6 +23,11 @@ scroll_update :: proc(box: ^Box, s: ^Scroll, dt: Seconds) {
 	_scroll_update_pointer_drag(box^, s)
 
 	box.scroll = s.offset
+}
+
+scroll_update_max_offset :: proc(box: Box, s: ^Scroll, length: i32) {
+	length := max(length, 1)
+	s.max_offset = f32(length - box.height)
 }
 
 _scroll_update_offset :: proc(s: ^Scroll, dt: Seconds) {
@@ -41,8 +46,8 @@ _scroll_update_offset :: proc(s: ^Scroll, dt: Seconds) {
 
 	s.offset += s.velocity
 
-	if s.offset >= s.max_scroll {
-		s.offset = s.max_scroll
+	if s.offset >= s.max_offset {
+		s.offset = s.max_offset
 		s.velocity = 0
 	}
 	if s.offset <= 0 {
@@ -98,7 +103,7 @@ scroll_on_scroll :: proc(s: ^Scroll, scroll: f32, touchpad: bool) {
 
 		s.from = math.floor(s.offset)
 		s.to += scroll * SCROLL_WHEEL_MULPLIER
-		s.to = clamp(math.floor(s.to), 0, s.max_scroll)
+		s.to = clamp(math.floor(s.to), 0, s.max_offset)
 
 		if s.from != s.to {
 			s.velocity = 0
@@ -108,7 +113,7 @@ scroll_on_scroll :: proc(s: ^Scroll, scroll: f32, touchpad: bool) {
 }
 
 scroll_set :: proc(s: ^Scroll, offset: f32) {
-	s.offset = clamp(offset, 0, s.max_scroll)
+	s.offset = clamp(offset, 0, s.max_offset)
 	s.to = s.offset
 	s.timer = 0
 	s.velocity = 0
@@ -117,10 +122,9 @@ scroll_set :: proc(s: ^Scroll, offset: f32) {
 scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color, active_color: Color) {
 	box := ctx.box
 
-	length := max(length, 1)
-	s.max_scroll = f32(length - box.height)
+	scroll_update_max_offset(ctx.box, s, length)
 
-	progress := s.offset / s.max_scroll
+	progress := s.offset / s.max_offset
 
 	s.thumb.width = box.padding.x
 	s.thumb.height = max(box.height * box.height / length, 32)
@@ -189,5 +193,5 @@ scroll_hovering_item :: proc(
 }
 
 scroll_content_length :: proc(box: Box, s: ^Scroll) -> i32 {
-	return i32(s.max_scroll) + box.height
+	return i32(s.max_offset) + box.height
 }
