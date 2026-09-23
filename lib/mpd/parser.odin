@@ -242,9 +242,14 @@ _parse_struct_field_from_pair :: proc(
 		v = Seconds(_parse_number(f32, pair, loc))
 
 	case string:
-		v = sclone(pair.value, allocator)
+		// TODO: repeating fields in a command response should be treaded as arrays.
+		// Currenly only the first occurence of a field is being stored, others are ignored.
+		// This also prevents memory leaks when overriding existing string.
+		if len(v) > 0 do break
+		v = sclone(pair.value, allocator, loc)
 	case Song_File:
-		v = Song_File(sclone(pair.value, allocator))
+		if len(v) > 0 do break
+		v = Song_File(sclone(pair.value, allocator, loc))
 
 	case Play_State:
 		v, _ = _parse_enum(Play_State, pair, loc)

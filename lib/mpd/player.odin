@@ -112,25 +112,25 @@ Song :: struct {
 
 Song_List :: distinct [dynamic]Song
 
-song_destroy :: proc(song: Song) {
-	delete(string(song.file), song.allocator)
-	delete(song.artist, song.allocator)
-	delete(song.title, song.allocator)
-	delete(song.album, song.allocator)
-	delete(song.date, song.allocator)
-	delete(song.genre, song.allocator)
-	delete(song.duration_str, song.allocator)
+song_destroy :: proc(song: Song, loc := #caller_location) {
+	delete(string(song.file), song.allocator, loc)
+	delete(song.artist, song.allocator, loc)
+	delete(song.title, song.allocator, loc)
+	delete(song.album, song.allocator, loc)
+	delete(song.date, song.allocator, loc)
+	delete(song.genre, song.allocator, loc)
+	delete(song.duration_str, song.allocator, loc)
 }
 
 // Destroy all songs inside a list and `clear()` it.
-song_list_clear :: proc(list: ^Song_List) {
-	for song in list do song_destroy(song)
+song_list_clear :: proc(list: ^Song_List, loc := #caller_location) {
+	for song in list do song_destroy(song, loc)
 	clear(list)
 }
 
-song_list_destroy :: proc(list: ^Song_List) {
-	song_list_clear(list)
-	delete(list^)
+song_list_destroy :: proc(list: ^Song_List, loc := #caller_location) {
+	song_list_clear(list, loc)
+	delete(list^, loc)
 }
 
 song_lists_differ :: proc(a, b: Song_List) -> bool {

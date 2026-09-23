@@ -5,6 +5,7 @@ import "core:fmt"
 import "core:log"
 import "core:mem"
 import "core:os"
+import "core:slice"
 import "core:sync"
 import "core:time"
 
@@ -39,7 +40,26 @@ tracking_allocator_report_and_destroy :: proc(track: ^mem.Tracking_Allocator) {
 	if len(track.allocation_map) > 0 {
 		fmt.println("------------------------------")
 		for _, leak in track.allocation_map {
-			fmt.printfln("LEAK: %v bytes", leak.location, leak.size)
+			fmt.printfln(
+				"%v LEAK (%v): %v bytes at %p",
+				leak.location,
+				leak.mode,
+				leak.size,
+				leak.memory,
+			)
+
+			MAX_LEN :: 32
+			array := slice.bytes_from_ptr(leak.memory, leak.size)
+			cut := 0
+			if len(array) >= MAX_LEN {
+				cut = len(array) - MAX_LEN
+				array = array[:MAX_LEN]
+			}
+
+			fmt.printf("    Data: %q, %v", array, array)
+			if cut > 0 do fmt.printf(" (%v more bytes)", cut)
+
+			fmt.print("\n\n")
 		}
 	}
 
