@@ -22,8 +22,8 @@ Cover_Size :: enum {
 
 @(rodata)
 COVER_SIZE := [Cover_Size]i32 {
-	.Huge  = HUGE_COVER_SIZE,
-	.Small = SMALL_COVER_SIZE,
+	.Huge  = COVER_SIZE_HUGE,
+	.Small = COVER_SIZE_SMALL,
 }
 
 Cover_Surface :: ^cairo.surface_t

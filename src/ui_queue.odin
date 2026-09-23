@@ -172,7 +172,7 @@ song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item) {
 
 	// Draw song cover.
 	{
-		if item.cover == nil {
+		if SONG_LOAD_COVER && item.cover == nil {
 			cover := cover_get_or_request(&state.player, song.file, song.album, .Small)
 			item.cover = cover_ref(cover)
 		}
@@ -181,7 +181,10 @@ song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item) {
 		rect.width = SONG_COVER_SIZE
 		rect.height = SONG_COVER_SIZE
 
-		res := cover_draw(ctx, item.cover, rect_pos(rect))
+		res := Cover_Draw_Result.No_Cover
+		if SONG_LOAD_COVER {
+			res = cover_draw(ctx, item.cover, rect_pos(rect))
+		}
 		if res != .Drawn {
 			draw_icon(state, ctx, .Disk, icon_center_inside(rect), state.theme.black)
 		}
