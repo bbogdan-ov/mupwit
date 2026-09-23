@@ -69,7 +69,15 @@ queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 
 	from, to := ui.item_list_visible_range(ctx.box, &self.list)
 	for i in from ..< to {
+		if self.list.reordering == ui.Item_Index(i) do continue
 		item := &self.list.items[i]
+		song_item_draw(state, ctx, item)
+	}
+
+	// Draw the currently reordering item above others.
+	reordering, has_reordering := self.list.reordering.?
+	if has_reordering {
+		item := &self.list.items[reordering]
 		song_item_draw(state, ctx, item)
 	}
 
