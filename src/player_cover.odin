@@ -17,6 +17,13 @@ Cover_Key :: distinct string
 
 Cover_Size :: enum {
 	Huge = 0,
+	Small,
+}
+
+@(rodata)
+COVER_SIZE := [Cover_Size]i32 {
+	.Huge  = HUGE_COVER_SIZE,
+	.Small = SMALL_COVER_SIZE,
 }
 
 Cover_Surface :: ^cairo.surface_t
@@ -36,11 +43,6 @@ Cover_Cache_Slot :: struct #all_or_none {
 
 // TODO!: we should delete cached covers that are too old and not referenced by onyone.
 Covers_Cache :: map[Cover_Key]Cover_Cache_Slot
-
-@(rodata)
-COVER_SIZE := [Cover_Size]i32 {
-	.Huge = HUGE_COVER_SIZE,
-}
 
 cover_ref :: proc(cover: ^Cover) -> ^Cover {
 	assert(cover != nil)
@@ -174,4 +176,27 @@ _player_handle_response_cover :: proc(player: ^Player, res: Response_Cover) {
 
 	cover.surface = res.surface
 	cover.loading = false
+}
+
+Cover_Draw_Result :: enum {
+	No_Cover = 0, // Cover does not exist.
+	No_Surface, // Cover exists but the surface is missing, should draw a placeholder.
+	Drawn, // Cover surface was drawn.
+}
+
+cover_rect :: proc(size: Cover_Size, pos: Vec2) -> Rect {
+	return {pos.x, pos.y, COVER_SIZE[size], COVER_SIZE[size]}
+}
+
+cover_draw :: proc(cr: ^cairo.cairo_t, cover: Maybe(^Cover), pos: Vec2) -> Cover_Draw_Result {
+	cover, has_cover := cover.?
+	if !has_cover do return .No_Cover
+
+	surface, has_surface := cover.surface.?
+	if !has_surface do return .No_Surface
+
+	cairo.set_source_surface(cr, surface, f64(pos.x), f64(pos.y))
+	cairo.paint(cr)
+
+	return .Drawn
 }

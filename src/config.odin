@@ -1,5 +1,6 @@
 package mupwit
 
+import "lib:cairo"
 import "lib:ui"
 
 // ------------------------------
@@ -29,7 +30,10 @@ STATUS_REVEAL_ANIM_DURATION :: Seconds(0.2)
 
 SCREEN_ANIM_DURATION :: Seconds(0.2)
 
+COVER_SCALE_FILTER :: cairo.filter_t.GOOD
+
 HUGE_COVER_SIZE :: WINDOW_WIDTH - PLAYER_PADDING * 2
+SMALL_COVER_SIZE :: SONG_COVER_SIZE
 
 // ------------------------------
 // Colors.

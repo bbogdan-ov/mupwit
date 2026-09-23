@@ -127,7 +127,7 @@ _create_cover_surface :: proc(pixels: [^]u8, size, wanted_size: Vec2) -> ^cairo.
 
 	cairo.scale(cr, f64(wanted_size.x) / f64(size.x), f64(wanted_size.y) / f64(size.y))
 	cairo.set_source_surface(cr, original, 0, 0)
-	cairo.pattern_set_filter(cairo.get_source(cr), .GOOD)
+	cairo.pattern_set_filter(cairo.get_source(cr), COVER_SCALE_FILTER)
 	cairo.paint(cr)
 
 	return surface

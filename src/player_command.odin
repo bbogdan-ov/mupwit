@@ -169,11 +169,22 @@ _player_handle_command :: proc(
 		return nil
 
 	case Command_Request_Cover:
+		// FIXME: this command may block the client thread for some time (usually
+		// around 60-80ms) and while the client thread is blocked it may not be
+		// able to proccess other commands. Should come up with a way to split
+		// picture data reciving into multiple steps.
+		// After picture data is received (png, jpeg, etc), it is sent to
+		// another thread and being decoded here, so it doesn't block the
+		// client thread.
+
 		defer {
 			delete(string(cmd.file), cmd.allocator)
 			delete(string(cmd.key), cmd.allocator)
 		}
 
+		// TODO!: should reuse cover surface with same key and of the larger
+		// size and down scale it instead of requesting picture data for every
+		// cover request.
 		picture, missing := mpd.request_song_picture(client, cmd.file, shared.allocator) or_return
 		if missing {
 			res := Response_Cover {

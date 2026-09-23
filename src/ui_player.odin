@@ -2,7 +2,6 @@ package mupwit
 
 import "core:fmt"
 
-import "lib:cairo"
 import "lib:mpd"
 import win "lib:my_window"
 import "lib:ui"
@@ -77,8 +76,7 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 
 	// Draw current song cover.
 	{
-		rect := ctx.box.rect
-		rect.height = rect.width
+		rect := cover_rect(.Huge, rect_pos(ctx.box))
 
 		dir: i32 = 1
 		if player.switch_direction == .Previous {
@@ -90,12 +88,12 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		{
 			r := rect
 			r.x -= i32(vw * progress) * dir
-			_cover_draw(ctx, self.prev_cover, r)
+			_player_ui_draw_cover(ctx, self.prev_cover, r)
 		}
 		{
 			r := rect
 			r.x += i32(vw * (1 - progress)) * dir
-			_cover_draw(ctx, self.cover, r)
+			_player_ui_draw_cover(ctx, self.cover, r)
 		}
 
 		offset.y += rect.height
@@ -148,14 +146,12 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	}
 }
 
-_cover_draw :: proc(ctx: ^ui.Context, cover: Maybe(^Cover), rect: Rect) {
-	cover, ok := cover.?
-	if !ok do return
-
-	if surface, ok := cover.surface.?; ok {
-		cairo.set_source_surface(ctx, surface, f64(rect.x), f64(rect.y))
-		cairo.paint(ctx)
-	} else {
+_player_ui_draw_cover :: proc(ctx: ^ui.Context, cover: Maybe(^Cover), rect: Rect) {
+	res := cover_draw(ctx, cover, rect_pos(rect))
+	#partial switch res {
+	case .No_Cover:
+		return
+	case .No_Surface:
 		ui.draw_rect(ctx, rect, GRAY)
 	}
 

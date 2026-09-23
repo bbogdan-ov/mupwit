@@ -11,6 +11,7 @@ import "lib:ui"
 Song_Item :: struct {
 	using item: ui.Item,
 	song_index: mpd.Song_Index,
+	cover:      Maybe(^Cover),
 }
 
 @(private = "file")
@@ -62,7 +63,7 @@ queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if state.screen != .Queue do return
 
 	box := ui.pad_b(ctx.box, STATUS_HEIGHT)
-	// box.y += screen_y_offset(state)
+	box.y += screen_y_offset(state)
 	ui.begin_box(ctx, box, GAP, self.scroll.offset)
 	self.box = ctx.box
 
@@ -80,6 +81,13 @@ _queue_ui_contents_length :: proc() -> i32 {
 	length := i32(len(self.list.items)) * self.list.item_height
 	length += self.list.item_height
 	return length
+}
+
+_queue_ui_clear_list :: proc() {
+	for &item in self.list.items {
+		song_item_destroy(&item)
+	}
+	clear(&self.list.items)
 }
 
 queue_ui_on_screen_updated :: proc(state: ^State) {
@@ -105,7 +113,7 @@ queue_ui_on_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
 queue_ui_on_received_queue :: proc(state: ^State) {
 	player := &state.player
 
-	clear(&self.list.items)
+	_queue_ui_clear_list()
 	non_zero_reserve(&self.list.items, len(player.queue))
 
 	for _, index in player.queue {
@@ -122,6 +130,13 @@ queue_ui_on_song_reordered :: proc(from, to: mpd.Song_Index) {
 	for i in start ..= end {
 		item := &self.list.items[i]
 		item.song_index = mpd.Song_Index(i)
+	}
+}
+
+song_item_destroy :: proc(item: ^Song_Item) {
+	if cover, ok := item.cover.?; ok {
+		cover_unref(cover)
+		item.cover = nil
 	}
 }
 
@@ -146,11 +161,21 @@ song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item) {
 
 	// Draw song cover.
 	{
+		if item.cover == nil {
+			cover := cover_get_or_request(&state.player, song.file, song.album, .Small)
+			item.cover = cover_ref(cover)
+		}
+
 		rect := ctx.box
 		rect.width = SONG_COVER_SIZE
 		rect.height = SONG_COVER_SIZE
-		ui.draw_box(ctx, rect, BLACK)
-		draw_icon(state, ctx, .Disk, icon_center_inside(rect), BLACK)
+
+		res := cover_draw(ctx, item.cover, rect_pos(rect))
+		if res != .Drawn {
+			draw_icon(state, ctx, .Disk, icon_center_inside(rect), BLACK)
+		}
+
+		ui.draw_box(ctx, ui.pad(rect, -1), BLACK)
 	}
 
 	// Draw song duration.
