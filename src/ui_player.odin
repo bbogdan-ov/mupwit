@@ -1,6 +1,7 @@
 package mupwit
 
 import "core:fmt"
+import "core:math/ease"
 
 import "lib:mpd"
 import win "lib:my_window"
@@ -82,12 +83,22 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	{
 		rect := cover_rect(.Huge, rect_pos(ctx.box))
 
-		dir: i32 = 1
-		if player.switch_direction == .Previous {
+		dir: i32
+		easing := ease.Ease.Cubic_In_Out
+		switch player.switch_direction {
+		case .From_None:
+			easing = .Cubic_Out
+			dir = 1
+		case .To_None:
+			easing = .Cubic_In
+			dir = 1
+		case .Next:
+			dir = 1
+		case .Previous:
 			dir = -1
 		}
 
-		progress := ui.tween_ease(&self.cover_tween, 1, .Cubic_In_Out)
+		progress := ui.tween_ease(&self.cover_tween, 1, easing)
 		vw := f32(ui.state.view.width)
 		{
 			r := rect
@@ -192,18 +203,29 @@ _player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context) -> (height: i32)
 
 player_ui_on_keyboard_key :: proc(state: ^State, key: win.Key, mods: win.Mods) {
 	if TEST_COVERS && key == .Enter {
+		new: int
 		if .Shift in mods {
-			TEST_CUR_FILE = ui.wrap(TEST_CUR_FILE - 1, len(TEST_FILES))
+			new = TEST_CUR_FILE - 1
 			state.player.switch_direction = .Previous
 		} else {
-			TEST_CUR_FILE = ui.wrap(TEST_CUR_FILE + 1, len(TEST_FILES))
+			new = TEST_CUR_FILE + 1
 			state.player.switch_direction = .Next
 		}
+		if self.cover == nil {
+			state.player.switch_direction = .From_None
+		}
 
-		item := TEST_FILES[TEST_CUR_FILE]
-		album := item[0]
-		file := mpd.Song_File(item[1])
-		_player_ui_request_cover(state, file, album, .Huge)
+		TEST_CUR_FILE = ui.wrap(new, len(TEST_FILES))
+
+		if new < 0 || len(TEST_FILES) <= new {
+			_player_ui_set_cover(state, nil)
+			state.player.switch_direction = .To_None
+		} else {
+			item := TEST_FILES[TEST_CUR_FILE]
+			album := item[0]
+			file := mpd.Song_File(item[1])
+			_player_ui_request_cover(state, file, album, .Huge)
+		}
 	}
 }
 
