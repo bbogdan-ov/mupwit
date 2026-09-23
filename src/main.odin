@@ -12,6 +12,7 @@ import "lib:ui"
 Screen :: enum {
 	Player = 0,
 	Queue,
+	Albums,
 }
 
 Theme :: struct {
@@ -42,6 +43,8 @@ state: State
 main :: proc() {
 	context.logger = make_logger()
 
+	defer log.info("Bye")
+
 	track := make_tracking_allocator(context.allocator)
 	context.allocator = mem.tracking_allocator(&track)
 	defer tracking_allocator_report_and_destroy(&track)
@@ -69,8 +72,12 @@ main :: proc() {
 
 	player_init(&state.player)
 	player_connect(&state.player)
+	defer player_destroy(&state.player)
 
 	queue_ui_init()
+	defer queue_ui_destroy()
+	albums_ui_init()
+	defer albums_ui_destroy()
 
 	for win.should_run(state.window) {}
 
@@ -78,10 +85,6 @@ main :: proc() {
 	win.destroy(state.window)
 	assets_destroy(&state)
 	ui.destroy()
-
-	player_destroy(&state.player)
-
-	log.info("Bye")
 }
 
 update :: proc(dt: Seconds) {
@@ -94,6 +97,7 @@ update :: proc(dt: Seconds) {
 	status_ui_update(&state, dt)
 	queue_ui_update(&state, dt)
 	player_ui_update(&state, dt)
+	albums_ui_update(&state, dt)
 
 	win.set_cursor(state.window, ui.state.cursor)
 	ui.update()
@@ -143,19 +147,47 @@ draw :: proc(ctx: ^ui.Context) {
 
 	player_ui_draw(&state, ctx)
 	queue_ui_draw(&state, ctx)
+	albums_ui_draw(&state, ctx)
 	status_ui_draw(&state, ctx)
 }
 
 set_screen :: proc(state: ^State, screen: Screen) {
 	state.prev_screen = state.screen
 	state.screen = screen
-	ui.tween_play(&state.screen_tween, 0.9, SCREEN_ANIM_DURATION)
+	ui.tween_play(&state.screen_tween, 0, SCREEN_ANIM_DURATION)
 	on_screen_updated()
 }
 
-screen_y_offset :: proc(state: ^State) -> i32 {
-	p := 1 - ui.tween_ease(&state.screen_tween, 1, .Cubic_Out)
-	return i32(128 * p)
+screen_x_offset :: proc(state: ^State, screen: Screen) -> i32 {
+	p := ui.tween_ease(&state.screen_tween, 1, .Cubic_In_Out)
+	vw := f32(ui.state.view.width)
+
+	first := Screen(0)
+	last := Screen(len(Screen) - 1)
+	cur := state.screen
+	prev := state.prev_screen
+
+	dir: i32 = 1
+	if cur == first && prev == last {
+		dir = 1
+	} else if cur == last && prev == first {
+		dir = -1
+	} else if cur < prev {
+		dir = -1
+	}
+
+	if cur == screen {
+		return i32(vw * (1 - p)) * dir
+	} else if prev == screen {
+		return -i32(vw * p) * dir
+	} else {
+		return 0
+	}
+}
+
+screen_is_visible :: proc(state: ^State, screen: Screen) -> bool {
+	if state.screen == screen do return true
+	return state.prev_screen == screen && state.screen_tween.timer > 0
 }
 
 set_background :: proc(state: ^State, color: Color) {
@@ -191,6 +223,7 @@ on_keyboard_key :: proc(key: win.Key, key_state: win.Key_State, mods: win.Mods) 
 
 on_pointer_scroll :: proc(scroll: f32, touchpad: bool) {
 	queue_ui_on_scroll(&state, scroll, touchpad)
+	albums_ui_on_scroll(&state, scroll, touchpad)
 }
 
 // TODO: may be i should refactor listeners that listen to value changes to bit set of "events"?
@@ -206,6 +239,9 @@ on_cur_song_updated :: proc() {
 }
 on_queue_updated :: proc() {
 	queue_ui_on_received_queue(&state)
+}
+on_albums_updated :: proc() {
+	albums_ui_on_albums_updated(&state)
 }
 on_song_reordered :: proc(from, to: mpd.Song_Index) {
 	queue_ui_on_song_reordered(from, to)

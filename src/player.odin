@@ -10,6 +10,7 @@
 package mupwit
 
 import "base:runtime"
+import "core:sort"
 import "core:sync/chan"
 import "core:thread"
 import "core:time"
@@ -46,6 +47,7 @@ Player :: struct {
 	// Time elapsed within the queue (sum of durations of songs before the
 	// current one), does not account for the current song.
 	queue_elapsed:            Seconds,
+	albums:                   mpd.Album_List,
 	// In which direction current song was skipped.
 	switch_direction:         Switch_Direction,
 
@@ -103,6 +105,7 @@ player_connect :: proc(player: ^Player) {
 
 	player_request_status(player)
 	player_request_queue(player)
+	player_request_albums(player)
 }
 
 player_destroy :: proc(player: ^Player) {
@@ -123,6 +126,8 @@ player_destroy :: proc(player: ^Player) {
 	_covers_cache_destroy(player._covers_cache)
 
 	mpd.song_list_destroy(&player.queue)
+	mpd.album_list_destroy(player.albums)
+
 	chan.destroy(&player._shared.commands)
 	chan.destroy(&player._shared.responses)
 }
@@ -190,6 +195,23 @@ _player_set_queue :: proc(player: ^Player, queue: mpd.Song_List) {
 	_player_queue_calc_duration(player)
 
 	on_queue_updated()
+}
+
+_player_set_albums :: proc(player: ^Player, albums: mpd.Album_List) {
+	// TODO!: auto update albums when MPD database changes.
+	mpd.album_list_destroy(player.albums)
+
+	// Sort in alphabetical order.
+	sort_proc :: proc(a, b: mpd.Album) -> int {
+		a_name := a.songs[0].album
+		b_name := b.songs[0].album
+		return sort.compare_strings(a_name, b_name)
+	}
+
+	sort.quick_sort_proc(albums[:], sort_proc)
+	player.albums = albums
+
+	on_albums_updated()
 }
 
 _player_queue_calc_duration :: proc(player: ^Player) {

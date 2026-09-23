@@ -67,3 +67,7 @@ icon_from_playstate :: proc(playstate: mpd.Play_State) -> Icon {
 		unreachable()
 	}
 }
+
+scroll_draw :: proc(state: ^State, ctx: ^ui.Context, s: ^ui.Scroll, length: i32) {
+	ui.scroll_draw(ctx, s, length, state.theme.light_gray, state.theme.gray)
+}

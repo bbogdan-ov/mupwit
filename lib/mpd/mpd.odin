@@ -8,7 +8,6 @@ import "base:intrinsics"
 import "core:fmt"
 import "core:log"
 import "core:net"
-import "core:reflect"
 import "core:strings"
 
 DEFAULT_PORT :: 6600
@@ -84,6 +83,17 @@ recv_and_parse :: #force_inline proc(
 }
 
 @(require_results)
+recv_and_forget :: proc(client: ^Client, loc := #caller_location) -> (err: Error) {
+	str: string
+	// TODO!!: should not allocate the string, but i have to for now because i
+	// need to collect the whole response string in order to determine whether
+	// it is ended.
+	str, err = recv(client, context.allocator, loc)
+	delete(str, context.allocator)
+	return
+}
+
+@(require_results)
 recv :: proc(
 	client: ^Client,
 	allocator := context.allocator,
@@ -92,32 +102,13 @@ recv :: proc(
 	str: string,
 	err: Error,
 ) {
-	return _recv(client, true, allocator, loc)
-}
-
-@(require_results)
-recv_and_forget :: proc(client: ^Client, loc := #caller_location) -> (err: Error) {
-	_, err = _recv(client, false, {}, loc)
-	return
-}
-
-@(require_results)
-_recv :: proc(
-	client: ^Client,
-	collect: bool,
-	allocator := context.allocator,
-	loc := #caller_location,
-) -> (
-	str: string,
-	err: Error,
-) {
 	ss :: strings
 
-	sb := strings.builder_make(allocator)
+	sb := ss.builder_make(allocator)
 	stop_on_newline := false
 	is_error := false
 
-	@(static) buffer: [512]u8
+	@(static) buffer: [256]u8
 	loop: for {
 		size, err := net.recv(client.socket, buffer[:])
 		if size <= 0 {
@@ -129,76 +120,37 @@ _recv :: proc(
 			return "", err
 		}
 
-		if collect {
-			was_empty := len(sb.buf) == 0
-			ss.write_string(&sb, string(buffer[:size]))
-			as_str := ss.trim_space(ss.to_string(sb))
+		was_empty := len(sb.buf) == 0
+		ss.write_string(&sb, string(buffer[:size]))
+		as_str := ss.to_string(sb)
 
-			if was_empty {
-				if ss.starts_with(as_str, "OK ") {
-					stop_on_newline = true
-				} else if ss.starts_with(as_str, "ACK ") {
-					is_error = true
-					stop_on_newline = true
-				}
+		if was_empty {
+			if ss.starts_with(as_str, "OK ") {
+				stop_on_newline = true
+			} else if ss.starts_with(as_str, "ACK ") {
+				is_error = true
+				stop_on_newline = true
 			}
-
-			if ss.ends_with(as_str, "\nOK") do break
-			if stop_on_newline && ss.ends_with(as_str, "\n") do break
 		}
 
-		if size < len(buffer) do break
+		if as_str == "OK\n" do break
+		if ss.ends_with(as_str, "\nOK\n") do break
+		if stop_on_newline && ss.ends_with(as_str, "\n") do break
+
+		// FIXME!: sometimes it may receive buffer of a smaller size even tho
+		// it is not the end of the response. It fails very often on large
+		// responses, didn't see any issues with small ones.
+		//
+		// if size < len(buffer) do break
 	}
 
-	if collect {
-		// TODO!!: store message somewhere if it is an error. ("ACK ..." message)
-		str = ss.trim_space(ss.to_string(sb))
-	}
+	// TODO!!: store message somewhere if it is an error. ("ACK ..." message)
+	str = ss.trim_space(ss.to_string(sb))
 	return
 }
 
-// Send a command.
 @(require_results)
-send :: proc(
-	client: ^Client,
-	format: string,
-	args: ..any,
-	loc := #caller_location,
-) -> (
-	err: Error,
-) {
-	sb := strings.builder_make(context.allocator)
-	defer strings.builder_destroy(&sb)
-
-	// Generate command.
-	strings.write_string(&sb, format)
-	for arg in args {
-		strings.write_byte(&sb, ' ')
-
-		switch a in reflect.any_core(arg) {
-		case string:
-			strings.write_byte(&sb, '"')
-			for char in a {
-				switch char {
-				case '"', '\\':
-					strings.write_byte(&sb, '\\')
-				}
-				strings.write_rune(&sb, char)
-			}
-			strings.write_byte(&sb, '"')
-		case:
-			fmt.sbprint(&sb, a)
-		}
-	}
-	strings.write_byte(&sb, '\n')
-
-	// Send.
-	str := strings.to_string(sb)
-	return send_string(client, str, loc)
-}
-
-@(require_results)
-send_string :: proc(client: ^Client, str: string, loc := #caller_location) -> (err: Error) {
+_send_string :: proc(client: ^Client, str: string, loc := #caller_location) -> (err: Error) {
 	if len(str) == 0 do return nil
 
 	_, err = net.send_tcp(client.socket, transmute([]u8)str)
@@ -209,14 +161,25 @@ send_string :: proc(client: ^Client, str: string, loc := #caller_location) -> (e
 }
 
 @(require_results)
+send_const :: proc(client: ^Client, $str: string, loc := #caller_location) -> (err: Error) {
+	return _send_string(client, str + "\n", loc)
+}
+
+@(require_results)
 send_and_forget :: proc(
 	client: ^Client,
-	format: string,
+	command: string,
 	args: ..any,
+	allocator := context.allocator,
 	loc := #caller_location,
 ) -> (
 	err: Error,
 ) {
-	send(client, format, ..args, loc = loc) or_return
+	cmd := cmd_begin(command, allocator)
+	if len(args) > 0 {
+		strings.write_byte(&cmd, ' ')
+		fmt.sbprint(&cmd, ..args)
+	}
+	cmd_send(client, &cmd, loc) or_return
 	return recv_and_forget(client, loc)
 }

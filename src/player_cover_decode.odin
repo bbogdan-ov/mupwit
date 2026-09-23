@@ -200,6 +200,9 @@ _calc_surface_accent_color :: proc(surface: ^cairo.surface_t) -> Color {
 		// Dark becomes lighter.
 		light += (1.0 - light) * 0.4
 	}
+	if 0.1 <= sat && sat <= 0.2 {
+		sat *= 2.0
+	}
 	if sat > 0.7 {
 		// Too saturated becomes less saturated and more lighter.
 		sat *= 0.8

@@ -19,6 +19,7 @@ Response_Cover :: struct #all_or_none {
 
 Response :: union {
 	mpd.Status,
+	mpd.Album_List,
 	Response_Queue,
 	Response_Cover,
 }
@@ -40,6 +41,9 @@ _player_handle_response :: proc(player: ^Player, response: Response) {
 	switch res in response {
 	case mpd.Status:
 		_player_set_status(player, res)
+
+	case mpd.Album_List:
+		_player_set_albums(player, res)
 
 	case Response_Queue:
 		_player_set_queue(player, res.list)

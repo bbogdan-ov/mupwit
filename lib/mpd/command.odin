@@ -2,8 +2,43 @@
 
 package mpd
 
+import "core:fmt"
 import "core:log"
+import "core:strings"
 import "core:time"
+
+Command_Builder :: strings.Builder
+
+cmd_begin :: proc(cmd: string, allocator := context.allocator) -> Command_Builder {
+	sb := strings.builder_make(allocator)
+	strings.write_string(&sb, cmd)
+	return sb
+}
+cmd_push_string :: proc(cmd: ^Command_Builder, str: string) {
+	strings.write_byte(cmd, ' ')
+	strings.write_string(cmd, str)
+}
+cmd_push_quoted :: proc(cmd: ^Command_Builder, str: string) {
+	strings.write_byte(cmd, ' ')
+	write_quoted_string(cmd, str)
+}
+cmd_push_int :: proc(cmd: ^Command_Builder, n: int) {
+	strings.write_byte(cmd, ' ')
+	strings.write_int(cmd, n)
+}
+cmd_end :: proc(cmd: ^Command_Builder) -> string {
+	strings.write_byte(cmd, '\n')
+	return strings.to_string(cmd^)
+}
+cmd_destroy :: proc(cmd: ^Command_Builder) {
+	strings.builder_destroy(cmd)
+}
+cmd_send :: proc(client: ^Client, cmd: ^Command_Builder, loc := #caller_location) -> Error {
+	str := cmd_end(cmd)
+	err := _send_string(client, str, loc)
+	cmd_destroy(cmd)
+	return err
+}
 
 @(require_results)
 request_changes :: proc(
@@ -13,8 +48,8 @@ request_changes :: proc(
 	changes: Changes,
 	err: Error,
 ) {
-	send(client, "idle", loc = loc) or_return
-	send(client, "noidle", loc = loc) or_return
+	send_const(client, "idle", loc) or_return
+	send_const(client, "noidle", loc) or_return
 
 	parser := recv_and_parse(client, context.allocator, loc) or_return
 	defer parser_destroy(parser, context.allocator)
@@ -25,7 +60,7 @@ request_changes :: proc(
 
 @(require_results)
 request_status :: proc(client: ^Client, loc := #caller_location) -> (status: Status, err: Error) {
-	send(client, "status", loc = loc) or_return
+	send_const(client, "status", loc) or_return
 	parser := recv_and_parse(client, context.allocator, loc) or_return
 	defer parser_destroy(parser, context.allocator)
 
@@ -49,7 +84,7 @@ request_queue :: proc(
 ) {
 	start := time.now()
 
-	send(client, "playlistid", loc = loc) or_return
+	send_const(client, "playlistid", loc) or_return
 	parser := recv_and_parse(client, allocator, loc) or_return
 	defer parser_destroy(parser, allocator)
 
@@ -92,7 +127,10 @@ request_song_picture :: proc(
 		// Because some users may prefer to store cover images as standalone
 		// files in a dir with songs rather than embedding covers into song
 		// files instead.
-		send(client, "readpicture", file, offset, loc = loc) or_return
+		cmd := cmd_begin("readpicture", context.allocator)
+		cmd_push_quoted(&cmd, string(file))
+		cmd_push_int(&cmd, offset)
+		cmd_send(client, &cmd, loc) or_return
 
 		s := recv(client, allocator) or_return
 		defer delete(s, allocator)
@@ -135,4 +173,70 @@ request_song_picture :: proc(
 	log.debugf("MPD: Received picture info in %v for %q", time.since(start), file)
 
 	return picture, false, nil
+}
+
+request_albums :: proc(
+	client: ^Client,
+	allocator := context.allocator,
+	loc := #caller_location,
+) -> (
+	albums: Album_List,
+	err: Error,
+) {
+	start := time.now()
+
+	send_const(client, "listallinfo", loc) or_return
+	parser := recv_and_parse(client, context.allocator, loc) or_return
+	defer parser_destroy(parser, context.allocator)
+
+	albums = make(Album_List, allocator)
+
+	cur_album: string
+	cur_artist: string
+	album: Album
+
+	@(static) first := true
+
+	// TODO: `parser_next_song` should not probably allocate song right away,
+	// instead it should return song with strings sliced from the parser's
+	// string and then the user of this function can decide when to clone this
+	// song into the heap.
+	for song in parser_next_song(&parser, allocator, loc) {
+		if first && len(song.file) == 0 {
+			fmt.println("-----")
+			fmt.printfln("offset: %v, %v", parser.offset, len(parser.s))
+			fmt.println("-----")
+			fmt.println(parser.s[parser.offset:])
+			fmt.println("-----")
+			fmt.println(parser.s)
+			fmt.println("-----")
+			first = false
+		}
+
+		if len(song.album) == 0 {
+			song_destroy(song)
+			continue
+		}
+
+		if song.album != cur_album || song.artist != cur_artist {
+			if album.songs != nil && len(album.songs) > 0 {
+				append(&albums, album)
+			}
+
+			album = {}
+			album.songs = make(Song_List, allocator)
+			cur_album = song.album
+			cur_artist = song.artist
+		}
+
+		append(&album.songs, song)
+	}
+
+	if album.songs != nil && len(album.songs) > 0 {
+		append(&albums, album)
+	}
+
+	log.debugf("MPD: Received album list of %v albums in %v", len(albums), time.since(start))
+
+	return albums, nil
 }

@@ -22,7 +22,12 @@ self: struct {
 }
 
 queue_ui_init :: proc() {
-	self.list.item_height = SONG_HEIGHT
+	self.list = ui.item_list_make(Song_Item, SONG_HEIGHT, context.allocator)
+}
+
+queue_ui_destroy :: proc() {
+	_queue_ui_clear_list()
+	ui.item_list_destroy(&self.list)
 }
 
 queue_ui_update :: proc(state: ^State, dt: Seconds) {
@@ -58,13 +63,14 @@ _queue_ui_play_hovered_song :: proc(state: ^State) -> bool {
 }
 
 queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
-	if state.screen != .Queue do return
+	if !screen_is_visible(state, .Queue) do return
 
 	box := ui.pad_b(ctx.box, STATUS_HEIGHT + QUEUE_STATUS_HEIGHT)
-	box.y += screen_y_offset(state)
+	box.x += screen_x_offset(state, .Queue)
 	ui.begin_box(ctx, box, GAP, self.scroll.offset)
 	self.box = ctx.box
 
+	// TODO: show "queue is empty" when needed.
 	from, to := ui.item_list_visible_range(ctx.box, &self.list)
 	for i in from ..< to {
 		if self.list.reordering == ui.Item_Index(i) do continue
@@ -80,7 +86,7 @@ queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	}
 
 	length := _queue_ui_contents_length()
-	ui.scroll_draw(ctx, &self.scroll, length, state.theme.light_gray, state.theme.gray)
+	scroll_draw(state, ctx, &self.scroll, length)
 }
 
 _queue_ui_contents_length :: proc() -> i32 {

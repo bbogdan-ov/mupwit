@@ -54,6 +54,14 @@ parser_next_line :: proc(p: ^Parser) -> (line: string, found: bool) {
 	if start <= end {
 		line = trim(p.s[start:end])
 		if line == "OK" do p.finished = true
+
+		if !p.finished && p.offset >= len(p.s) {
+			p.finished = true
+			at := max(p.offset - 32, 0)
+			log.errorf(`MPD: Parser finished without reaching "OK" at %v`, p.offset)
+			log.errorf(`MPD:     Last 32 bytes: %q`, p.s[at:])
+		}
+
 		return line, true
 	} else {
 		return "", false

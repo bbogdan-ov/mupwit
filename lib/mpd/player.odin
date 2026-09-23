@@ -147,6 +147,35 @@ song_lists_differ :: proc(a, b: Song_List) -> bool {
 	return false
 }
 
+Album :: struct {
+	songs: Song_List,
+}
+
+Album_List :: distinct [dynamic]Album
+
+album_name :: proc(album: Album) -> Album_Name #no_bounds_check {
+	assert(len(album.songs) > 0)
+	return album.songs[0].album
+}
+album_artist :: proc(album: Album) -> Album_Name #no_bounds_check {
+	assert(len(album.songs) > 0)
+	return album.songs[0].artist
+}
+album_first_song :: proc(album: Album) -> ^Song #no_bounds_check {
+	assert(len(album.songs) > 0)
+	return &album.songs[0]
+}
+
+album_destroy :: proc(album: ^Album) {
+	song_list_destroy(&album.songs)
+	album.songs = nil
+}
+
+album_list_destroy :: proc(list: Album_List) {
+	for &album in list do album_destroy(&album)
+	delete(list)
+}
+
 Picture :: struct {
 	data_size: int `size`,
 	mimetype:  string `type`,

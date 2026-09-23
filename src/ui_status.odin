@@ -19,23 +19,31 @@ Status_Time_Mode :: enum {
 
 @(private = "file")
 self: struct {
-	button_play:       ui.Button,
-	slider:            ui.Slider,
-	tween:             ui.Tween(f32),
-	reveal:            f32,
-	time_mode:         Status_Time_Mode,
-	queue_status_rect: Rect,
+	button_play:  ui.Button,
+	slider:       ui.Slider,
+	tween:        ui.Tween(f32),
+	queue_tween:  ui.Tween(f32),
+	reveal:       f32,
+	queue_reveal: f32,
+	time_mode:    Status_Time_Mode,
+	queue_rect:   Rect,
 }
 
 status_ui_update :: proc(state: ^State, dt: Seconds) {
 	ui.tween_update(&self.tween, dt)
+	ui.tween_update(&self.queue_tween, dt)
 
 	if state.screen == .Player {
 		_status_ui_set_reveal(0)
 		return
 	}
-
 	_status_ui_set_reveal(1)
+
+	if state.screen == .Queue {
+		_status_ui_set_queue_reveal(1)
+	} else {
+		_status_ui_set_queue_reveal(0)
+	}
 
 	player := &state.player
 
@@ -47,7 +55,7 @@ status_ui_update :: proc(state: ^State, dt: Seconds) {
 		player_seek_percent(player, self.slider.progress)
 	}
 
-	if ui.is_pointer_inside(self.queue_status_rect) {
+	if self.queue_reveal == 1 && ui.is_pointer_inside(self.queue_rect) {
 		ui.set_cursor(.Pointer)
 
 		if ui.is_clicked(.Left) {
@@ -59,9 +67,11 @@ status_ui_update :: proc(state: ^State, dt: Seconds) {
 }
 
 status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
-	p := ui.tween_ease(&self.tween, self.reveal, .Cubic_Out)
-	offset := i32(STATUS_HEIGHT * (1 - p))
-	if offset >= STATUS_HEIGHT do return
+	MAX_OFFSET :: STATUS_HEIGHT + QUEUE_STATUS_HEIGHT
+
+	p := ui.tween_ease(&self.tween, self.reveal, .Sine_In_Out)
+	offset := i32(MAX_OFFSET * (1 - p))
+	if offset >= MAX_OFFSET do return
 
 	btn_play := &self.button_play
 
@@ -71,6 +81,8 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	rect.y += offset
 
 	{
+		p := ui.tween_ease(&self.queue_tween, self.queue_reveal, .Sine_In_Out)
+
 		r := rect
 		r.height = QUEUE_STATUS_HEIGHT
 		r.y -= r.height
@@ -128,7 +140,7 @@ _queue_status_ui_draw :: proc(state: ^State, ctx: ^ui.Context, rect: Rect) {
 	player := &state.player
 
 	_status_ui_draw_box(state, ctx, rect)
-	self.queue_status_rect = rect
+	self.queue_rect = rect
 
 	H_GAP :: GAP * 2
 
@@ -165,4 +177,9 @@ _status_ui_set_reveal :: proc(reveal: f32) {
 	if self.reveal == reveal do return
 	ui.tween_play(&self.tween, self.reveal, STATUS_REVEAL_ANIM_DURATION)
 	self.reveal = reveal
+}
+_status_ui_set_queue_reveal :: proc(reveal: f32) {
+	if self.queue_reveal == reveal do return
+	ui.tween_play(&self.queue_tween, self.queue_reveal, STATUS_REVEAL_ANIM_DURATION / 2)
+	self.queue_reveal = reveal
 }

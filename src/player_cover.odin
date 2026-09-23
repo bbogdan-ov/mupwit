@@ -17,13 +17,15 @@ Cover_Key :: distinct string
 
 Cover_Size :: enum {
 	Small = 0,
+	Medium,
 	Huge,
 }
 
 @(rodata)
 COVER_SIZE := [Cover_Size]i32 {
-	.Huge  = COVER_SIZE_HUGE,
-	.Small = COVER_SIZE_SMALL,
+	.Small  = COVER_SIZE_SMALL,
+	.Medium = COVER_SIZE_MEDIUM,
+	.Huge   = COVER_SIZE_HUGE,
 }
 
 Cover_Surface :: ^cairo.surface_t
@@ -192,7 +194,12 @@ cover_rect :: proc(size: Cover_Size, pos: Vec2) -> Rect {
 	return {pos.x, pos.y, COVER_SIZE[size], COVER_SIZE[size]}
 }
 
-cover_draw :: proc(cr: ^cairo.cairo_t, cover: Maybe(^Cover), pos: Vec2) -> Cover_Draw_Result {
+cover_draw :: proc(
+	cr: ^cairo.cairo_t,
+	cover: Maybe(^Cover),
+	pos: Vec2,
+	alpha: f64 = 1,
+) -> Cover_Draw_Result {
 	cover, has_cover := cover.?
 	if !has_cover do return .No_Cover
 
@@ -200,7 +207,7 @@ cover_draw :: proc(cr: ^cairo.cairo_t, cover: Maybe(^Cover), pos: Vec2) -> Cover
 	if !has_surface do return .No_Surface
 
 	cairo.set_source_surface(cr, surface, f64(pos.x), f64(pos.y))
-	cairo.paint(cr)
+	cairo.paint_with_alpha(cr, alpha)
 
 	return .Drawn
 }

@@ -68,13 +68,13 @@ _player_ui_update_cover_handling :: proc(state: ^State, dt: Seconds) {
 }
 
 player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
-	if state.screen != .Player do return
+	if !screen_is_visible(state, .Player) do return
 
 	player := &state.player
 	song, has_song := player_cur_song(player)
 
 	box := ctx.box
-	box.y += screen_y_offset(state)
+	box.x += screen_x_offset(state, .Player)
 	ui.begin_box(ctx, box, PLAYER_PADDING)
 
 	offset: Vec2
@@ -100,11 +100,12 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 
 		progress := ui.tween_ease(&self.cover_tween, 1, easing)
 		vw := f32(ui.state.view.width)
-		{
+		if progress < 1 {
 			r := rect
 			r.x -= i32(vw * progress) * dir
 			_player_ui_draw_cover(state, ctx, self.prev_cover, r)
 		}
+
 		{
 			r := rect
 			r.x += i32(vw * (1 - progress)) * dir
@@ -169,6 +170,7 @@ _player_ui_draw_cover :: proc(state: ^State, ctx: ^ui.Context, cover: Maybe(^Cov
 	case .No_Cover:
 		return
 	case .No_Surface:
+		// TODO!: draw a proper placeholder.
 		ui.draw_rect(ctx, rect, state.theme.gray)
 	}
 
@@ -293,6 +295,7 @@ TEST_COVERS :: false
 TEST_CUR_FILE: int = 0
 TEST_FILES := [?][2]string {
 	{`Telepathic Onset`, `Alec Normal/Telepathic Onset/001 One Floor Down.mp3`},
+	{`Knives Out`, `Radiohead/Knives Out/001 Cuttooth.mp3`},
 	{`Amnesiac`, `Radiohead/Amnesiac/009 Hunting Bears.mp3`},
 	{`In Rainbows`, `Radiohead/In Rainbows/004 Weird Fishes ___ Arpeggi.mp3`},
 	{

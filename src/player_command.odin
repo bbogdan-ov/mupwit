@@ -14,6 +14,7 @@ import "lib:ui"
 
 Command_Request_Status :: struct {}
 Command_Request_Queue :: struct {}
+Command_Request_Albums :: struct {}
 
 Command_Request_Cover :: struct {
 	key:       Cover_Key,
@@ -43,6 +44,7 @@ Command_Disconnect :: struct {}
 Command :: union #no_nil {
 	Command_Request_Status,
 	Command_Request_Queue,
+	Command_Request_Albums,
 	Command_Request_Cover,
 	Command_Play,
 	Command_Next,
@@ -132,6 +134,9 @@ player_request_status :: proc(player: ^Player) {
 player_request_queue :: proc(player: ^Player) {
 	_command_send(player._shared.commands, Command_Request_Queue{})
 }
+player_request_albums :: proc(player: ^Player) {
+	_command_send(player._shared.commands, Command_Request_Albums{})
+}
 
 player_request_cover :: proc(
 	player: ^Player,
@@ -168,6 +173,11 @@ _player_handle_command :: proc(
 		queue := mpd.request_queue(client, shared.allocator) or_return
 		status := mpd.request_status(client) or_return
 		_response_send(shared.responses, Response_Queue{queue, status})
+		return nil
+
+	case Command_Request_Albums:
+		albums := mpd.request_albums(client, shared.allocator) or_return
+		_response_send(shared.responses, albums)
 		return nil
 
 	case Command_Request_Cover:

@@ -26,6 +26,23 @@ Item_Reorder :: struct {
 	from, to: Item_Index,
 }
 
+item_list_make :: proc(
+	$T: typeid,
+	item_height: i32,
+	allocator := context.allocator,
+) -> (
+	list: Item_List(T),
+) {
+	list.items = make([dynamic]T, allocator)
+	list.item_height = item_height
+	return
+}
+
+item_list_destroy :: proc(list: ^Item_List($T)) {
+	delete(list.items)
+	list.items = nil
+}
+
 item_list_update :: proc(box: Box, list: ^Item_List($T), dt: Seconds) {
 	UPDATE_SCROLLOFF :: 8
 
