@@ -240,6 +240,11 @@ _player_handle_commands :: proc(
 ) -> (
 	should_exit: bool,
 ) {
+	// TODO!!: handle only one `Command_Request_Cover` per client loop step.
+	// Currently all commands are handled in order in one step, including
+	// `Command_Request_Cover`, multiple cover requests in a row may block the
+	// client loop for some time due to picture data receiving is done in this
+	// thread too.
 	for command in chan.try_recv(shared.commands) {
 		_, should_exit = command.(Command_Disconnect)
 		if should_exit do return
