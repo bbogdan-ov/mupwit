@@ -146,12 +146,13 @@ cover_get_or_request :: proc(
 			return cover
 		}
 	} else {
-		player._covers_cache[temp_key] = {
-			key       = cover_key_clone(temp_key, player.allocator),
+		key := cover_key_clone(temp_key, player.allocator)
+		player._covers_cache[key] = {
+			key       = key,
 			covers    = {},
 			allocator = player.allocator,
 		}
-		slot = &player._covers_cache[temp_key]
+		slot = &player._covers_cache[key]
 	}
 
 	c := Cover {
