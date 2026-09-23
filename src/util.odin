@@ -1,5 +1,6 @@
 package mupwit
 
+import "base:intrinsics"
 import "base:runtime"
 import "core:fmt"
 import "core:log"
@@ -8,6 +9,7 @@ import "core:os"
 import "core:slice"
 import "core:sync"
 import "core:time"
+import "lib:ui"
 
 // ------------------------------
 // Sync.
@@ -27,6 +29,15 @@ mutex_unlock :: proc(mutex: ^Mutex($T)) {
 }
 
 // ------------------------------
+// Values.
+// ------------------------------
+
+enum_rotate_variant :: proc(v: $T, diff: int) -> T where intrinsics.type_is_enum(T) {
+	v := int(v) + diff
+	return T(ui.wrap(v, len(T)))
+}
+
+// ------------------------------
 // Misc.
 // ------------------------------
 
@@ -37,33 +48,33 @@ make_tracking_allocator :: proc(allocator := context.allocator) -> mem.Tracking_
 }
 
 tracking_allocator_report_and_destroy :: proc(track: ^mem.Tracking_Allocator) {
-	if len(track.allocation_map) > 0 {
-		fmt.println("------------------------------")
-		for _, leak in track.allocation_map {
-			fmt.printfln(
-				"%v LEAK (%v): %v bytes at %p",
-				leak.location,
-				leak.mode,
-				leak.size,
-				leak.memory,
-			)
+	defer mem.tracking_allocator_destroy(track)
 
-			MAX_LEN :: 32
-			array := slice.bytes_from_ptr(leak.memory, leak.size)
-			cut := 0
-			if len(array) >= MAX_LEN {
-				cut = len(array) - MAX_LEN
-				array = array[:MAX_LEN]
-			}
+	if len(track.allocation_map) == 0 do return
 
-			fmt.printf("    Data: %q, %v", array, array)
-			if cut > 0 do fmt.printf(" (%v more bytes)", cut)
+	fmt.println("------------------------------")
+	for _, leak in track.allocation_map {
+		fmt.printfln(
+			"%v LEAK (%v): %v bytes at %p",
+			leak.location,
+			leak.mode,
+			leak.size,
+			leak.memory,
+		)
 
-			fmt.print("\n\n")
+		MAX_LEN :: 32
+		array := slice.bytes_from_ptr(leak.memory, leak.size)
+		cut := 0
+		if len(array) >= MAX_LEN {
+			cut = len(array) - MAX_LEN
+			array = array[:MAX_LEN]
 		}
-	}
 
-	mem.tracking_allocator_destroy(track)
+		fmt.printf("    Data: %q, %v", array, array)
+		if cut > 0 do fmt.printf(" (%v more bytes)", cut)
+
+		fmt.print("\n\n")
+	}
 }
 
 make_default_context :: proc "contextless" () -> runtime.Context {

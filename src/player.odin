@@ -41,6 +41,10 @@ Player :: struct {
 	elapsed, duration:        Seconds,
 	cur_song:                 Maybe(mpd.Song_Index),
 	queue:                    mpd.Song_List,
+	queue_duration:           Seconds,
+	// Time elapsed within the queue (sum of durations of songs before the
+	// current one), does not account for the current song.
+	queue_elapsed:            Seconds,
 	// In which direction current song was skipped.
 	switch_direction:         Switch_Direction,
 
@@ -154,6 +158,12 @@ _player_set_status :: proc(player: ^Player, status: mpd.Status) {
 		player.switch_direction = .Previous
 	} else if !has_prev && has_cur {
 		player.switch_direction = .None
+	} else if has_prev && !has_cur {
+		player.switch_direction = .Next
+	}
+
+	if cur != prev {
+		_player_queue_calc_elapsed(player)
 	}
 
 	if prev_song != player.cur_song {
@@ -175,7 +185,27 @@ _player_set_queue :: proc(player: ^Player, queue: mpd.Song_List) {
 	mpd.song_list_destroy(&player.queue)
 	player.queue = queue
 
+	_player_queue_calc_duration(player)
+
 	on_queue_updated()
+}
+
+_player_queue_calc_duration :: proc(player: ^Player) {
+	player.queue_duration = 0
+	for song in player.queue {
+		player.queue_duration += Seconds(song.duration)
+	}
+}
+
+_player_queue_calc_elapsed :: proc(player: ^Player) {
+	cur, ok := player.cur_song.?
+	if !ok do return
+
+	player.queue_elapsed = 0
+	for song, i in player.queue {
+		if i >= int(cur) do break
+		player.queue_elapsed += Seconds(song.duration)
+	}
 }
 
 _do_connect :: proc(t: ^thread.Thread) {

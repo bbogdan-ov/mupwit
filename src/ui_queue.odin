@@ -62,7 +62,7 @@ _queue_ui_play_hovered_song :: proc(state: ^State) -> bool {
 queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if state.screen != .Queue do return
 
-	box := ui.pad_b(ctx.box, STATUS_HEIGHT)
+	box := ui.pad_b(ctx.box, STATUS_HEIGHT + QUEUE_STATUS_HEIGHT)
 	box.y += screen_y_offset(state)
 	ui.begin_box(ctx, box, GAP, self.scroll.offset)
 	self.box = ctx.box

@@ -91,7 +91,7 @@ draw :: proc(ctx: ^ui.Context) {
 	cairo.paint(ctx)
 
 	// TEMPORARY: for now all text fonts will be the same.
-	ui.set_font(ctx, state.font_kapli, 16)
+	ui.set_font(ctx, state.font_kapli, FONT_SIZE)
 
 	player_ui_draw(&state, ctx)
 	queue_ui_draw(&state, ctx)
@@ -121,9 +121,9 @@ on_keyboard_key :: proc(key: win.Key, key_state: win.Key_State, mods: win.Mods) 
 
 	switch {
 	case key == .Tab:
-		v := int(state.screen)
-		v += -1 if shift else +1
-		set_screen(&state, Screen(ui.wrap(v, len(Screen))))
+		diff := -1 if shift else +1
+		screen := enum_rotate_variant(state.screen, diff)
+		set_screen(&state, screen)
 	}
 
 	player_ui_on_keyboard_key(&state, key, mods)

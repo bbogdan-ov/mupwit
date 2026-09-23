@@ -1,3 +1,5 @@
+#+vet explicit-allocators
+
 package mpd
 
 import "base:intrinsics"
@@ -135,7 +137,7 @@ parser_next_song :: proc(
 		_parse_struct_field_from_pair(song, pair, song.allocator, loc)
 	}
 
-	song.duration_str = format_seconds(song.duration, song.allocator)
+	song.duration_str = fmt.aprint(song.duration, allocator = song.allocator)
 
 	return song, true
 }

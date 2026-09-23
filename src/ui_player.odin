@@ -99,6 +99,7 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		offset.y += rect.height
 	}
 
+	// Draw song info.
 	if has_song {
 		offset.y += GAP * 3
 
@@ -161,8 +162,8 @@ _player_ui_draw_cover :: proc(ctx: ^ui.Context, cover: Maybe(^Cover), rect: Rect
 _player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context) -> (height: i32) {
 	player := &state.player
 
-	elapsed_str := mpd.format_seconds(mpd.Seconds(player.elapsed), context.temp_allocator)
-	duration_str := mpd.format_seconds(mpd.Seconds(player.duration), context.temp_allocator)
+	elapsed_str := fmt.tprint(mpd.Seconds(player.elapsed))
+	duration_str := fmt.tprint(mpd.Seconds(player.duration))
 
 	rect := ctx.box.rect
 	rect.y += height

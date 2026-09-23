@@ -10,6 +10,8 @@ import "lib:ui"
 // Base gap or padding between UI elements.
 GAP :: 8
 
+FONT_SIZE :: 16
+
 ICON_BUTTON_SIZE :: 32
 
 SONG_COVER_SIZE :: 32
@@ -27,6 +29,7 @@ PLAYER_COVER_ANIM_DURATION :: Seconds(0.5)
 
 STATUS_HEIGHT :: ICON_BUTTON_SIZE + GAP * 2
 STATUS_REVEAL_ANIM_DURATION :: Seconds(0.2)
+QUEUE_STATUS_HEIGHT :: FONT_SIZE + GAP
 
 SCREEN_ANIM_DURATION :: Seconds(0.2)
 

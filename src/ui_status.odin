@@ -6,15 +6,25 @@
 package mupwit
 
 import "core:fmt"
+import "lib:cairo"
+import "lib:mpd"
 
 import "lib:ui"
 
+Status_Time_Mode :: enum {
+	Time_Left = 0,
+	Elapsed,
+	Elapsed_Duration,
+}
+
 @(private = "file")
 self: struct {
-	button_play: ui.Button,
-	slider:      ui.Slider,
-	tween:       ui.Tween(f32),
-	reveal:      f32,
+	button_play:       ui.Button,
+	slider:            ui.Slider,
+	tween:             ui.Tween(f32),
+	reveal:            f32,
+	time_mode:         Status_Time_Mode,
+	queue_status_rect: Rect,
 }
 
 status_ui_update :: proc(state: ^State, dt: Seconds) {
@@ -36,6 +46,16 @@ status_ui_update :: proc(state: ^State, dt: Seconds) {
 	if ui.slider_update(&self.slider) {
 		player_seek_percent(player, self.slider.progress)
 	}
+
+	if ui.is_pointer_inside(self.queue_status_rect) {
+		ui.set_cursor(.Pointer)
+
+		if ui.is_clicked(.Left) {
+			self.time_mode = enum_rotate_variant(self.time_mode, 1)
+		} else if ui.is_clicked(.Right) {
+			self.time_mode = enum_rotate_variant(self.time_mode, -1)
+		}
+	}
 }
 
 status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
@@ -50,8 +70,15 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	rect.y = ui.state.view.height - rect.height
 	rect.y += offset
 
-	ui.draw_rect(ctx, rect, BACKGROUND)
-	ui.draw_line_h(ctx, rect, GRAY)
+	{
+		r := rect
+		r.height = QUEUE_STATUS_HEIGHT
+		r.y -= r.height
+		r.y += i32(f32(r.height) * (1 - p))
+		_queue_status_ui_draw(state, ctx, r)
+	}
+
+	_status_ui_draw_box(ctx, rect)
 
 	ui.begin_box(ctx, rect, GAP)
 
@@ -86,6 +113,43 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 			ui.slider_draw(ctx, &self.slider, progress, rect, BLACK, GRAY, thumb = false)
 		}
 	}
+}
+
+_queue_status_ui_draw :: proc(state: ^State, ctx: ^ui.Context, rect: Rect) {
+	player := &state.player
+
+	_status_ui_draw_box(ctx, rect)
+	self.queue_status_rect = rect
+
+	H_GAP :: GAP * 2
+
+	count_str := fmt.tprint("♪", len(player.queue))
+
+	pos := rect_pos(rect)
+	pos.y += ctx.font_height + rect.height / 2 - ctx.font_height / 2
+	pos.x += H_GAP
+	ui.draw_text(ctx, count_str, pos, GRAY)
+
+	time_str: string
+	elapsed := player.queue_elapsed + player.elapsed
+
+	switch self.time_mode {
+	case .Time_Left:
+		left := elapsed - player.queue_duration
+		time_str = fmt.tprint(mpd.Seconds(left))
+	case .Elapsed:
+		time_str = fmt.tprint(mpd.Seconds(elapsed))
+	case .Elapsed_Duration:
+		time_str = fmt.tprint(mpd.Seconds(elapsed), '/', mpd.Seconds(player.queue_duration))
+	}
+
+	pos.x = rect.x + rect.width - H_GAP
+	ui.draw_text(ctx, time_str, pos, GRAY, align = .End)
+}
+
+_status_ui_draw_box :: proc(cr: ^cairo.cairo_t, rect: Rect) {
+	ui.draw_rect(cr, rect, BACKGROUND)
+	ui.draw_line_h(cr, rect, GRAY)
 }
 
 _status_ui_set_reveal :: proc(reveal: f32) {

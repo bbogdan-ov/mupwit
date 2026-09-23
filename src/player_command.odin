@@ -116,6 +116,8 @@ player_reorder_song :: proc(player: ^Player, from, to: mpd.Song_Index) {
 		player.cur_song = ui.shifted_index(cur_song, from, to)
 	}
 
+	_player_queue_calc_elapsed(player)
+
 	on_song_reordered(from, to)
 	_command_send(player._shared.commands, Command_Reorder_Song{from, to})
 }

@@ -7,6 +7,8 @@ package mpd
 
 import "base:intrinsics"
 import "base:runtime"
+import "core:fmt"
+import "core:io"
 
 // Unique song ID within queue.
 // This ID is only used within a queue, therefore it is only assigned after
@@ -112,25 +114,25 @@ Song :: struct {
 
 Song_List :: distinct [dynamic]Song
 
-song_destroy :: proc(song: Song, loc := #caller_location) {
-	delete(string(song.file), song.allocator, loc)
-	delete(song.artist, song.allocator, loc)
-	delete(song.title, song.allocator, loc)
-	delete(song.album, song.allocator, loc)
-	delete(song.date, song.allocator, loc)
-	delete(song.genre, song.allocator, loc)
-	delete(song.duration_str, song.allocator, loc)
+song_destroy :: proc(song: Song) {
+	delete(string(song.file), song.allocator)
+	delete(song.artist, song.allocator)
+	delete(song.title, song.allocator)
+	delete(song.album, song.allocator)
+	delete(song.date, song.allocator)
+	delete(song.genre, song.allocator)
+	delete(song.duration_str, song.allocator)
 }
 
 // Destroy all songs inside a list and `clear()` it.
-song_list_clear :: proc(list: ^Song_List, loc := #caller_location) {
-	for song in list do song_destroy(song, loc)
+song_list_clear :: proc(list: ^Song_List) {
+	for song in list do song_destroy(song)
 	clear(list)
 }
 
-song_list_destroy :: proc(list: ^Song_List, loc := #caller_location) {
-	song_list_clear(list, loc)
-	delete(list^, loc)
+song_list_destroy :: proc(list: ^Song_List) {
+	song_list_clear(list)
+	delete(list^)
 }
 
 song_lists_differ :: proc(a, b: Song_List) -> bool {
@@ -155,4 +157,35 @@ Picture :: struct {
 picture_destroy :: proc(picture: Picture) {
 	delete(picture.data, picture.allocator)
 	delete(picture.mimetype, picture.allocator)
+}
+
+@(init, private)
+_init_seconds_formatter :: proc "contextless" () {
+	context = runtime.default_context()
+
+	formatter :: proc(fi: ^fmt.Info, arg: any, verb: rune) -> bool {
+		secs := arg.(Seconds) or_return
+
+		neg := secs < 0
+		d := abs(int(secs))
+		if neg do io.write_byte(fi.writer, '-')
+		if d < 60 {
+			fmt.wprintf(fi.writer, "00:%02d", d)
+		} else if d < 60 * 60 {
+			fmt.wprintf(fi.writer, "%02d:%02d", d / 60, d % 60)
+		} else {
+			hours := d / 60 / 60
+			mins := d / 60 % 60
+			secs := d % 60
+			fmt.wprintf(fi.writer, "%02d:%02d:%02d", hours, mins, secs)
+		}
+		return true
+	}
+
+	if fmt._user_formatters == nil {
+		@(static) formatters: map[typeid]fmt.User_Formatter
+		formatters = make(map[typeid]fmt.User_Formatter, context.allocator)
+		fmt.set_user_formatters(&formatters)
+	}
+	fmt.register_user_formatter(Seconds, formatter)
 }
