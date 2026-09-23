@@ -13,6 +13,7 @@ Response_Cover :: struct #all_or_none {
 	key:       Cover_Key,
 	size:      Cover_Size,
 	surface:   Maybe(Cover_Surface),
+	color:     Color,
 	allocator: runtime.Allocator,
 }
 

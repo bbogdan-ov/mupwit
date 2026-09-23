@@ -2,8 +2,10 @@
 
 package mupwit
 
+import "core:math/linalg"
 import "core:thread"
 import "core:time"
+import "lib:ui"
 import "vendor:stb/image"
 
 import "lib:cairo"
@@ -65,10 +67,16 @@ _do_decode_cover :: proc(task: thread.Task) {
 	image.image_free(pixels)
 	resize_time := time.since(resize_start)
 
+	color: Color
+	if data.size > .Small {
+		color = _calc_surface_accent_color(surface)
+	}
+
 	res := Response_Cover {
 		key       = data.key, // already cloned with `task.allocator`.
 		size      = data.size,
 		surface   = surface,
+		color     = color,
 		allocator = task.allocator,
 	}
 	_response_send(data.responses, res)
@@ -131,4 +139,82 @@ _create_cover_surface :: proc(pixels: [^]u8, size, wanted_size: Vec2) -> ^cairo.
 	cairo.paint(cr)
 
 	return surface
+}
+
+_calc_surface_accent_color :: proc(surface: ^cairo.surface_t) -> Color {
+	assert(surface != nil)
+
+	format := cairo.image_surface_get_format(surface)
+	assert(format == .ARGB32)
+	p := cairo.image_surface_get_data(surface)
+	width := int(cairo.image_surface_get_width(surface))
+	height := int(cairo.image_surface_get_height(surface))
+	pixel_count := width * height * COVER_CHANNELS
+
+	final: [4]f64
+	final.a = 1
+	total_factor: f64
+
+	edge_h := f64(width) * 0.1
+	edge_v := f64(height) * 0.1
+	left, top := edge_h, edge_v
+	right, bottom := f64(width) - edge_h, f64(height) - edge_v
+
+	for i := 0; i < pixel_count; i += COVER_CHANNELS {
+		rgb: [3]f64
+		rgb.r = f64(p[i + 2]) / 255
+		rgb.g = f64(p[i + 1]) / 255
+		rgb.b = f64(p[i + 0]) / 255
+		x, y := f64(i % width), f64(i / width)
+
+		lum := rgb.r * 0.299 + rgb.g * 0.587 + rgb.b * 0.114
+		factor := lum
+
+		// Bright pixels near the edges affect the final color more.
+		add: f64
+			// odinfmt:disable
+		switch {
+		case x < left:   add = (left - x) / edge_h
+		case x > right:  add = (x - right) / edge_h
+		case y < top:    add = (top - y) / edge_v
+		case y > bottom: add = (y - bottom) / edge_v
+		}
+		// odinfmt:enable
+		factor += add * lum * 0.25
+
+		factor = min(factor, 1)
+		final.rgb += rgb * factor
+		total_factor += factor
+	}
+
+	if total_factor <= 10.0 {
+		return {}
+	}
+
+	final /= total_factor
+
+	hsl := linalg.vector4_rgb_to_hsl(final)
+	hue, sat, light := hsl[0], hsl[1], hsl[2]
+
+	if light < 0.7 {
+		// Dark becomes lighter.
+		light += (1.0 - light) * 0.4
+	}
+	if sat > 0.7 {
+		// Too saturated becomes less saturated and more lighter.
+		sat *= 0.8
+		light += sat * 0.25
+	}
+	light += (1.0 - light) * 0.2 // Final dark becomes lighter.
+	sat = clamp(sat, 0, 1)
+	light = clamp(light, 0, 1)
+
+	if light < 0.5 {
+		// Color is still too dark.
+		return {}
+	}
+
+	final = linalg.vector4_hsl_to_rgb(hue, sat, light, 1)
+	color := ui.color_from_f64(final)
+	return color
 }

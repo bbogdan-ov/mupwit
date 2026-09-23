@@ -193,6 +193,7 @@ _player_handle_command :: proc(
 				key       = cover_key_clone(cmd.key, shared.allocator),
 				size      = cmd.size,
 				surface   = nil,
+				color     = {},
 				allocator = shared.allocator,
 			}
 			_response_send(shared.responses, res)

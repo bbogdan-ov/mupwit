@@ -2,6 +2,7 @@ package ui
 
 import "base:intrinsics"
 import "core:math"
+import "core:math/linalg"
 import "core:strings"
 
 Seconds :: f32
@@ -102,6 +103,15 @@ color_hex :: proc(hex: u32) -> Color {
 	return c
 }
 
+color_from_f64 :: proc(rgba: [4]f64) -> Color {
+	c: Color
+	c.r = u8(rgba.r * 255)
+	c.g = u8(rgba.g * 255)
+	c.b = u8(rgba.b * 255)
+	c.a = u8(rgba.a * 255)
+	return c
+}
+
 color_to_f64 :: proc(color: Color) -> [4]f64 {
 	f: [4]f64
 	f.r = f64(color.r) / 255
@@ -109,6 +119,34 @@ color_to_f64 :: proc(color: Color) -> [4]f64 {
 	f.b = f64(color.b) / 255
 	f.a = f64(color.a) / 255
 	return f
+}
+
+color_lerp :: proc(from, to: Color, t: f32) -> Color {
+	rgba: [4]f32
+	rgba.r = math.lerp(f32(from.r), f32(to.r), t)
+	rgba.g = math.lerp(f32(from.g), f32(to.g), t)
+	rgba.b = math.lerp(f32(from.b), f32(to.b), t)
+	rgba.a = 255
+	return cast(Color)rgba
+}
+
+color_to_hsl :: proc(color: Color) -> (h, s, l, a: f64) {
+	rgb := color_to_f64(color)
+	hsl := linalg.vector4_rgb_to_hsl(rgb)
+	return hsl[0], hsl[1], hsl[2], hsl[3]
+}
+
+color_from_hsl :: proc(h, s, l: f64, a: f64 = 1) -> Color {
+	h := math.wrap(h, 1)
+	s := clamp(s, 0, 1)
+	l := clamp(l, 0, 1)
+	rgb := linalg.vector4_hsl_to_rgb(h, s, l, a)
+	return color_from_f64(rgb)
+}
+
+color_hsl_shift :: proc(color: Color, h, s, l: f64) -> Color {
+	hh, ss, ll, a := color_to_hsl(color)
+	return color_from_hsl(hh + h, ss + s, ll + l, a)
 }
 
 // ------------------------------

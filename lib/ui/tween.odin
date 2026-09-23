@@ -39,9 +39,21 @@ tween_progress :: proc(t: ^Tween($T)) -> f32 {
 // TODO: replace with para-poly function that accepts an easing function when
 // this get fixed:
 //     https://github.com/odin-lang/Odin/issues/5977
-tween_ease :: proc(t: ^Tween($T), to: T, kind: ease.Ease) -> T {
+tween_ease_any :: proc(t: ^Tween($T), to: T, kind: ease.Ease) -> T where T != Color {
 	p := tween_progress(t)
 	if p <= 0.0 do return t.from
 	if p >= 1.0 do return to
 	return math.lerp(t.from, to, ease.ease(kind, p))
+}
+
+tween_ease_color :: proc(t: ^Tween(Color), to: Color, kind: ease.Ease) -> Color {
+	p := tween_progress(t)
+	if p <= 0.0 do return t.from
+	if p >= 1.0 do return to
+	return color_lerp(t.from, to, ease.ease(kind, p))
+}
+
+tween_ease :: proc {
+	tween_ease_any,
+	tween_ease_color,
 }

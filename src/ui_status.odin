@@ -78,13 +78,13 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		_queue_status_ui_draw(state, ctx, r)
 	}
 
-	_status_ui_draw_box(ctx, rect)
+	_status_ui_draw_box(state, ctx, rect)
 
 	ui.begin_box(ctx, rect, GAP)
 
 	// Draw play button.
 	icon := icon_from_playstate(state.player.playstate)
-	draw_icon_button(state, ctx, btn_play, icon, rect_pos(ctx.box), BLACK)
+	draw_icon_button(state, ctx, btn_play, icon, rect_pos(ctx.box), state.theme.black)
 
 	{
 		box := ui.pad_l(ctx.box, btn_play.rect.width + GAP)
@@ -99,8 +99,8 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		song, has_song := player_cur_song(&state.player)
 		if has_song {
 			pos := rect_pos(ctx.box) + offset
-			pos.x += ui.draw_text(ctx, song.title, pos, BLACK).x
-			pos.x += ui.draw_text(ctx, fmt.tprint(" -", song.artist), pos, GRAY).x
+			pos.x += ui.draw_text(ctx, song.title, pos, state.theme.black).x
+			pos.x += ui.draw_text(ctx, fmt.tprint(" -", song.artist), pos, state.theme.gray).x
 		}
 
 		// Draw slider.
@@ -110,7 +110,16 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 			rect.y += offset.y + ctx.font_height
 
 			progress := player_progress(&state.player)
-			ui.slider_draw(ctx, &self.slider, progress, rect, BLACK, GRAY, thumb = false)
+			gray := state.theme.gray
+			ui.slider_draw(
+				ctx,
+				&self.slider,
+				progress,
+				rect,
+				state.theme.black,
+				gray,
+				thumb = false,
+			)
 		}
 	}
 }
@@ -118,7 +127,7 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 _queue_status_ui_draw :: proc(state: ^State, ctx: ^ui.Context, rect: Rect) {
 	player := &state.player
 
-	_status_ui_draw_box(ctx, rect)
+	_status_ui_draw_box(state, ctx, rect)
 	self.queue_status_rect = rect
 
 	H_GAP :: GAP * 2
@@ -128,7 +137,7 @@ _queue_status_ui_draw :: proc(state: ^State, ctx: ^ui.Context, rect: Rect) {
 	pos := rect_pos(rect)
 	pos.y += ctx.font_height + rect.height / 2 - ctx.font_height / 2
 	pos.x += H_GAP
-	ui.draw_text(ctx, count_str, pos, GRAY)
+	ui.draw_text(ctx, count_str, pos, state.theme.gray)
 
 	time_str: string
 	elapsed := player.queue_elapsed + player.elapsed
@@ -144,12 +153,12 @@ _queue_status_ui_draw :: proc(state: ^State, ctx: ^ui.Context, rect: Rect) {
 	}
 
 	pos.x = rect.x + rect.width - H_GAP
-	ui.draw_text(ctx, time_str, pos, GRAY, align = .End)
+	ui.draw_text(ctx, time_str, pos, state.theme.gray, align = .End)
 }
 
-_status_ui_draw_box :: proc(cr: ^cairo.cairo_t, rect: Rect) {
-	ui.draw_rect(cr, rect, BACKGROUND)
-	ui.draw_line_h(cr, rect, GRAY)
+_status_ui_draw_box :: proc(state: ^State, cr: ^cairo.cairo_t, rect: Rect) {
+	ui.draw_rect(cr, rect, state.theme.background)
+	ui.draw_line_h(cr, rect, state.theme.gray)
 }
 
 _status_ui_set_reveal :: proc(reveal: f32) {

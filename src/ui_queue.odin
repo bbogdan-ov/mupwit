@@ -74,7 +74,7 @@ queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	}
 
 	length := _queue_ui_contents_length()
-	ui.scroll_draw(ctx, &self.scroll, length, LIGHT_GRAY, GRAY)
+	ui.scroll_draw(ctx, &self.scroll, length, state.theme.light_gray, state.theme.gray)
 }
 
 _queue_ui_contents_length :: proc() -> i32 {
@@ -147,14 +147,14 @@ song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item) {
 	rect := ui.item_rect(ctx.box, pos, self.list.item_height)
 
 	if item.is_hovering {
-		ui.draw_box_rounded(ctx, rect, LIGHT_GRAY, filled = true)
+		ui.draw_box_rounded(ctx, rect, state.theme.light_gray, filled = true)
 	}
 
 	// Draw "current marker".
 	if item.song_index == state.player.cur_song {
 		pos := rect_pos(rect) - ICON_SIZE / 2
 		pos.y += rect.height / 2
-		draw_icon(state, ctx, .Small_Arrow_Right, pos, BLACK)
+		draw_icon(state, ctx, .Small_Arrow_Right, pos, state.theme.black)
 	}
 
 	ui.begin_box(ctx, rect, GAP)
@@ -172,10 +172,10 @@ song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item) {
 
 		res := cover_draw(ctx, item.cover, rect_pos(rect))
 		if res != .Drawn {
-			draw_icon(state, ctx, .Disk, icon_center_inside(rect), BLACK)
+			draw_icon(state, ctx, .Disk, icon_center_inside(rect), state.theme.black)
 		}
 
-		ui.draw_box(ctx, ui.pad(rect, -1), BLACK)
+		ui.draw_box(ctx, ui.pad(rect, -1), state.theme.black)
 	}
 
 	// Draw song duration.
@@ -185,7 +185,7 @@ song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item) {
 		pos.x += ctx.box.width
 		pos.y += ctx.box.height / 2 + ctx.font_height / 2
 
-		adv := ui.draw_text(ctx, song.duration_str, pos, GRAY, align = .End)
+		adv := ui.draw_text(ctx, song.duration_str, pos, state.theme.gray, align = .End)
 		duration_advance = adv.x
 	}
 
@@ -200,8 +200,8 @@ song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item) {
 		pos.y += ctx.font_height - 1
 		pos.y += ctx.box.height / 2 - (ctx.font_height * 2 + GAP / 2) / 2
 
-		ui.draw_text(ctx, song.title, pos, BLACK)
+		ui.draw_text(ctx, song.title, pos, state.theme.black)
 		pos.y += ctx.font_height + GAP / 2
-		ui.draw_text(ctx, song.artist, pos, GRAY)
+		ui.draw_text(ctx, song.artist, pos, state.theme.gray)
 	}
 }

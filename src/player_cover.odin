@@ -8,7 +8,7 @@ import "core:strings"
 import "lib:cairo"
 import "lib:mpd"
 
-COVER_CHANNELS :: 4 // Number of channels of cover image.
+COVER_CHANNELS :: 4 // Number of channels of each pixel in a cover surface.
 
 MAX_COVER_DECODE_THREADS :: 4
 
@@ -16,8 +16,8 @@ MAX_COVER_DECODE_THREADS :: 4
 Cover_Key :: distinct string
 
 Cover_Size :: enum {
-	Huge = 0,
-	Small,
+	Small = 0,
+	Huge,
 }
 
 @(rodata)
@@ -31,6 +31,7 @@ Cover_Surface :: ^cairo.surface_t
 Cover :: struct #all_or_none {
 	allocator: runtime.Allocator,
 	surface:   Maybe(Cover_Surface),
+	color:     Color,
 	ref_count: int,
 	loading:   bool,
 }
@@ -155,6 +156,7 @@ cover_get_or_request :: proc(
 
 	c := Cover {
 		surface   = nil,
+		color     = {},
 		ref_count = 1,
 		loading   = true,
 		allocator = player.allocator,
@@ -175,6 +177,7 @@ _player_handle_response_cover :: proc(player: ^Player, res: Response_Cover) {
 	assert(has_cover) // TODO: handle error
 
 	cover.surface = res.surface
+	cover.color = res.color
 	cover.loading = false
 }
 

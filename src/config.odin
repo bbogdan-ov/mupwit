@@ -32,6 +32,7 @@ STATUS_REVEAL_ANIM_DURATION :: Seconds(0.2)
 QUEUE_STATUS_HEIGHT :: FONT_SIZE + GAP
 
 SCREEN_ANIM_DURATION :: Seconds(0.2)
+THEME_ANIM_DURATION :: PLAYER_COVER_ANIM_DURATION
 
 COVER_SCALE_FILTER :: cairo.filter_t.GOOD
 
@@ -42,10 +43,8 @@ SMALL_COVER_SIZE :: SONG_COVER_SIZE
 // Colors.
 // ------------------------------
 
-WHITE :: ui.Color{0xee, 0xee, 0xee, 0xff}
-LIGHT_GRAY :: ui.Color{0x11, 0x11, 0x11, 40}
-GRAY :: ui.Color{0x11, 0x11, 0x11, 160}
-BLACK :: ui.Color{0x11, 0x11, 0x11, 0xff}
+BOBO_WHITE :: ui.Color{0xee, 0xee, 0xee, 0xff}
+BOBO_BLACK :: ui.Color{0x11, 0x11, 0x11, 0xff}
 RED :: ui.Color{0xff, 0x00, 0x00, 0xff}
 
-BACKGROUND :: WHITE
+DEFAULT_BACKGROUND :: BOBO_WHITE

@@ -14,12 +14,22 @@ Screen :: enum {
 	Queue,
 }
 
+Theme :: struct {
+	background:         Color,
+	gray:               Color,
+	light_gray:         Color,
+	black:              Color,
+	_target_background: Color,
+	tween:              ui.Tween(Color),
+}
+
 State :: struct {
 	window:       ^win.Window,
 	player:       Player,
 	screen:       Screen,
 	prev_screen:  Screen,
 	screen_tween: ui.Tween(f32),
+	theme:        Theme,
 
 	// Assets.
 	font_kapli:   ui.Font,
@@ -48,6 +58,11 @@ main :: proc() {
 	win.set_pointer_enter_callback(state.window, _window_on_pointer_enter)
 	win.set_keyboard_key_callback(state.window, _window_on_keyboard_key)
 
+	state.theme.background = DEFAULT_BACKGROUND
+	state.theme._target_background = DEFAULT_BACKGROUND
+	state.theme.black = BOBO_BLACK
+	_adapt_theme_colors_to_bg()
+
 	ui.init()
 	assets_load(&state)
 
@@ -71,6 +86,8 @@ main :: proc() {
 update :: proc(dt: Seconds) {
 	ui.tween_update(&state.screen_tween, dt)
 
+	update_theme(dt)
+
 	player_update(&state.player, dt)
 
 	status_ui_update(&state, dt)
@@ -81,13 +98,43 @@ update :: proc(dt: Seconds) {
 	ui.update()
 }
 
+update_theme :: proc(dt: Seconds) {
+	progress := ui.tween_progress(&state.theme.tween)
+	if progress >= 1 do return
+
+	ui.tween_update(&state.theme.tween, dt)
+
+	bg: Color
+	{
+		to := state.theme._target_background
+		bg = ui.tween_ease(&state.theme.tween, to, .Sine_In_Out)
+		state.theme.background = bg
+	}
+
+	_adapt_theme_colors_to_bg()
+}
+
+_adapt_theme_colors_to_bg :: proc() {
+	bg := state.theme.background
+
+	hue, sat, light, _ := ui.color_to_hsl(bg)
+	sat *= 0.5
+	light *= 0.4
+	state.theme.gray = ui.color_from_hsl(hue, sat, light)
+
+	hue, sat, light, _ = ui.color_to_hsl(bg)
+	sat *= 0.9
+	light *= 0.9
+	state.theme.light_gray = ui.color_from_hsl(hue, sat, light)
+}
+
 draw :: proc(ctx: ^ui.Context) {
 	defer free_all(context.temp_allocator)
 
 	cairo.set_antialias(ctx, .NONE)
 
 	// Fill background.
-	ui.set_source_color(ctx, BACKGROUND)
+	ui.set_source_color(ctx, state.theme.background)
 	cairo.paint(ctx)
 
 	// TEMPORARY: for now all text fonts will be the same.
@@ -108,6 +155,18 @@ set_screen :: proc(state: ^State, screen: Screen) {
 screen_y_offset :: proc(state: ^State) -> i32 {
 	p := 1 - ui.tween_ease(&state.screen_tween, 1, .Cubic_Out)
 	return i32(128 * p)
+}
+
+set_background :: proc(state: ^State, color: Color) {
+	ui.tween_play(&state.theme.tween, state.theme.background, THEME_ANIM_DURATION)
+	state.theme._target_background = color
+}
+set_background_from_cover :: proc(state: ^State, cover: ^Cover) {
+	if cover.color.a > 0 {
+		set_background(state, cover.color)
+	} else {
+		set_background(state, BOBO_WHITE)
+	}
 }
 
 // ------------------------------
