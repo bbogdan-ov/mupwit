@@ -6,7 +6,8 @@ import "lib:ui"
 // UI.
 // ------------------------------
 
-GAP :: 8 // Base gap or padding between UI elements.
+// Base gap or padding between UI elements.
+GAP :: 8
 
 ICON_BUTTON_SIZE :: 32
 
@@ -16,25 +17,19 @@ SONG_HEIGHT :: SONG_COVER_SIZE + GAP * 2
 WINDOW_WIDTH :: 360
 WINDOW_HEIGHT :: SONG_HEIGHT * 10 + GAP * 2
 
-STATUS_HEIGHT :: ICON_BUTTON_SIZE + GAP * 2
-
 PLAYER_PADDING :: GAP * 5
-
-// ------------------------------
-// Values.
-// ------------------------------
-
-HUGE_COVER_SIZE :: WINDOW_WIDTH - PLAYER_PADDING * 2
-
-SCREEN_ANIM_DURATION :: Seconds(0.2)
-
 // Delay between update of the current song (e.g. after you press "next") and
 // requesting its cover.
 PLAYER_COVER_UPDATE_DELAY :: Seconds(0.1)
 // Cover transition duration.
 PLAYER_COVER_ANIM_DURATION :: Seconds(0.5)
 
+STATUS_HEIGHT :: ICON_BUTTON_SIZE + GAP * 2
 STATUS_REVEAL_ANIM_DURATION :: Seconds(0.2)
+
+SCREEN_ANIM_DURATION :: Seconds(0.2)
+
+HUGE_COVER_SIZE :: WINDOW_WIDTH - PLAYER_PADDING * 2
 
 // ------------------------------
 // Colors.
