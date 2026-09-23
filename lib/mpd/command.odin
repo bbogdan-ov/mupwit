@@ -87,6 +87,11 @@ request_song_picture :: proc(
 	offset: int
 
 	for {
+		// TODO: may be i should first try to request a cover image using
+		// `albumart` and if it fails use `readpicture`?
+		// Because some users may prefer to store cover images as standalone
+		// files in a dir with songs rather than embedding covers into song
+		// files instead.
 		send(client, "readpicture", file, offset, loc = loc) or_return
 
 		s := recv(client, allocator) or_return

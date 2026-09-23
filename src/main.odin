@@ -192,6 +192,8 @@ on_pointer_scroll :: proc(scroll: f32, touchpad: bool) {
 	queue_ui_on_scroll(&state, scroll, touchpad)
 }
 
+// TODO: may be i should refactor listeners that listen to value changes to bit set of "events"?
+
 on_screen_updated :: proc() {
 	queue_ui_on_screen_updated(&state)
 }
