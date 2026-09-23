@@ -28,8 +28,6 @@ queue_ui_init :: proc() {
 queue_ui_update :: proc(state: ^State, dt: Seconds) {
 	if state.screen != .Queue do return
 
-	length := _queue_ui_contents_length()
-	ui.scroll_update_max_offset(self.box, &self.scroll, length)
 	ui.scroll_update(&self.box, &self.scroll, dt)
 
 	ui.item_list_update(self.box, &self.list, dt)
@@ -104,10 +102,15 @@ queue_ui_on_screen_updated :: proc(state: ^State) {
 	index, has_song := state.player.cur_song.?
 	if !has_song do return
 
-	// TODO: it should also scroll to the current song when it is out of the view.
-	// FIXME!!: if length of the content changes without a "draw" function being
-	// called, `scroll_set` clamps offset to the old content length (which might
-	// be 0 if "draw" function was never called before).
+	// FIXME: this is a crutch, should be a better and automated way to update
+	// scroll content length, but it'll work for now.
+	// The problem with this solution is that `self.box` may be empty (i.e.
+	// width and height are zeros) when calling `scroll_set` and the content
+	// length may be larger that it should be because of that.
+	length := _queue_ui_contents_length()
+	ui.scroll_update_max_offset(self.box, &self.scroll, length)
+
+	// TODO: should also scroll to the current song when it is out of the view.
 	off := i32(index - 1) * self.list.item_height
 	ui.scroll_set(&self.scroll, f32(off))
 }
