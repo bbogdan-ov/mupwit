@@ -39,11 +39,12 @@ queue_ui_update :: proc(state: ^State, dt: Seconds) {
 		from := mpd.Song_Index(self.list.reorder.from)
 		to := mpd.Song_Index(self.list.reorder.to)
 		player_reorder_song(&state.player, from, to)
-		state.player.ignore_next_queue_update = true
 	}
 
 	if ui.is_clicked(.Left) {
 		_queue_ui_play_hovered_song(state)
+	} else if ui.state.dragging == nil && ui.is_mouse_double_pressed(.Right) {
+		_queue_ui_remove_hovered_song(state)
 	}
 }
 
@@ -57,6 +58,13 @@ _queue_ui_play_hovered_song :: proc(state: ^State) -> bool {
 	log.info("Play", song.title, "-", song.artist)
 	// player_play_song(item.song_index)
 
+	return true
+}
+
+_queue_ui_remove_hovered_song :: proc(state: ^State) -> bool {
+	hovering := self.list.hovering.? or_return
+	item := &self.list.items[hovering]
+	player_remove_song(&state.player, item.song_index)
 	return true
 }
 
@@ -98,6 +106,20 @@ _queue_ui_clear_list :: proc() {
 		song_item_destroy(&item)
 	}
 	clear(&self.list.items)
+}
+
+_queue_ui_remove_item :: proc(index: ui.Item_Index) {
+	item := &self.list.items[index]
+	song_item_destroy(item)
+	ordered_remove(&self.list.items, int(index))
+
+	// TODO: `ui.Item` should probably have callbacks for some items actions.
+	// (e.g. reoreder, remove, etc)
+	for i in index ..< ui.Item_Index(len(self.list.items)) {
+		item := &self.list.items[i]
+		item.song_index = mpd.Song_Index(i)
+		ui.item_tween_to_rest(item, i, self.list.item_height)
+	}
 }
 
 queue_ui_on_screen_updated :: proc(state: ^State) {
@@ -146,6 +168,10 @@ queue_ui_on_song_reordered :: proc(from, to: mpd.Song_Index) {
 		item := &self.list.items[i]
 		item.song_index = mpd.Song_Index(i)
 	}
+}
+
+queue_ui_on_song_removed :: proc(index: mpd.Song_Index) {
+	_queue_ui_remove_item(ui.Item_Index(index))
 }
 
 song_item_destroy :: proc(item: ^Song_Item) {

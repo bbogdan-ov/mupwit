@@ -38,6 +38,9 @@ Command_Seek :: struct {
 Command_Reorder_Song :: struct {
 	from, to: mpd.Song_Index,
 }
+Command_Remove_Song :: struct {
+	index: mpd.Song_Index,
+}
 
 Command_Disconnect :: struct {}
 
@@ -55,6 +58,7 @@ Command :: union #no_nil {
 	Command_Play_Song,
 	Command_Seek,
 	Command_Reorder_Song,
+	Command_Remove_Song,
 	Command_Disconnect,
 }
 
@@ -118,10 +122,29 @@ player_reorder_song :: proc(player: ^Player, from, to: mpd.Song_Index) {
 		player.cur_song = ui.shifted_index(cur_song, from, to)
 	}
 
+	player._ignore_next_queue_update = true
 	_player_queue_calc_elapsed(player)
-
 	on_song_reordered(from, to)
+
 	_command_send(player._shared.commands, Command_Reorder_Song{from, to})
+}
+
+player_remove_song :: proc(player: ^Player, index: mpd.Song_Index) {
+	assert(0 <= index && int(index) < len(player.queue))
+
+	mpd.song_destroy(player.queue[index])
+	ordered_remove(&player.queue, int(index))
+
+	cur_song, has_cur_song := player.cur_song.?
+	if has_cur_song && cur_song > index {
+		player.cur_song = cur_song - 1
+	}
+
+	player._ignore_next_queue_update = true
+	_player_queue_calc_elapsed(player)
+	on_song_removed(index)
+
+	_command_send(player._shared.commands, Command_Remove_Song{index})
 }
 
 // ------------------------------
@@ -231,6 +254,11 @@ _player_handle_command :: proc(
 		return mpd.send_and_forget(client, "seekcur", cmd.seconds)
 	case Command_Reorder_Song:
 		mpd.send_and_forget(client, "move", cmd.from, cmd.to) or_return
+		status := mpd.request_status(client) or_return
+		_response_send(shared.responses, status)
+		return nil
+	case Command_Remove_Song:
+		mpd.send_and_forget(client, "delete", cmd.index) or_return
 		status := mpd.request_status(client) or_return
 		_response_send(shared.responses, status)
 		return nil

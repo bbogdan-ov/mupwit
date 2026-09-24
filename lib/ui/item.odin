@@ -130,13 +130,14 @@ _item_list_reorder :: proc(list: ^Item_List($T), reorder: Item_Reorder) {
 	// Update and animate positions of the items that were moved.
 	for &other, i in list.items[start:end] {
 		index := Item_Index(start + i)
-		_item_tween_to_rest(&other, index, list.item_height)
+		item_tween_to_rest(&other, index, list.item_height)
 	}
 }
 
 item_update :: proc(box: Box, list: ^Item_List($T), item: ^Item, index: Item_Index, dt: Seconds) {
 	id := Element_ID(item)
 
+	// TODO!: finish tween if item is outside of the view.
 	tween_update(&item.tween, dt)
 
 	rect := item_rect(box, item.position, list.item_height)
@@ -158,7 +159,7 @@ item_update :: proc(box: Box, list: ^Item_List($T), item: ^Item, index: Item_Ind
 		list.reorder = {index, index}
 
 	case state.just_stopped_dragging == id:
-		_item_tween_to_rest(item, index, list.item_height)
+		item_tween_to_rest(item, index, list.item_height)
 		list.reordering = nil
 		list.just_reordered = list.reorder.from != list.reorder.to
 
@@ -208,7 +209,7 @@ item_list_visible_range :: proc(box: Box, list: ^Item_List($T)) -> (from, to: in
 	return
 }
 
-_item_tween_to_rest :: proc(item: ^Item, index: Item_Index, height: i32) {
+item_tween_to_rest :: proc(item: ^Item, index: Item_Index, height: i32) {
 	_item_start_pos_tween(item)
 	item.position = index * height
 }

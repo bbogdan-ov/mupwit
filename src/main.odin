@@ -246,6 +246,9 @@ on_albums_updated :: proc() {
 on_song_reordered :: proc(from, to: mpd.Song_Index) {
 	queue_ui_on_song_reordered(from, to)
 }
+on_song_removed :: proc(index: mpd.Song_Index) {
+	queue_ui_on_song_removed(index)
+}
 
 // These functions are listeners for window events.
 

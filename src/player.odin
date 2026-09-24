@@ -7,6 +7,8 @@
 // May be i should implement some kind of debounce to not request the queue
 // info right after it being changed?
 
+// TODO!: undo histroy.
+
 package mupwit
 
 import "base:runtime"
@@ -39,33 +41,33 @@ Player_Shared :: struct {
 
 Player :: struct {
 	// Playback state.
-	playstate:                mpd.Play_State,
-	elapsed, duration:        Seconds,
-	cur_song:                 Maybe(mpd.Song_Index),
-	queue:                    mpd.Song_List,
-	queue_duration:           Seconds,
+	playstate:                 mpd.Play_State,
+	elapsed, duration:         Seconds,
+	cur_song:                  Maybe(mpd.Song_Index),
+	queue:                     mpd.Song_List,
+	queue_duration:            Seconds,
 	// Time elapsed within the queue (sum of durations of songs before the
 	// current one), does not account for the current song.
-	queue_elapsed:            Seconds,
-	albums:                   mpd.Album_List,
+	queue_elapsed:             Seconds,
+	albums:                    mpd.Album_List,
 	// In which direction current song was skipped.
-	switch_direction:         Switch_Direction,
+	switch_direction:          Switch_Direction,
 
 	// Cache.
-	_covers_cache:            Covers_Cache,
+	_covers_cache:             Covers_Cache,
 
 	// Flags.
 	// Whether to ignore the next incoming "queue" response. Usually set after
 	// reordering items so it doesn't rebuild the items list.
-	ignore_next_queue_update: bool,
+	_ignore_next_queue_update: bool,
 
 	// Client state.
-	_shared:                  Player_Shared,
-	_client_thread:           ^thread.Thread,
-	_status_req_timer:        Seconds,
+	_shared:                   Player_Shared,
+	_client_thread:            ^thread.Thread,
+	_status_req_timer:         Seconds,
 
 	//
-	allocator:                runtime.Allocator,
+	allocator:                 runtime.Allocator,
 }
 
 player_init :: proc(player: ^Player, allocator := context.allocator) {
@@ -181,8 +183,8 @@ _player_set_status :: proc(player: ^Player, status: mpd.Status) {
 _player_set_queue :: proc(player: ^Player, queue: mpd.Song_List) {
 	queue := queue
 
-	if player.ignore_next_queue_update {
-		player.ignore_next_queue_update = false
+	if player._ignore_next_queue_update {
+		player._ignore_next_queue_update = false
 		if !mpd.song_lists_differ(player.queue, queue) {
 			mpd.song_list_destroy(&queue)
 			return
