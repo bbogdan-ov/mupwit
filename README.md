@@ -1,7 +1,7 @@
 # MUPWIT - Music Player With Things
 
 > [!WARNING]
-> MUPWIT only works on Linux Wayland! Wayland is the only supported windowing
+> MUPWIT only works on **Linux Wayland**! Wayland is the only supported windowing
 > backend for now. Feel free to send a pull request!
 >
 > Due to software-rendering nature of MUPWIT (pixels are just placed onto a
@@ -12,12 +12,12 @@ A small, simple and fast software-rendered [MPD](https://www.musicpd.org)
 client for pixel art people.
 
 My little UI library, powered by [Cairo], draws the UI and displays it using my
-other low-level [Wayland library]!
+other small low-level [Wayland client library]!
 
 [Cairo]: https://cairographics.org/
 [Wayland library]: https://github.com/bbogdan-ov/wayclient
 
-Currently you should [build](#Building) MUPWIT yourself, unfortunately.
+Currently you should [build](#building) MUPWIT yourself, unfortunately.
 
 ## Features
 
@@ -58,17 +58,17 @@ Currently you should [build](#Building) MUPWIT yourself, unfortunately.
 **Global keybinds:**
 
 | Key | Action |
-----------------
+|-----|--------|
 | `Esc`, `Q` | Exit |
 | `Tab`, `Shift-Tab` | Cycle though screens |
 | `Space` | Pause/unpause |
 | `>` | Next song |
 | `<` | Previous song |
 
-**Queue keybinds**
+**Queue keybinds:**
 
 | Key | Action |
-----------------
+|-----|--------|
 | `Z` | Scroll to the current song |
 | `G`, `Shift-G` | Scroll to the top/bottom |
 | `LBM` | Play song |
