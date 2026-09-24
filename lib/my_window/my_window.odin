@@ -218,6 +218,7 @@ foreign lib {
 	set_userdata :: proc(win: ^Window, userdata: rawptr) ---
 	set_resizable :: proc(win: ^Window, resizable: bool) ---
 	set_title :: proc(win: ^Window, title, app_id: cstring) ---
+	set_should_close :: proc(win: ^Window, should_close: bool) ---
 	set_cursor :: proc(win: ^Window, cursor: Cursor) ---
 	set_frame_callback :: proc(win: ^Window, callback: Callback) ---
 	set_draw_callback :: proc(win: ^Window, callback: Draw_Callback) ---

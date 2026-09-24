@@ -214,6 +214,9 @@ on_keyboard_key :: proc(key: win.Key, key_state: win.Key_State, mods: win.Mods) 
 	shift := .Shift in mods
 
 	switch {
+	case key == .Esc, key == .Q:
+		win.set_should_close(state.window, true)
+
 	case key == .Tab:
 		diff := -1 if shift else +1
 		screen := enum_rotate_variant(state.screen, diff)
