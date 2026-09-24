@@ -25,7 +25,7 @@ Currently you should [build](#Building) MUPWIT yourself, unfortunately.
 
 ## Screenshots
 
-![Video](./screenshots/video.gif)
+![Video](./screenshots/hella_compressed_gif.gif)
 
 ![1](./screenshots/1.png)
 
@@ -87,6 +87,19 @@ TODO: should statically link with `libwayland-client` and `libcairo`.
 ```sh
 make
 ./build/mupwit
+```
+
+...or in debug mode (faster compilation)...
+
+```sh
+make DEBUG=1
+./build/mupwit
+```
+
+...or without make...
+
+```sh
+odin build src -out:build/mupwit -o:speed -collection:lib=lib
 ```
 
 ## License

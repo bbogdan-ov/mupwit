@@ -14,13 +14,22 @@ FLAGS := \
 	-terse-errors \
 	-collection:lib=lib
 
+ifdef DEBUG
+BUILD_FLAGS := $(FLAGS) \
+	-debug
+else
+BUILD_FLAGS := $(FLAGS) \
+	-debug \
+	-o:speed
+endif
+
 .PHONY: libs check
 
 # Compile MUPWIT.
 build/mupwit: $(SOURCES) $(LIB_SOURCES) assets/.generated
 	@mkdir -p build
 	@echo "INFO: Compiling..."
-	@odin build src -out:build/mupwit -debug $(FLAGS)
+	@odin build src -out:build/mupwit $(BUILD_FLAGS)
 
 # Prebuild assets.
 assets/.generated: build/prebuild $(IMAGES)
