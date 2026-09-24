@@ -22,10 +22,9 @@ SONG_LOAD_COVER :: true
 WINDOW_WIDTH :: 360
 WINDOW_HEIGHT :: SONG_HEIGHT * 10 + GAP * 2
 
+COVER_REQ_DELAY :: Seconds(0.1)
+
 PLAYER_PADDING :: GAP * 5
-// Delay between update of the current song (e.g. after you press "next") and
-// requesting its cover.
-PLAYER_COVER_UPDATE_DELAY :: Seconds(0.1)
 // Cover transition duration.
 PLAYER_COVER_ANIM_DURATION :: Seconds(0.5)
 

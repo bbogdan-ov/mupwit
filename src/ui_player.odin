@@ -246,7 +246,7 @@ _player_ui_defer_cover_update :: proc(state: ^State) {
 		if has_cover {
 			_player_ui_set_cover(state, cover_ref(cover))
 		} else {
-			self.update_cover_timer = PLAYER_COVER_UPDATE_DELAY
+			self.update_cover_timer = COVER_REQ_DELAY
 		}
 	} else {
 		_player_ui_set_cover(state, nil)

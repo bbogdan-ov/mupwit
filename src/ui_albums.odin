@@ -6,7 +6,9 @@ import "lib:ui"
 Album_Item :: struct {
 	album_index: ui.Item_Index,
 	cover:       Maybe(^Cover),
+	req_timer:   Seconds,
 	alpha_tween: ui.Tween(f32),
+	is_in_view:  bool,
 }
 
 @(private = "file")
@@ -48,12 +50,7 @@ albums_ui_update :: proc(state: ^State, dt: Seconds) {
 	}
 
 	for &item in self.items {
-		cover := item.cover.? or_continue
-
-		ui.tween_update(&item.alpha_tween, dt)
-		if cover.loading {
-			ui.tween_play(&item.alpha_tween, 0, ALBUM_COVER_ANIM_DURATION)
-		}
+		album_item_update(state, &item, dt)
 	}
 
 	if self.hovering_index != nil {
@@ -110,8 +107,35 @@ album_item_destroy :: proc(item: ^Album_Item) {
 	}
 }
 
+album_item_update :: proc(state: ^State, item: ^Album_Item, dt: Seconds) {
+	cover, has_cover := item.cover.?
+	switch {
+	case has_cover:
+		ui.tween_update(&item.alpha_tween, dt)
+		if cover.loading {
+			ui.tween_play(&item.alpha_tween, 0, ALBUM_COVER_ANIM_DURATION)
+		}
+
+	case !item.is_in_view:
+		item.req_timer = COVER_REQ_DELAY
+
+	case item.req_timer > 0:
+		item.req_timer -= dt
+		if item.req_timer > 0 do break
+
+		album := state.player.albums[item.album_index]
+		song := mpd.album_first_song(album)
+
+		cover := cover_get_or_request(&state.player, song.file, song.album, .Medium)
+		item.cover = cover_ref(cover)
+	}
+
+	item.is_in_view = false
+}
+
 album_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Album_Item, index: ui.Item_Index) {
-	album := &state.player.albums[index]
+	album := &state.player.albums[item.album_index]
+	item.is_in_view = true
 
 	rect: Rect
 	rect.x = ctx.box.x + (index % ALBUM_GRID_COLUMS) * ALBUM_WIDTH
@@ -129,12 +153,6 @@ album_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Album_Item, inde
 
 	// Draw album cover.
 	{
-		if item.cover == nil {
-			song := mpd.album_first_song(album^)
-			cover := cover_get_or_request(&state.player, song.file, song.album, .Medium)
-			item.cover = cover_ref(cover)
-		}
-
 		rect := cover_rect(.Medium, rect_pos(ctx.box))
 		alpha := ui.tween_ease(&item.alpha_tween, 1, .Sine_In_Out)
 
