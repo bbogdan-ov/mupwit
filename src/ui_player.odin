@@ -83,6 +83,9 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	{
 		rect := cover_rect(.Huge, rect_pos(ctx.box))
 
+		// TODO: would be cool to allow double-click on the cover and open it
+		// in an external image viewer.
+
 		// TODO: i should keep N next covers in an array and scroll through
 		// them when the current song changes to get a smoother animation when
 		// switching songs very fast. Currently if you switch a song too fast
