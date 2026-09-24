@@ -149,8 +149,6 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		btn :: draw_icon_button
 		color := state.theme.black
 
-		offset.y -= GAP
-
 		rect: Rect
 		rect.y = ctx.box.y + offset.y
 		rect.width = ICON_BUTTON_SIZE * 3
