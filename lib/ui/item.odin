@@ -43,15 +43,23 @@ item_list_destroy :: proc(list: ^Item_List($T)) {
 	list.items = nil
 }
 
-item_list_update :: proc(box: Box, list: ^Item_List($T), dt: Seconds) {
+item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: Seconds) {
 	UPDATE_SCROLLOFF :: 8
 
 	assert(list.item_height > 0)
 
+	// NOTE: it is important to start scrolling before updating the `Scroll` so
+	// that the reordering item doesn't jitter when moving, because
+	// `scroll_update` updates box's scroll and items depend on it.
+	scroll_diff := _item_list_should_scroll_by(box^, list)
+	scroll_by(scroll, scroll_diff)
+
+	scroll_update(box, scroll, dt)
+
 	list.hovering = nil
 	list.just_reordered = false
 
-	from, to := item_list_visible_range(box, list)
+	from, to := item_list_visible_range(box^, list)
 	from = max(from - UPDATE_SCROLLOFF, 0)
 	to = min(to + UPDATE_SCROLLOFF, len(list.items))
 
@@ -59,7 +67,7 @@ item_list_update :: proc(box: Box, list: ^Item_List($T), dt: Seconds) {
 		index := Item_Index(i)
 		item := &list.items[i]
 		if index != list.reordering {
-			item_update(box, list, item, index, dt)
+			item_update(box^, list, item, index, dt)
 		}
 	}
 
@@ -68,7 +76,7 @@ item_list_update :: proc(box: Box, list: ^Item_List($T), dt: Seconds) {
 		// Update the currently reordering item separately from others so it
 		// updates no matter if it within the view or not.
 		item := &list.items[reordering]
-		item_update(box, list, item, reordering, dt)
+		item_update(box^, list, item, reordering, dt)
 
 		// Order changed.
 		if list._cur_reorder.from != list._cur_reorder.to {
@@ -86,6 +94,26 @@ item_list_update :: proc(box: Box, list: ^Item_List($T), dt: Seconds) {
 		set_cursor(.Grabbing)
 	} else if list.hovering != nil {
 		set_cursor(.Pointer)
+	}
+}
+
+_item_list_should_scroll_by :: proc(box: Box, list: ^Item_List($T)) -> f32 {
+	if state.dragging == nil do return 0
+
+	reodering, ok := list.reordering.?
+	if !ok do return 0
+
+	item := &list.items[reodering]
+
+	pos: i32 = item.position + list.item_height / 2 - box.y - i32(box.scroll)
+	top: i32 = ITEM_REORDER_SCROLLOFF
+	bottom: i32 = box.height - ITEM_REORDER_SCROLLOFF
+	if pos < top {
+		return f32(pos - top) * ITEM_REORDER_SCROLL_MUL
+	} else if pos > bottom {
+		return f32(pos - bottom) * ITEM_REORDER_SCROLL_MUL
+	} else {
+		return 0
 	}
 }
 

@@ -11,3 +11,8 @@ SCROLL_THUMB_THICKNESS :: 2
 
 SLIDER_THICKNESS :: 4
 SLIDER_CLICK_THICKNESS :: 12
+
+// Threshold from top or bottom that should be hovered by a reodering item to
+// start scrolling.
+ITEM_REORDER_SCROLLOFF :: 32
+ITEM_REORDER_SCROLL_MUL :: 0.25

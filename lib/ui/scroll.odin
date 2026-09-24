@@ -119,6 +119,13 @@ scroll_set :: proc(s: ^Scroll, offset: f32) {
 	s.velocity = 0
 }
 
+scroll_by :: proc(s: ^Scroll, diff: f32) {
+	if !is_almost_zero(diff) {
+		s.offset = clamp(s.offset + diff, 0, s.max_offset)
+		s.velocity = 0
+	}
+}
+
 scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color, active_color: Color) {
 	box := ctx.box
 

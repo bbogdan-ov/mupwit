@@ -33,9 +33,7 @@ queue_ui_destroy :: proc() {
 queue_ui_update :: proc(state: ^State, dt: Seconds) {
 	if state.screen != .Queue do return
 
-	ui.scroll_update(&self.box, &self.scroll, dt)
-
-	ui.item_list_update(self.box, &self.list, dt)
+	ui.item_list_update(&self.box, &self.scroll, &self.list, dt)
 
 	if self.list.just_reordered {
 		from := mpd.Song_Index(self.list.reorder.from)
