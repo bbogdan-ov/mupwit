@@ -4,14 +4,14 @@
 
 package mupwit
 
-import "core:log"
 import "lib:mpd"
 import "lib:ui"
 
 Song_Item :: struct {
 	using item: ui.Item,
 	song_index: mpd.Song_Index,
-	cover:      Maybe(^Cover),
+	loader:     Cover_Loader,
+	is_in_view: bool,
 }
 
 @(private = "file")
@@ -23,6 +23,7 @@ self: struct {
 
 queue_ui_init :: proc() {
 	self.list = ui.item_list_make(Song_Item, SONG_HEIGHT, context.allocator)
+	self.list.item_update = song_item_update
 }
 
 queue_ui_destroy :: proc() {
@@ -33,6 +34,7 @@ queue_ui_destroy :: proc() {
 queue_ui_update :: proc(state: ^State, dt: Seconds) {
 	if state.screen != .Queue do return
 
+	self.list.userdata = state
 	ui.item_list_update(&self.box, &self.scroll, &self.list, dt)
 
 	if self.list.just_reordered {
@@ -50,14 +52,8 @@ queue_ui_update :: proc(state: ^State, dt: Seconds) {
 
 _queue_ui_play_hovered_song :: proc(state: ^State) -> bool {
 	hovering := self.list.hovering.? or_return
-
 	item := &self.list.items[hovering]
-	song := &state.player.queue[item.song_index]
-
-	// TEMPORARY:
-	log.info("Play", song.title, "-", song.artist)
-	// player_play_song(item.song_index)
-
+	player_play_song(&state.player, item.song_index)
 	return true
 }
 
@@ -71,12 +67,19 @@ _queue_ui_remove_hovered_song :: proc(state: ^State) -> bool {
 queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if !screen_is_visible(state, .Queue) do return
 
-	box := ui.pad_b(ctx.box, STATUS_HEIGHT + QUEUE_STATUS_HEIGHT)
+	box := ui.pad_b(ctx.box, status_ui_visible_height())
 	box.x += screen_x_offset(state, .Queue)
 	ui.begin_box(ctx, box, GAP, self.scroll.offset)
 	self.box = ctx.box
 
-	// TODO: show "queue is empty" when needed.
+	// Draw a little "empty" symbol.
+	if len(self.list.items) == 0 {
+		pos := rect_center(ctx.box)
+		pos.y += ctx.font_height / 2
+		ui.draw_text(ctx, "❦", pos, state.theme.gray, align = .Center)
+		return
+	}
+
 	from, to := ui.item_list_visible_range(ctx.box, &self.list)
 	for i in from ..< to {
 		if self.list.reordering == ui.Item_Index(i) do continue
@@ -113,8 +116,6 @@ _queue_ui_remove_item :: proc(index: ui.Item_Index) {
 	song_item_destroy(item)
 	ordered_remove(&self.list.items, int(index))
 
-	// TODO: `ui.Item` should probably have callbacks for some items actions.
-	// (e.g. reoreder, remove, etc)
 	for i in index ..< ui.Item_Index(len(self.list.items)) {
 		item := &self.list.items[i]
 		item.song_index = mpd.Song_Index(i)
@@ -162,6 +163,20 @@ queue_ui_on_received_queue :: proc(state: ^State) {
 	}
 }
 
+queue_ui_on_cur_song_updated :: proc(state: ^State, prev_index: Maybe(mpd.Song_Index)) {
+	index, ok := state.player.cur_song.?
+	if !ok do return
+
+	if prev_index, ok := prev_index.?; ok {
+		// Scroll only to a song that was visible before.
+		prev := &self.list.items[prev_index]
+		height := self.list.item_height
+		if !ui.item_within_box(self.box, prev.position, height) do return
+	}
+
+	ui.item_list_scroll_to(self.box, &self.scroll, &self.list, ui.Item_Index(index))
+}
+
 queue_ui_on_song_reordered :: proc(from, to: mpd.Song_Index) {
 	start, end := ui.range_unflip(from, to)
 	for i in start ..= end {
@@ -175,14 +190,35 @@ queue_ui_on_song_removed :: proc(index: mpd.Song_Index) {
 }
 
 song_item_destroy :: proc(item: ^Song_Item) {
-	if cover, ok := item.cover.?; ok {
+	if cover, ok := item.loader.cover.?; ok {
 		cover_unref(cover)
-		item.cover = nil
+		item.loader.cover = nil
 	}
+}
+
+song_item_update :: proc(
+	list: ^ui.Item_List(Song_Item),
+	item: ^Song_Item,
+	index: ui.Item_Index,
+	dt: Seconds,
+) {
+	if !SONG_LOAD_COVER do return
+
+	state := cast(^State)list.userdata
+
+	request := cover_loader_update(&item.loader, item.is_in_view, dt)
+	if request {
+		song := &state.player.queue[item.song_index]
+		cover := cover_get_or_request(&state.player, song.file, song.album, .Small)
+		item.loader.cover = cover_ref(cover)
+	}
+
+	item.is_in_view = false
 }
 
 song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item) {
 	song := &state.player.queue[item.song_index]
+	item.is_in_view = true
 
 	pos := ui.item_tweened_pos(item)
 	rect := ui.item_rect(ctx.box, pos, self.list.item_height)
@@ -202,23 +238,11 @@ song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item) {
 
 	// Draw song cover.
 	{
-		if SONG_LOAD_COVER && item.cover == nil {
-			cover := cover_get_or_request(&state.player, song.file, song.album, .Small)
-			item.cover = cover_ref(cover)
-		}
-
 		rect := ctx.box
 		rect.width = SONG_COVER_SIZE
 		rect.height = SONG_COVER_SIZE
 
-		res := Cover_Draw_Result.No_Cover
-		if SONG_LOAD_COVER {
-			res = cover_draw(ctx, item.cover, rect_pos(rect))
-		}
-		if res != .Drawn {
-			draw_icon(state, ctx, .Disk, icon_center_inside(rect), state.theme.black)
-		}
-
+		_song_item_draw_cover(state, ctx, &item.loader, rect)
 		ui.draw_box(ctx, ui.pad(rect, -1), state.theme.black)
 	}
 
@@ -248,4 +272,17 @@ song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item) {
 		pos.y += ctx.font_height + GAP / 2
 		ui.draw_text(ctx, song.artist, pos, state.theme.gray)
 	}
+}
+
+_song_item_draw_cover :: proc(state: ^State, ctx: ^ui.Context, loader: ^Cover_Loader, rect: Rect) {
+	if !SONG_LOAD_COVER {
+		draw_icon(state, ctx, .Disk, icon_center_inside(rect), state.theme.black)
+		return
+	}
+
+	alpha := cover_loader_alpha(loader)
+	if alpha < 1 {
+		draw_icon(state, ctx, .Disk, icon_center_inside(rect), state.theme.black)
+	}
+	cover_draw(ctx, loader.cover, rect_pos(rect), f64(alpha))
 }

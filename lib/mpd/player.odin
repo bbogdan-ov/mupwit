@@ -9,6 +9,7 @@ import "base:intrinsics"
 import "base:runtime"
 import "core:fmt"
 import "core:io"
+import "core:strings"
 
 // Unique song ID within queue.
 // This ID is only used within a queue, therefore it is only assigned after
@@ -71,25 +72,27 @@ Changes :: bit_set[Change;u16]
 Status :: struct {
 	// Volume in range 0..=100
 	volume:          int,
-	// Wheter to keep repeating the queue.
+	// Whether to keep repeating the queue.
 	repeat:          bool,
 	// Whether queue is shuffled.
 	random:          bool,
-	// When enabled, playback is stopped after current song, or song is
+	// When enabled, playback is stopped after the current song, or song is
 	// repeated if the `repeat` mode is enabled.
 	single:          Single_State,
-	// When enabled, each song played is removed from queue.
+	// When enabled, each song played is removed from the queue.
 	consume:         Single_State,
-	// Number of songs in queue.
+	// Version ID of the current queue, changes whenever the queue changes.
+	queue_version:   int `playlist`,
+	// Number of songs in the queue.
 	queue_count:     int `playlistlength`,
 	playstate:       Play_State `state`,
 	cur_song_index:  Song_Index `song`,
 	cur_song_id:     Song_Id `songid`,
 	next_song_index: Song_Index `nextsong`,
 	next_song_id:    Song_Id `nextsongid`,
-	// Time elapsed within currently playing song.
+	// Time elapsed within the currently playing song.
 	elapsed:         Seconds,
-	// Duration of currently playing song.
+	// Duration of the currently playing song.
 	duration:        Seconds,
 }
 
@@ -113,6 +116,21 @@ Song :: struct {
 }
 
 Song_List :: distinct [dynamic]Song
+
+song_clone :: proc(song: Song, allocator := context.allocator) -> Song {
+	sclone :: strings.clone
+
+	s := song
+	s.allocator = allocator
+	s.file = Song_File(sclone(string(song.file), s.allocator))
+	s.artist = sclone(song.artist, s.allocator)
+	s.title = sclone(song.title, s.allocator)
+	s.album = sclone(song.album, s.allocator)
+	s.date = sclone(song.date, s.allocator)
+	s.genre = sclone(song.genre, s.allocator)
+	s.duration_str = sclone(song.duration_str, s.allocator)
+	return s
+}
 
 song_destroy :: proc(song: Song) {
 	delete(string(song.file), song.allocator)

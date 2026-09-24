@@ -20,6 +20,10 @@ Item_List :: struct($T: typeid) where intrinsics.type_is_subtype_of(T, Item) {
 	_cur_reorder:   Item_Reorder,
 	just_reordered: bool,
 	reorder:        Item_Reorder,
+
+	// Callbacks.
+	userdata:       rawptr,
+	item_update:    proc(list: ^Item_List(T), item: ^T, index: Item_Index, dt: Seconds),
 }
 
 Item_Reorder :: struct {
@@ -95,6 +99,22 @@ item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: S
 	} else if list.hovering != nil {
 		set_cursor(.Pointer)
 	}
+
+	list.userdata = nil
+}
+
+item_list_scroll_to :: proc(box: Box, scroll: ^Scroll, list: ^Item_List($T), index: Item_Index) {
+	item := &list.items[index]
+	height := list.item_height
+
+	pos := item.position - box.y - i32(box.scroll)
+	if pos <= height {
+		off := item.position - height
+		scroll_to(box, scroll, f32(off))
+	} else if pos >= box.height - height * 2 {
+		off := item.position - box.height + height * 2
+		scroll_to(box, scroll, f32(off))
+	}
 }
 
 _item_list_should_scroll_by :: proc(box: Box, list: ^Item_List($T)) -> f32 {
@@ -134,7 +154,7 @@ _item_list_reorder :: proc(list: ^Item_List($T), reorder: Item_Reorder) {
 	}
 }
 
-item_update :: proc(box: Box, list: ^Item_List($T), item: ^Item, index: Item_Index, dt: Seconds) {
+item_update :: proc(box: Box, list: ^Item_List($T), item: ^T, index: Item_Index, dt: Seconds) {
 	id := Element_ID(item)
 
 	// TODO!: finish tween if item is outside of the view.
@@ -181,6 +201,10 @@ item_update :: proc(box: Box, list: ^Item_List($T), item: ^Item, index: Item_Ind
 	if item.is_hovering {
 		list.hovering = index
 	}
+
+	if list.item_update != nil {
+		list.item_update(list, item, index, dt)
+	}
 }
 
 _item_update_index :: proc(list: ^Item_List($T), item: ^Item, index: Item_Index) {
@@ -207,6 +231,11 @@ item_tweened_pos :: proc(item: ^Item) -> i32 {
 item_list_visible_range :: proc(box: Box, list: ^Item_List($T)) -> (from, to: int) {
 	from, to = scroll_visible_range(box, len(list.items), list.item_height)
 	return
+}
+
+item_within_box :: proc(box: Box, pos: i32, height: i32) -> bool {
+	pos := pos - box.y - i32(box.scroll)
+	return -height < pos && pos < box.height
 }
 
 item_tween_to_rest :: proc(item: ^Item, index: Item_Index, height: i32) {

@@ -19,30 +19,45 @@ Status_Time_Mode :: enum {
 
 @(private = "file")
 self: struct {
-	button_play:  ui.Button,
-	slider:       ui.Slider,
-	tween:        ui.Tween(f32),
-	queue_tween:  ui.Tween(f32),
-	reveal:       f32,
-	queue_reveal: f32,
-	time_mode:    Status_Time_Mode,
-	queue_rect:   Rect,
+	button_play:      ui.Button,
+	slider:           ui.Slider,
+	tween:            ui.Tween(f32),
+	queue_tween:      ui.Tween(f32),
+	queue_rect:       Rect,
+	time_mode:        Status_Time_Mode,
+	offset:           f32,
+	queue_offset:     f32,
+	cur_offset:       i32,
+	cur_queue_offset: i32,
+}
+
+status_ui_init :: proc() {
+	self.offset = STATUS_MAX_HEIGHT
 }
 
 status_ui_update :: proc(state: ^State, dt: Seconds) {
 	ui.tween_update(&self.tween, dt)
 	ui.tween_update(&self.queue_tween, dt)
 
+	off := ui.tween_ease(&self.tween, self.offset, .Sine_In_Out)
+	self.cur_offset = i32(off)
+	off = ui.tween_ease(&self.queue_tween, self.queue_offset, .Sine_In_Out)
+	self.cur_queue_offset = i32(off)
+
 	if state.screen == .Player {
-		_status_ui_set_reveal(0)
+		_status_ui_set_offset(STATUS_MAX_HEIGHT)
 		return
 	}
-	_status_ui_set_reveal(1)
+	if state.player.cur_song == nil {
+		_status_ui_set_offset(STATUS_HEIGHT)
+	} else {
+		_status_ui_set_offset(0)
+	}
 
 	if state.screen == .Queue {
-		_status_ui_set_queue_reveal(1)
+		_status_ui_set_queue_offset(0)
 	} else {
-		_status_ui_set_queue_reveal(0)
+		_status_ui_set_queue_offset(QUEUE_STATUS_HEIGHT)
 	}
 
 	player := &state.player
@@ -55,7 +70,7 @@ status_ui_update :: proc(state: ^State, dt: Seconds) {
 		player_seek_percent(player, self.slider.progress)
 	}
 
-	if self.queue_reveal == 1 && ui.is_pointer_inside(self.queue_rect) {
+	if ui.is_pointer_inside(self.queue_rect) {
 		ui.set_cursor(.Pointer)
 
 		if ui.is_clicked(.Left) {
@@ -67,28 +82,23 @@ status_ui_update :: proc(state: ^State, dt: Seconds) {
 }
 
 status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
-	MAX_OFFSET :: STATUS_HEIGHT + QUEUE_STATUS_HEIGHT
-
-	p := ui.tween_ease(&self.tween, self.reveal, .Sine_In_Out)
-	offset := i32(MAX_OFFSET * (1 - p))
-	if offset >= MAX_OFFSET do return
+	if self.cur_offset >= STATUS_MAX_HEIGHT do return
 
 	btn_play := &self.button_play
 
 	rect := ui.state.view
 	rect.height = STATUS_HEIGHT
 	rect.y = ui.state.view.height - rect.height
-	rect.y += offset
+	rect.y += self.cur_offset
 
 	{
-		p := ui.tween_ease(&self.queue_tween, self.queue_reveal, .Sine_In_Out)
-
 		r := rect
 		r.height = QUEUE_STATUS_HEIGHT
 		r.y -= r.height
-		r.y += i32(f32(r.height) * (1 - p))
 		_queue_status_ui_draw(state, ctx, r)
 	}
+
+	if self.cur_offset >= STATUS_HEIGHT do return
 
 	_status_ui_draw_box(state, ctx, rect)
 
@@ -108,7 +118,7 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		offset.y += -(ctx.font_height * 2 + ui.SLIDER_THICKNESS) / 2 + ctx.font_height
 
 		// Draw song title and artist.
-		song, has_song := player_cur_song(&state.player)
+		song, has_song := player_cur_or_last_song(&state.player)
 		if has_song {
 			pos := rect_pos(ctx.box) + offset
 			pos.x += ui.draw_text(ctx, song.title, pos, state.theme.black).x
@@ -137,12 +147,18 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 }
 
 _queue_status_ui_draw :: proc(state: ^State, ctx: ^ui.Context, rect: Rect) {
+	H_GAP :: GAP * 2
+
 	player := &state.player
 
-	_status_ui_draw_box(state, ctx, rect)
-	self.queue_rect = rect
+	rect := rect
+	rect.y += self.cur_queue_offset
 
-	H_GAP :: GAP * 2
+	if self.queue_offset == 0 && self.queue_tween.timer <= 0 {
+		self.queue_rect = rect
+	}
+
+	_status_ui_draw_box(state, ctx, rect)
 
 	count_str := fmt.tprint("♪", len(player.queue))
 
@@ -173,13 +189,17 @@ _status_ui_draw_box :: proc(state: ^State, cr: ^cairo.cairo_t, rect: Rect) {
 	ui.draw_line_h(cr, rect, state.theme.gray)
 }
 
-_status_ui_set_reveal :: proc(reveal: f32) {
-	if self.reveal == reveal do return
-	ui.tween_play(&self.tween, self.reveal, STATUS_REVEAL_ANIM_DURATION)
-	self.reveal = reveal
+_status_ui_set_offset :: proc(offset: f32) {
+	if self.offset == offset do return
+	ui.tween_play(&self.tween, self.offset, STATUS_REVEAL_ANIM_DURATION)
+	self.offset = offset
 }
-_status_ui_set_queue_reveal :: proc(reveal: f32) {
-	if self.queue_reveal == reveal do return
-	ui.tween_play(&self.queue_tween, self.queue_reveal, STATUS_REVEAL_ANIM_DURATION / 2)
-	self.queue_reveal = reveal
+_status_ui_set_queue_offset :: proc(offset: f32) {
+	if self.queue_offset == offset do return
+	ui.tween_play(&self.queue_tween, self.queue_offset, STATUS_REVEAL_ANIM_DURATION / 2)
+	self.queue_offset = offset
+}
+
+status_ui_visible_height :: proc() -> i32 {
+	return max(STATUS_MAX_HEIGHT - self.cur_offset - self.cur_queue_offset, 0)
 }

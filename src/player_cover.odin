@@ -4,6 +4,7 @@ package mupwit
 
 import "base:runtime"
 import "core:strings"
+import "lib:ui"
 
 import "lib:cairo"
 import "lib:mpd"
@@ -184,14 +185,13 @@ _player_handle_response_cover :: proc(player: ^Player, res: Response_Cover) {
 	cover.loading = false
 }
 
-Cover_Draw_Result :: enum {
-	No_Cover = 0, // Cover does not exist.
-	No_Surface, // Cover exists but the surface is missing, should draw a placeholder.
-	Drawn, // Cover surface was drawn.
-}
-
 cover_rect :: proc(size: Cover_Size, pos: Vec2) -> Rect {
 	return {pos.x, pos.y, COVER_SIZE[size], COVER_SIZE[size]}
+}
+
+cover_exists :: proc(cover: Maybe(^Cover)) -> bool {
+	cover, has_cover := cover.?
+	return has_cover && cover.surface != nil
 }
 
 cover_draw :: proc(
@@ -199,15 +199,67 @@ cover_draw :: proc(
 	cover: Maybe(^Cover),
 	pos: Vec2,
 	alpha: f64 = 1,
-) -> Cover_Draw_Result {
+) -> (
+	drawn: bool,
+) {
+	if alpha <= 0 do return false
+
 	cover, has_cover := cover.?
-	if !has_cover do return .No_Cover
+	if !has_cover do return false
 
 	surface, has_surface := cover.surface.?
-	if !has_surface do return .No_Surface
+	if !has_surface do return false
 
 	cairo.set_source_surface(cr, surface, f64(pos.x), f64(pos.y))
 	cairo.paint_with_alpha(cr, alpha)
 
-	return .Drawn
+	return true
+}
+
+Cover_Loader :: struct {
+	cover:        Maybe(^Cover),
+	_req_timer:   Seconds,
+	_alpha_timer: Seconds,
+}
+
+cover_loader_update :: proc(
+	loader: ^Cover_Loader,
+	can_request: bool,
+	dt: Seconds,
+) -> (
+	should_request: bool,
+) {
+	cover, has_cover := loader.cover.?
+	if COVER_REQ_DELAY > 0 && !has_cover {
+		loader._alpha_timer = COVER_ALPHA_ANIM_DURATION
+	}
+
+	switch {
+	case has_cover:
+		if !cover.loading && loader._alpha_timer > 0 {
+			loader._alpha_timer -= dt
+		}
+
+	case COVER_REQ_DELAY <= 0:
+		if !can_request do break
+		if loader._alpha_timer < COVER_ALPHA_ANIM_DURATION {
+			loader._alpha_timer = COVER_ALPHA_ANIM_DURATION
+			should_request = true
+		}
+		// Code below should be optimized out.
+		return should_request
+
+	case !can_request:
+		loader._req_timer = COVER_REQ_DELAY
+
+	case loader._req_timer > 0:
+		loader._req_timer -= dt
+		should_request = loader._req_timer <= 0
+	}
+	return should_request
+}
+
+cover_loader_alpha :: proc(loader: ^Cover_Loader) -> f32 {
+	if !cover_exists(loader.cover) do return 0.0
+	return ui.time_ease(loader._alpha_timer, COVER_ALPHA_ANIM_DURATION, .Sine_In_Out)
 }

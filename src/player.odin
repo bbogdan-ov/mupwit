@@ -44,6 +44,10 @@ Player :: struct {
 	playstate:                 mpd.Play_State,
 	elapsed, duration:         Seconds,
 	cur_song:                  Maybe(mpd.Song_Index),
+	// Copy of a the last played song (before `cur_song` set to `nil`).
+	// Mostly used for animation, so elements that display the current song
+	// don't just disappear, but smoothly fade out with data of the last played song.
+	last_played_song:          Maybe(mpd.Song),
 	queue:                     mpd.Song_List,
 	queue_duration:            Seconds,
 	// Time elapsed within the queue (sum of durations of songs before the
@@ -129,6 +133,7 @@ player_destroy :: proc(player: ^Player) {
 
 	mpd.song_list_destroy(&player.queue)
 	mpd.album_list_destroy(player.albums)
+	_player_set_last_played_song(player, nil)
 
 	chan.destroy(&player._shared.commands)
 	chan.destroy(&player._shared.responses)
@@ -151,21 +156,27 @@ _player_set_status :: proc(player: ^Player, status: mpd.Status) {
 	player.elapsed = Seconds(status.elapsed)
 	player.duration = Seconds(status.duration)
 
-	prev_song := player.cur_song
+	prev_index := player.cur_song
 	if status.cur_song_id > 0 && len(player.queue) > 0 {
 		player.cur_song = status.cur_song_index
 	} else {
 		player.cur_song = nil
 	}
 
-	prev, has_prev := prev_song.?
+	prev, has_prev := prev_index.?
 	cur, has_cur := player.cur_song.?
 
-	if cur != prev {
+	if cur != prev || has_prev != has_cur {
 		if !has_prev && has_cur {
 			player.switch_direction = .From_None
 		} else if has_prev && !has_cur {
 			player.switch_direction = .To_None
+			player.queue_elapsed = 0
+
+			if len(player.queue) > 0 {
+				prev_song := player.queue[prev]
+				_player_set_last_played_song(player, prev_song)
+			}
 		} else if cur > prev {
 			player.switch_direction = .Next
 		} else if cur < prev {
@@ -175,8 +186,19 @@ _player_set_status :: proc(player: ^Player, status: mpd.Status) {
 		_player_queue_calc_elapsed(player)
 	}
 
-	if prev_song != player.cur_song {
-		on_cur_song_updated()
+	if prev_index != player.cur_song {
+		on_cur_song_updated(prev_index)
+	}
+}
+
+_player_set_last_played_song :: proc(player: ^Player, song: Maybe(mpd.Song)) {
+	if last, ok := player.last_played_song.?; ok {
+		mpd.song_destroy(last)
+	}
+	if song, ok := song.?; ok {
+		player.last_played_song = mpd.song_clone(song, song.allocator)
+	} else {
+		player.last_played_song = nil
 	}
 }
 
@@ -185,6 +207,8 @@ _player_set_queue :: proc(player: ^Player, queue: mpd.Song_List) {
 
 	if player._ignore_next_queue_update {
 		player._ignore_next_queue_update = false
+		// TODO: i should probably use the `playlist` version field of a
+		// MPD status instead of `mpd.song_lists_differ`.
 		if !mpd.song_lists_differ(player.queue, queue) {
 			mpd.song_list_destroy(&queue)
 			return
@@ -299,4 +323,9 @@ player_cur_song :: proc(player: ^Player) -> (song: ^mpd.Song, ok: bool) {
 		ok = true
 	}
 	return
+}
+player_cur_or_last_song :: proc(player: ^Player) -> (song: ^mpd.Song, ok: bool) {
+	song, ok = player_cur_song(player)
+	if ok do return
+	return &player.last_played_song.?
 }

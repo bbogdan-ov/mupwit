@@ -126,6 +126,23 @@ scroll_by :: proc(s: ^Scroll, diff: f32) {
 	}
 }
 
+scroll_to :: proc(box: Box, s: ^Scroll, offset: f32) {
+	offset := clamp(offset, 0, s.max_offset)
+	diff := offset - s.offset
+	height := f32(box.height)
+
+	if abs(diff) > height / 2 {
+		// Jump near to the target offset if it's too far.
+		s.from = offset - height / 2 * math.sign(diff)
+	} else {
+		s.from = s.offset
+	}
+
+	s.to = offset
+	s.timer = SCROLL_ANIM_DURATION
+	s.velocity = 0
+}
+
 scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color, active_color: Color) {
 	box := ctx.box
 

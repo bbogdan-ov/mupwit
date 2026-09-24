@@ -5,9 +5,7 @@ import "lib:ui"
 
 Album_Item :: struct {
 	album_index: ui.Item_Index,
-	cover:       Maybe(^Cover),
-	req_timer:   Seconds,
-	alpha_tween: ui.Tween(f32),
+	loader:      Cover_Loader,
 	is_in_view:  bool,
 }
 
@@ -61,7 +59,7 @@ albums_ui_update :: proc(state: ^State, dt: Seconds) {
 albums_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if !screen_is_visible(state, .Albums) do return
 
-	box := ui.pad_b(ctx.box, STATUS_HEIGHT)
+	box := ui.pad_b(ctx.box, status_ui_visible_height())
 	box.x += screen_x_offset(state, .Albums)
 	ui.begin_box(ctx, box, GAP, self.scroll.offset)
 	self.box = ctx.box
@@ -101,33 +99,20 @@ albums_ui_on_albums_updated :: proc(state: ^State) {
 }
 
 album_item_destroy :: proc(item: ^Album_Item) {
-	if cover, ok := item.cover.?; ok {
+	if cover, ok := item.loader.cover.?; ok {
 		cover_unref(cover)
-		item.cover = nil
+		item.loader.cover = nil
 	}
 }
 
 album_item_update :: proc(state: ^State, item: ^Album_Item, dt: Seconds) {
-	cover, has_cover := item.cover.?
-	switch {
-	case has_cover:
-		ui.tween_update(&item.alpha_tween, dt)
-		if cover.loading {
-			ui.tween_play(&item.alpha_tween, 0, ALBUM_COVER_ANIM_DURATION)
-		}
-
-	case !item.is_in_view:
-		item.req_timer = COVER_REQ_DELAY
-
-	case item.req_timer > 0:
-		item.req_timer -= dt
-		if item.req_timer > 0 do break
-
+	request := cover_loader_update(&item.loader, item.is_in_view, dt)
+	if request {
 		album := state.player.albums[item.album_index]
 		song := mpd.album_first_song(album)
 
 		cover := cover_get_or_request(&state.player, song.file, song.album, .Medium)
-		item.cover = cover_ref(cover)
+		item.loader.cover = cover_ref(cover)
 	}
 
 	item.is_in_view = false
@@ -154,10 +139,10 @@ album_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Album_Item, inde
 	// Draw album cover.
 	{
 		rect := cover_rect(.Medium, rect_pos(ctx.box))
-		alpha := ui.tween_ease(&item.alpha_tween, 1, .Sine_In_Out)
+		alpha := cover_loader_alpha(&item.loader)
 
 		// TODO: draw placeholder for a missing album cover.
-		cover_draw(ctx, item.cover, rect_pos(rect), f64(alpha))
+		cover_draw(ctx, item.loader.cover, rect_pos(rect), f64(alpha))
 		ui.draw_box_bulgy(ctx, rect, state.theme.black)
 		offset.y += rect.height
 	}

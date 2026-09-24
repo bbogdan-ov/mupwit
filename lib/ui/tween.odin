@@ -46,14 +46,20 @@ tween_ease_any :: proc(t: ^Tween($T), to: T, kind: ease.Ease) -> T where T != Co
 	return math.lerp(t.from, to, ease.ease(kind, p))
 }
 
-tween_ease_color :: proc(t: ^Tween(Color), to: Color, kind: ease.Ease) -> Color {
+tween_ease_color :: proc(t: ^Tween(Color), to: Color, easing: ease.Ease) -> Color {
 	p := tween_progress(t)
 	if p <= 0.0 do return t.from
 	if p >= 1.0 do return to
-	return color_lerp(t.from, to, ease.ease(kind, p))
+	return color_lerp(t.from, to, ease.ease(easing, p))
 }
 
 tween_ease :: proc {
 	tween_ease_any,
 	tween_ease_color,
+}
+
+time_ease :: proc "contextless" (time, duration: Seconds, easing: ease.Ease) -> f32 {
+	if duration <= 0 do return 1
+	p := 1 - clamp(time / duration, 0, 1)
+	return ease.ease(easing, p)
 }

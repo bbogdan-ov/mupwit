@@ -71,7 +71,7 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if !screen_is_visible(state, .Player) do return
 
 	player := &state.player
-	song, has_song := player_cur_song(player)
+	song, has_song := player_cur_or_last_song(player)
 
 	box := ctx.box
 	box.x += screen_x_offset(state, .Player)
@@ -170,11 +170,10 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 }
 
 _player_ui_draw_cover :: proc(state: ^State, ctx: ^ui.Context, cover: Maybe(^Cover), rect: Rect) {
-	res := cover_draw(ctx, cover, rect_pos(rect))
-	#partial switch res {
-	case .No_Cover:
-		return
-	case .No_Surface:
+	if cover == nil do return
+
+	drawn := cover_draw(ctx, cover, rect_pos(rect))
+	if !drawn {
 		// TODO!: draw a proper placeholder.
 		ui.draw_rect(ctx, rect, state.theme.gray)
 	}

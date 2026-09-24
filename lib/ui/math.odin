@@ -149,6 +149,12 @@ color_hsl_shift :: proc(color: Color, h, s, l: f64) -> Color {
 	return color_from_hsl(hh + h, ss + s, ll + l, a)
 }
 
+color_alpha :: proc(color: Color, a: f32) -> Color {
+	color := color
+	color.a = u8(f32(color.a) * a)
+	return color
+}
+
 // ------------------------------
 // Values.
 // ------------------------------

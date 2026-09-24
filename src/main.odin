@@ -74,6 +74,7 @@ main :: proc() {
 	player_connect(&state.player)
 	defer player_destroy(&state.player)
 
+	status_ui_init()
 	queue_ui_init()
 	defer queue_ui_destroy()
 	albums_ui_init()
@@ -209,6 +210,7 @@ set_background_from_cover :: proc(state: ^State, cover: ^Cover) {
 on_keyboard_key :: proc(key: win.Key, key_state: win.Key_State, mods: win.Mods) {
 	if key_state != .Pressed do return
 
+	player := &state.player
 	shift := .Shift in mods
 
 	switch {
@@ -216,11 +218,19 @@ on_keyboard_key :: proc(key: win.Key, key_state: win.Key_State, mods: win.Mods) 
 		diff := -1 if shift else +1
 		screen := enum_rotate_variant(state.screen, diff)
 		set_screen(&state, screen)
+
+	case key == .Space:
+		player_toggle_play(player)
+	case key == .Dot && shift:
+		player_next(player)
+	case key == .Comma && shift:
+		player_previous(player)
 	}
 
 	player_ui_on_keyboard_key(&state, key, mods)
 }
 
+// TODO: would be cool to add touchpad gestures.
 on_pointer_scroll :: proc(scroll: f32, touchpad: bool) {
 	queue_ui_on_scroll(&state, scroll, touchpad)
 	albums_ui_on_scroll(&state, scroll, touchpad)
@@ -234,8 +244,9 @@ on_screen_updated :: proc() {
 
 // These functions are called by the `Player` struct whenever something happens.
 
-on_cur_song_updated :: proc() {
+on_cur_song_updated :: proc(prev_index: Maybe(mpd.Song_Index)) {
 	player_ui_on_cur_song_updated(&state)
+	queue_ui_on_cur_song_updated(&state, prev_index)
 }
 on_queue_updated :: proc() {
 	queue_ui_on_received_queue(&state)
