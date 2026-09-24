@@ -100,7 +100,7 @@ update :: proc(dt: Seconds) {
 	albums_ui_update(&state, dt)
 
 	win.set_cursor(state.window, ui.state.cursor)
-	ui.update()
+	ui.update(dt)
 }
 
 update_theme :: proc(dt: Seconds) {

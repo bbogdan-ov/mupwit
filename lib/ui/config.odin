@@ -16,3 +16,6 @@ SLIDER_CLICK_THICKNESS :: 12
 // start scrolling.
 ITEM_REORDER_SCROLLOFF :: 32
 ITEM_REORDER_SCROLL_MUL :: 0.25
+
+// Time between mouse clicks to count it as a double-click.
+DOUBLE_CLICK_DURATION :: Seconds(0.3)

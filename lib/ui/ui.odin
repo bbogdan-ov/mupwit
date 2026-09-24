@@ -28,6 +28,7 @@ State :: struct {
 	mouse_released_buttons: bit_set[win.Button;u8],
 	mouse_down:             bool,
 	mouse_pressed:          bool,
+	double_click_timer:     Seconds,
 	cursor:                 win.Cursor,
 
 	// Assets.
@@ -45,8 +46,15 @@ destroy :: proc() {
 	win.font_library_destroy(state.font_library)
 }
 
-update :: proc() {
+update :: proc(dt: Seconds) {
 	_update_drag()
+
+	if state.double_click_timer > 0 {
+		state.double_click_timer -= dt
+	}
+	if state.mouse_pressed {
+		state.double_click_timer = DOUBLE_CLICK_DURATION
+	}
 
 	state.mouse_pressed = false
 	state.prev_pointer = state.pointer

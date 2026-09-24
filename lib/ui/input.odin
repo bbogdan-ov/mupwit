@@ -11,6 +11,9 @@ is_mouse_pressed :: proc(button: win.Button) -> bool {
 is_mouse_released :: proc(button: win.Button) -> bool {
 	return button in state.mouse_released_buttons
 }
+is_mouse_double_pressed :: proc(button: win.Button) -> bool {
+	return state.double_click_timer > 0 && is_mouse_pressed(button)
+}
 
 is_clicked :: proc(button: win.Button) -> bool {
 	return state.dragging == nil && is_mouse_released(button)
