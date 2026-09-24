@@ -15,7 +15,7 @@ My little UI library, powered by [Cairo], draws the UI and displays it using my
 other small low-level [Wayland client library]!
 
 [Cairo]: https://cairographics.org/
-[Wayland library]: https://github.com/bbogdan-ov/wayclient
+[Wayland client library]: https://github.com/bbogdan-ov/wayclient
 
 Currently you should [build](#building) MUPWIT yourself, unfortunately.
 
