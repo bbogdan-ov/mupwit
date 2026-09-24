@@ -231,6 +231,7 @@ on_keyboard_key :: proc(key: win.Key, key_state: win.Key_State, mods: win.Mods) 
 	}
 
 	player_ui_on_keyboard_key(&state, key, mods)
+	queue_ui_on_keyboard_key(&state, key, mods)
 }
 
 // TODO: would be cool to add touchpad gestures.

@@ -5,6 +5,7 @@
 package mupwit
 
 import "lib:mpd"
+import win "lib:my_window"
 import "lib:ui"
 
 Song_Item :: struct {
@@ -61,6 +62,14 @@ _queue_ui_remove_hovered_song :: proc(state: ^State) -> bool {
 	hovering := self.list.hovering.? or_return
 	item := &self.list.items[hovering]
 	player_remove_song(&state.player, item.song_index)
+	return true
+}
+
+_queue_ui_scroll_to_cur_song :: proc(state: ^State) -> bool {
+	index := state.player.cur_song.? or_return
+	item := &self.list.items[index]
+	off := item.position - self.list.item_height
+	ui.scroll_to(self.box, &self.scroll, f32(off))
 	return true
 }
 
@@ -146,6 +155,22 @@ queue_ui_on_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
 	if state.screen != .Queue do return
 
 	ui.scroll_on_scroll(&self.scroll, scroll, touchpad)
+}
+
+queue_ui_on_keyboard_key :: proc(state: ^State, key: win.Key, mods: win.Mods) {
+	if state.screen != .Queue do return
+
+	shift := .Shift in mods
+
+	switch {
+	case key == .Z:
+		_queue_ui_scroll_to_cur_song(state)
+
+	case key == .G && shift, key == .End:
+		ui.scroll_to(self.box, &self.scroll, self.scroll.max_offset)
+	case key == .G, key == .Home:
+		ui.scroll_to(self.box, &self.scroll, 0)
+	}
 }
 
 queue_ui_on_received_queue :: proc(state: ^State) {
