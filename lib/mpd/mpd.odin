@@ -5,6 +5,7 @@
 package mpd
 
 import "base:intrinsics"
+import "base:runtime"
 import "core:fmt"
 import "core:log"
 import "core:net"
@@ -12,15 +13,24 @@ import "core:strings"
 
 DEFAULT_PORT :: 6600
 
+Client_Error :: enum {
+	None = 0,
+	// Received an "ACK ..." response from MPD which indicates an error.
+	// See `Client.error` for the full error message.
+	MPD_Error,
+	// Expected a specific response, but it wasn't received for some reason.
+	Missing_Response,
+}
+
 Error :: union #shared_nil {
+	Client_Error,
 	net.Network_Error,
-	net.TCP_Recv_Error,
-	net.TCP_Send_Error,
-	net.Parse_Endpoint_Error,
 }
 
 Client :: struct {
-	socket: net.TCP_Socket,
+	socket:          net.TCP_Socket,
+	error:           string,
+	error_allocator: runtime.Allocator,
 }
 
 @(require_results)
@@ -29,7 +39,11 @@ connect :: proc(allocator := context.allocator) -> (client: Client, err: Error) 
 	host := get_host(context.allocator)
 	defer delete(host, context.allocator)
 
-	endpoint := net.parse_hostname_or_endpoint(fmt.tprintf("%v:%v", host, port)) or_return
+	endpoint, parse_err := net.parse_hostname_or_endpoint(fmt.tprintf("%v:%v", host, port))
+	if parse_err != nil {
+		err = net.Network_Error(parse_err)
+		return
+	}
 
 	return connect_to_endpoint(endpoint, allocator)
 }
@@ -66,6 +80,8 @@ connect_to_endpoint :: proc(
 disconnect :: proc(client: ^Client) {
 	log.info("MPD: Disconnecting...")
 	net.close(client.socket)
+
+	delete(client.error, client.error_allocator)
 }
 
 @(require_results)
@@ -90,9 +106,10 @@ recv_and_forget :: proc(client: ^Client, loc := #caller_location) -> (err: Error
 	// it is ended.
 	str, err = recv(client, context.allocator, loc)
 	delete(str, context.allocator)
-	return
+	return err
 }
 
+// Upon returning `MPD_Error`, stores the error string into `Client.error`.
 @(require_results)
 recv :: proc(
 	client: ^Client,
@@ -117,7 +134,7 @@ recv :: proc(
 
 		if err != nil {
 			log.errorf("MPD: Failed to receive: %v", err, location = loc)
-			return "", err
+			return "", net.Network_Error(err)
 		}
 
 		was_empty := len(sb.buf) == 0
@@ -144,8 +161,20 @@ recv :: proc(
 		// if size < len(buffer) do break
 	}
 
-	// TODO!!: store message somewhere if it is an error. ("ACK ..." message)
 	str = ss.trim_space(ss.to_string(sb))
+
+	if is_error {
+		log.errorf("MPD: %q", str, location = loc)
+
+		// NOTE: `Client` is responsible for cleaning up the error message
+		// string, because user might not care about the returned error, so we
+		// don't obligate him to clean up the error message.
+		delete(client.error, client.error_allocator)
+		client.error = str
+		client.error_allocator = allocator
+		return "", .MPD_Error
+	}
+
 	return
 }
 
@@ -153,11 +182,11 @@ recv :: proc(
 _send_string :: proc(client: ^Client, str: string, loc := #caller_location) -> (err: Error) {
 	if len(str) == 0 do return nil
 
-	_, err = net.send_tcp(client.socket, transmute([]u8)str)
-	if err != nil {
-		log.errorf("MPD: Failed to send: %v", err, location = loc)
+	_, send_err := net.send_tcp(client.socket, transmute([]u8)str)
+	if send_err != nil {
+		log.errorf("MPD: Failed to send: %v", send_err, location = loc)
 	}
-	return err
+	return net.Network_Error(send_err)
 }
 
 @(require_results)

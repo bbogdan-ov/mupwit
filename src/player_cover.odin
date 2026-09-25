@@ -3,6 +3,7 @@
 package mupwit
 
 import "base:runtime"
+import "core:log"
 import "core:strings"
 import "lib:ui"
 
@@ -173,16 +174,32 @@ cover_get_or_request :: proc(
 	return cover
 }
 
-_player_handle_response_cover :: proc(player: ^Player, res: Response_Cover) {
-	slot, found := &player._covers_cache[res.key]
-	assert(found) // TODO: handle error
+_player_handle_cover_response :: proc(player: ^Player, res: Response_Cover) {
+	has_slot, has_cover, loading: bool
+	block: {
+		slot: ^Cover_Cache_Slot
+		slot, has_slot = &player._covers_cache[res.key]
+		if !has_slot do break block
 
-	cover, has_cover := slot.covers[res.size].?
-	assert(has_cover) // TODO: handle error
+		cover: ^Cover
+		cover, has_cover = slot.covers[res.size].?
+		if !has_cover do break block
 
-	cover.surface = res.surface
-	cover.color = res.color
-	cover.loading = false
+		loading = cover.loading
+		if !cover.loading do break block
+
+		cover.surface = res.surface
+		cover.color = res.color
+		cover.loading = false
+		return
+	}
+
+	log.errorf(
+		"Couldn't update cover with an invalid state: has_slot = %v, has_cover = %v, loading = %v",
+		has_slot,
+		has_cover,
+		loading,
+	)
 }
 
 cover_rect :: proc(size: Cover_Size, pos: Vec2) -> Rect {

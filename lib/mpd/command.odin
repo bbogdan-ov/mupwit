@@ -67,7 +67,10 @@ request_status :: proc(client: ^Client, loc := #caller_location) -> (status: Sta
 	found: bool
 	status, found = parser_next_status(&parser)
 	if !found {
-		panic("TODO: handle missing status")
+		log.error("MPD: Missing status response", location = loc)
+		log.errorf("MPD: Received string: ---\n%s\n---", parser.s, location = loc)
+		err = .Missing_Response
+		return
 	}
 
 	return status, nil
@@ -141,7 +144,7 @@ request_song_picture :: proc(
 		if offset == 0 {
 			picture, found = parser_next_picture_info(&parser, allocator)
 			if !found {
-				log.debugf("MPD: Picture is missing for %q", file)
+				log.debugf("MPD: Picture is missing for %q", file, location = loc)
 				missing = true
 				err = nil
 				return
@@ -155,9 +158,10 @@ request_song_picture :: proc(
 		part: []u8
 		part, found = parser_next_binary(&parser, loc)
 		if !found {
-			log.errorf("MPD: For %q", file)
-			log.errorf("MPD: %s", parser.s)
-			panic("TODO!!!: handle missing picture binary")
+			log.errorf("MPD: Missing picture binary response for %q", file, location = loc)
+			log.errorf("MPD: Received string: ---\n%s\n---", parser.s, location = loc)
+			err = .Missing_Response
+			return
 		}
 
 		assert(offset + len(part) <= len(picture.data))
@@ -170,7 +174,7 @@ request_song_picture :: proc(
 		}
 	}
 
-	log.debugf("MPD: Received picture info in %v for %q", time.since(start), file)
+	log.debugf("MPD: Received picture info in %v for %q", time.since(start), file, location = loc)
 
 	return picture, false, nil
 }
@@ -236,7 +240,12 @@ request_albums :: proc(
 		append(&albums, album)
 	}
 
-	log.debugf("MPD: Received album list of %v albums in %v", len(albums), time.since(start))
+	log.debugf(
+		"MPD: Received album list of %v albums in %v",
+		len(albums),
+		time.since(start),
+		location = loc,
+	)
 
 	return albums, nil
 }

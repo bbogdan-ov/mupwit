@@ -11,7 +11,7 @@ import "vendor:stb/image"
 import "lib:cairo"
 import "lib:mpd"
 
-_Cover_Thread_Data :: struct {
+_Cover_Thread_Data :: struct #all_or_none {
 	responses: Responses_Chan,
 	key:       Cover_Key,
 	size:      Cover_Size,
@@ -28,11 +28,12 @@ _cover_decode_and_send :: proc(
 ) {
 	alloc := shared.allocator
 
-	data := new(_Cover_Thread_Data, alloc)
-	data.responses = shared.responses
-	data.key = cover_key_clone(key, alloc)
-	data.size = size
-	data.picture = picture
+	data := _Cover_Thread_Data {
+		responses = shared.responses,
+		key       = cover_key_clone(key, alloc),
+		size      = size,
+		picture   = picture,
+	}
 
 	{
 		mutex := &shared.covers_thread_pool
@@ -41,7 +42,7 @@ _cover_decode_and_send :: proc(
 
 		// Delete all completed tasks.
 		for _ in thread.pool_pop_done(pool) {}
-		thread.pool_add_task(pool, alloc, _do_decode_cover, data)
+		thread.pool_add_task(pool, alloc, _do_decode_cover, new_clone(data, alloc))
 	}
 }
 
@@ -52,11 +53,25 @@ _do_decode_cover :: proc(task: thread.Task) {
 		free(data, task.allocator)
 	}
 
+	response := Response_Cover {
+		key       = data.key, // Already cloned with `task.allocator`.
+		size      = data.size,
+		surface   = nil,
+		color     = {},
+		allocator = task.allocator,
+	}
+
 	total_start := time.now()
 
 	// Decode image pixel data.
 	decode_start := time.now()
-	pixels, size := _decode_cover_image(data.picture.data)
+	pixels, size, ok := _decode_cover_image(data.picture.data)
+	if !ok {
+		// Respond with an empty cover if failed to decode.
+		// TODO: log "failed to decode".
+		_response_send(data.responses, response)
+		return
+	}
 	decode_time := time.since(decode_start)
 
 	wanted_size := COVER_SIZE[data.size]
@@ -72,14 +87,9 @@ _do_decode_cover :: proc(task: thread.Task) {
 		color = _calc_surface_accent_color(surface)
 	}
 
-	res := Response_Cover {
-		key       = data.key, // already cloned with `task.allocator`.
-		size      = data.size,
-		surface   = surface,
-		color     = color,
-		allocator = task.allocator,
-	}
-	_response_send(data.responses, res)
+	response.surface = surface
+	response.color = color
+	_response_send(data.responses, response)
 
 	_ = total_start
 	_ = decode_time
@@ -97,7 +107,7 @@ _do_decode_cover :: proc(task: thread.Task) {
 	// )
 }
 
-_decode_cover_image :: proc(data: []u8) -> (pixels: [^]u8, size: Vec2) {
+_decode_cover_image :: proc(data: []u8) -> (pixels: [^]u8, size: Vec2, ok: bool) {
 	// NOTE: we are assuming that this function ALWAYS returns RGBA pixel data
 	// because we specified the exact number of channels in the `desired_channels`
 	// argument. STB image seems to guarantee that.
@@ -109,7 +119,10 @@ _decode_cover_image :: proc(data: []u8) -> (pixels: [^]u8, size: Vec2) {
 		nil,
 		COVER_CHANNELS,
 	)
-	assert(p != nil) // TODO: handle error.
+	if p == nil {
+		ok = false
+		return
+	}
 
 	// RGBA -> BGRA because Cairo's pixel data layout requirements are
 	// strange, but i don't complain.
@@ -121,6 +134,7 @@ _decode_cover_image :: proc(data: []u8) -> (pixels: [^]u8, size: Vec2) {
 	}
 
 	pixels = p
+	ok = true
 	return
 }
 

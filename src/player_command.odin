@@ -62,6 +62,14 @@ Command :: union #no_nil {
 	Command_Disconnect,
 }
 
+_command_destroy :: proc(command: Command) {
+	#partial switch cmd in command {
+	case Command_Request_Cover:
+		delete(string(cmd.file), cmd.allocator)
+		delete(string(cmd.key), cmd.allocator)
+	}
+}
+
 _command_send :: proc(ch: Commands_Chan, command: Command) {
 	chan.send(ch, command)
 }
@@ -186,6 +194,8 @@ _player_handle_command :: proc(
 ) -> (
 	err: mpd.Error,
 ) {
+	defer _command_destroy(command)
+
 	switch cmd in command {
 	case Command_Request_Status:
 		status := mpd.request_status(client) or_return
@@ -212,23 +222,13 @@ _player_handle_command :: proc(
 		// another thread and being decoded here, so it doesn't block the
 		// client thread.
 
-		defer {
-			delete(string(cmd.file), cmd.allocator)
-			delete(string(cmd.key), cmd.allocator)
-		}
-
 		// TODO!: should reuse cover surface with same key and of the larger
 		// size and down scale it instead of requesting picture data for every
 		// cover request.
 		picture, missing := mpd.request_song_picture(client, cmd.file, shared.allocator) or_return
 		if missing {
-			res := Response_Cover {
-				key       = cover_key_clone(cmd.key, shared.allocator),
-				size      = cmd.size,
-				surface   = nil,
-				color     = {},
-				allocator = shared.allocator,
-			}
+			key := cover_key_clone(cmd.key, shared.allocator)
+			res := Response_Cover{key, cmd.size, nil, {}, shared.allocator}
 			_response_send(shared.responses, res)
 			return nil
 		} else {
@@ -239,7 +239,7 @@ _player_handle_command :: proc(
 	case Command_Play:
 		return mpd.send_and_forget(client, "play")
 	case Command_Next:
-		return mpd.send_and_forget(client, "next")
+		return mpd.send_and_forget(client, "nextbobo")
 	case Command_Previous:
 		return mpd.send_and_forget(client, "previous")
 	case Command_Resume:
@@ -289,6 +289,7 @@ _player_handle_commands :: proc(
 
 		err := _player_handle_command(shared, client, command)
 		if err != nil {
+			// TODO: display errors to the user.
 			log.errorf("Failed to handle command %v: %v", command, err)
 		}
 	}

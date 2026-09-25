@@ -50,6 +50,6 @@ _player_handle_response :: proc(player: ^Player, response: Response) {
 		_player_set_status(player, res.status)
 
 	case Response_Cover:
-		_player_handle_response_cover(player, res)
+		_player_handle_cover_response(player, res)
 	}
 }
