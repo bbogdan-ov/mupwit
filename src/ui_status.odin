@@ -194,8 +194,8 @@ _queue_status_ui_draw :: proc(state: ^State, ctx: ^ui.Context, rect: Rect) {
 		G :: GAP / 2
 
 		pos.x -= G
-		pos.x += btn(state, ctx, &self.button_shuffle, .Shuffle, pos) + G
-		pos.x += btn(state, ctx, &self.button_clear, .Trash, pos) + G
+		pos.x += btn(state, ctx, &self.button_shuffle, .Shuffle_Queue, pos) + G
+		pos.x += btn(state, ctx, &self.button_clear, .Clear_Queue, pos) + G
 	}
 
 	pos.x += GAP

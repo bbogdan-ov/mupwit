@@ -22,8 +22,8 @@ Icon :: enum {
 	Next,
 	Small_Arrow_Right,
 	Disk,
-	Trash,
-	Shuffle,
+	Clear_Queue,
+	Shuffle_Queue,
 }
 
 draw_icon :: proc(state: ^State, ctx: ^ui.Context, icon: Icon, pos: Vec2, color: Color) {
