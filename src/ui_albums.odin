@@ -86,7 +86,7 @@ albums_ui_on_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
 	ui.scroll_on_scroll(&self.scroll, scroll, touchpad)
 }
 
-albums_ui_on_albums_updated :: proc(state: ^State) {
+albums_ui_on_album_list_updated :: proc(state: ^State) {
 	_album_ui_clear_list()
 	non_zero_reserve(&self.items, len(state.player.albums))
 

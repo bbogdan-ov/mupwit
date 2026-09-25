@@ -46,8 +46,6 @@ _player_handle_response :: proc(player: ^Player, response: Response) {
 		_player_set_albums(player, res)
 
 	case Response_Queue:
-		// TODO!!!: what should happen when the queue was updated during its
-		// editing? (e.g. reodering items)
 		_player_set_queue(player, res.list)
 		_player_set_status(player, res.status)
 

@@ -172,8 +172,10 @@ queue_ui_on_keyboard_key :: proc(state: ^State, key: win.Key, mods: win.Mods) {
 	}
 }
 
-queue_ui_on_received_queue :: proc(state: ^State) {
+queue_ui_on_queue_updated :: proc(state: ^State) {
 	player := &state.player
+
+	ui.item_list_stop_reodering(&self.list)
 
 	_queue_ui_clear_list()
 	non_zero_reserve(&self.list.items, len(player.queue))

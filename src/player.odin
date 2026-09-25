@@ -44,6 +44,7 @@ Player :: struct {
 	playstate:                 mpd.Play_State,
 	elapsed, duration:         Seconds,
 	cur_song:                  Maybe(mpd.Song_Index),
+	cur_song_id:               Maybe(mpd.Song_Id),
 	// Copy of a the last played song (before `cur_song` set to `nil`).
 	// Mostly used for animation, so elements that display the current song
 	// don't just disappear, but smoothly fade out with data of the last played song.
@@ -157,10 +158,13 @@ _player_set_status :: proc(player: ^Player, status: mpd.Status) {
 	player.duration = Seconds(status.duration)
 
 	prev_index := player.cur_song
+	prev_id := player.cur_song_id
 	if status.cur_song_id > 0 && len(player.queue) > 0 {
 		player.cur_song = status.cur_song_index
+		player.cur_song_id = status.cur_song_id
 	} else {
 		player.cur_song = nil
+		player.cur_song_id = nil
 	}
 
 	prev, has_prev := prev_index.?
@@ -186,8 +190,8 @@ _player_set_status :: proc(player: ^Player, status: mpd.Status) {
 		_player_queue_calc_elapsed(player)
 	}
 
-	if prev_index != player.cur_song {
-		on_cur_song_updated(prev_index)
+	if prev_id != player.cur_song_id {
+		on_cur_song_updated(prev_index, prev_id)
 	}
 }
 
@@ -237,7 +241,7 @@ _player_set_albums :: proc(player: ^Player, albums: mpd.Album_List) {
 	sort.quick_sort_proc(albums[:], sort_proc)
 	player.albums = albums
 
-	on_albums_updated()
+	on_album_list_updated()
 }
 
 _player_queue_calc_duration :: proc(player: ^Player) {

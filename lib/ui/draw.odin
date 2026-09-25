@@ -4,8 +4,6 @@ import "base:runtime"
 import "core:strings"
 import "lib:cairo"
 
-Element_ID :: distinct uintptr
-
 Box :: struct {
 	using rect: Rect,
 	padding:    Vec2,

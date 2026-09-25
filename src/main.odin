@@ -250,15 +250,16 @@ on_screen_updated :: proc() {
 
 // These functions are called by the `Player` struct whenever something happens.
 
-on_cur_song_updated :: proc(prev_index: Maybe(mpd.Song_Index)) {
+on_cur_song_updated :: proc(prev_index: Maybe(mpd.Song_Index), prev_id: Maybe(mpd.Song_Id)) {
 	player_ui_on_cur_song_updated(&state)
 	queue_ui_on_cur_song_updated(&state, prev_index)
 }
+// Only being called when the queue was changed from the outside.
 on_queue_updated :: proc() {
-	queue_ui_on_received_queue(&state)
+	queue_ui_on_queue_updated(&state)
 }
-on_albums_updated :: proc() {
-	albums_ui_on_albums_updated(&state)
+on_album_list_updated :: proc() {
+	albums_ui_on_album_list_updated(&state)
 }
 on_song_reordered :: proc(from, to: mpd.Song_Index) {
 	queue_ui_on_song_reordered(from, to)

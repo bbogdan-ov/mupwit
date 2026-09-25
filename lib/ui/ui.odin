@@ -6,6 +6,10 @@ PIXEL_CHANNELS :: 4
 
 DRAG_START_THRESHOLD :: 10
 
+ELEMENT_ID_NONE :: Element_ID(0)
+
+Element_ID :: distinct uintptr
+
 State :: struct {
 	view:                   Rect,
 
@@ -63,8 +67,8 @@ update :: proc(dt: Seconds) {
 }
 
 _update_drag :: proc() {
-	state.just_started_dragging = 0
-	state.just_stopped_dragging = 0
+	state.just_started_dragging = ELEMENT_ID_NONE
+	state.just_stopped_dragging = ELEMENT_ID_NONE
 
 	dragging, has_dragging := state.dragging.?
 
@@ -84,17 +88,21 @@ _update_drag :: proc() {
 	}
 }
 
-start_dragging :: proc(id: Element_ID) {
+start_dragging :: proc(id: Element_ID, loc := #caller_location) {
 	if state.dragging != nil {
-		if ODIN_DEBUG do panic("Cannot start dragging when already dragging something else")
+		if ODIN_DEBUG do panic("Cannot start dragging when already dragging something else", loc)
 		return
 	}
 	state.dragging = id
 	state.just_started_dragging = id
 }
-stop_dragging :: proc(id: Element_ID) {
+stop_dragging :: proc(id: Element_ID, loc := #caller_location) {
+	if state.dragging == nil {
+		if ODIN_DEBUG do panic("Nothing is being dragged", loc)
+		return
+	}
 	if state.dragging != id {
-		if ODIN_DEBUG do panic("Stopped dragging a wrong element")
+		if ODIN_DEBUG do panic("Stopped dragging a wrong element", loc)
 		return
 	}
 	state.dragging = nil
