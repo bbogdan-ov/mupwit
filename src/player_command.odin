@@ -3,6 +3,7 @@ package mupwit
 import "base:intrinsics"
 import "base:runtime"
 import "core:log"
+import "core:math"
 import "core:strings"
 import "core:sync/chan"
 import "lib:mpd"
@@ -32,7 +33,11 @@ Command_Stop :: struct {}
 Command_Play_Song :: struct {
 	index: mpd.Song_Index,
 }
-Command_Seek :: struct {
+Command_Seek_Current :: struct {
+	seconds: Seconds,
+}
+Command_Seek_Song :: struct {
+	index:   mpd.Song_Index,
 	seconds: Seconds,
 }
 Command_Reorder_Song :: struct {
@@ -56,7 +61,8 @@ Command :: union #no_nil {
 	Command_Pause,
 	Command_Stop,
 	Command_Play_Song,
-	Command_Seek,
+	Command_Seek_Current,
+	Command_Seek_Song,
 	Command_Reorder_Song,
 	Command_Remove_Song,
 	Command_Disconnect,
@@ -108,11 +114,28 @@ player_play_song :: proc(player: ^Player, index: mpd.Song_Index, force := false)
 }
 
 player_seek :: proc(player: ^Player, seconds: Seconds) {
-	_command_send(player._shared.commands, Command_Seek{seconds})
+	if player.cur_song == nil do return
 
 	// Update local elapsed time so the slider doesn't jump untill player
 	// receives an up-to-date status.
+	seconds := max(seconds, 0)
+	if seconds >= player.duration {
+		// NOTE: its a crutch, sometimes when seeking at the end of a song, MPD
+		// fails to do that, probably because `seconds` may be a little greater
+		// that song's duration due to float precision.
+		seconds = math.floor(player.duration)
+	}
 	player.elapsed = seconds
+
+	if player.playstate == .Stop {
+		_command_send(player._shared.commands, Command_Play{})
+		_command_send(player._shared.commands, Command_Seek_Current{seconds})
+		// FIXME!: `seek <index> <time>` doesn't seem to do anything?? Well done MPD.
+		// `play` and `seekcur <time>` sequence also doesn't seem to work.
+		// _command_send(player._shared.commands, Command_Seek_Song{index, seconds})
+	} else {
+		_command_send(player._shared.commands, Command_Seek_Current{seconds})
+	}
 }
 
 player_seek_percent :: proc(player: ^Player, percent: f32) {
@@ -250,8 +273,10 @@ _player_handle_command :: proc(
 		return mpd.send_and_forget(client, "stop")
 	case Command_Play_Song:
 		return mpd.send_and_forget(client, "play", cmd.index)
-	case Command_Seek:
+	case Command_Seek_Current:
 		return mpd.send_and_forget(client, "seekcur", cmd.seconds)
+	case Command_Seek_Song:
+		return mpd.send_and_forget(client, "seek", cmd.index, cmd.seconds)
 	case Command_Reorder_Song:
 		mpd.send_and_forget(client, "move", cmd.from, cmd.to) or_return
 		status := mpd.request_status(client) or_return
