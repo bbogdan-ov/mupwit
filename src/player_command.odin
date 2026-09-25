@@ -154,7 +154,8 @@ player_reorder_song :: proc(player: ^Player, from, to: mpd.Song_Index) {
 	}
 
 	player._ignore_next_queue_update = true
-	_player_queue_calc_elapsed(player)
+	// Duration shouldn't change, but just in case.
+	_player_queue_calc_duration_and_elapsed(player)
 	on_song_reordered(from, to)
 
 	_command_send(player._shared.commands, Command_Reorder_Song{from, to})
@@ -172,7 +173,7 @@ player_remove_song :: proc(player: ^Player, index: mpd.Song_Index) {
 	}
 
 	player._ignore_next_queue_update = true
-	_player_queue_calc_elapsed(player)
+	_player_queue_calc_duration_and_elapsed(player)
 	on_song_removed(index)
 
 	_command_send(player._shared.commands, Command_Remove_Song{index})

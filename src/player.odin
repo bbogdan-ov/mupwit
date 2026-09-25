@@ -170,7 +170,7 @@ _player_set_status :: proc(player: ^Player, status: mpd.Status) {
 	prev, has_prev := prev_index.?
 	cur, has_cur := player.cur_song.?
 
-	if cur != prev || has_prev != has_cur {
+	if player.cur_song != prev_index {
 		if !has_prev && has_cur {
 			player.switch_direction = .From_None
 		} else if has_prev && !has_cur {
@@ -222,7 +222,8 @@ _player_set_queue :: proc(player: ^Player, queue: mpd.Song_List) {
 	mpd.song_list_destroy(&player.queue)
 	player.queue = queue
 
-	_player_queue_calc_duration(player)
+	_player_queue_calc_duration_and_elapsed(player)
+	player.elapsed = 0
 
 	on_queue_updated_by_external()
 }
@@ -244,10 +245,14 @@ _player_set_albums :: proc(player: ^Player, albums: mpd.Album_List) {
 	on_album_list_updated()
 }
 
-_player_queue_calc_duration :: proc(player: ^Player) {
+_player_queue_calc_duration_and_elapsed :: proc(player: ^Player) {
+	cur := player.cur_song.? or_else 0
+
 	player.queue_duration = 0
-	for song in player.queue {
+	player.queue_elapsed = 0
+	for song, i in player.queue {
 		player.queue_duration += Seconds(song.duration)
+		if i < int(cur) do player.queue_elapsed += Seconds(song.duration)
 	}
 }
 
