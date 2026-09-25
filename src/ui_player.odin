@@ -290,8 +290,10 @@ _player_ui_set_cover :: proc(state: ^State, cover: Maybe(^Cover)) {
 
 	ui.tween_play(&self.cover_tween, 0, PLAYER_COVER_ANIM_DURATION)
 
-	if cover, ok := cover.?; ok {
-		set_background_from_cover(state, cover)
+	if PLAYER_ADAPT_THEME_TO_COVER {
+		if cover, ok := cover.?; ok {
+			set_background_from_cover(state, cover)
+		}
 	}
 }
 
