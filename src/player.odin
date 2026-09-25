@@ -224,7 +224,7 @@ _player_set_queue :: proc(player: ^Player, queue: mpd.Song_List) {
 
 	_player_queue_calc_duration(player)
 
-	on_queue_updated()
+	on_queue_updated_by_external()
 }
 
 _player_set_albums :: proc(player: ^Player, albums: mpd.Album_List) {

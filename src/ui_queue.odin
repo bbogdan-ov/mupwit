@@ -172,7 +172,7 @@ queue_ui_on_keyboard_key :: proc(state: ^State, key: win.Key, mods: win.Mods) {
 	}
 }
 
-queue_ui_on_queue_updated :: proc(state: ^State) {
+queue_ui_on_queue_updated_by_external :: proc(state: ^State) {
 	player := &state.player
 
 	ui.item_list_stop_reodering(&self.list)

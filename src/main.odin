@@ -255,8 +255,9 @@ on_cur_song_updated :: proc(prev_index: Maybe(mpd.Song_Index), prev_id: Maybe(mp
 	queue_ui_on_cur_song_updated(&state, prev_index)
 }
 // Only being called when the queue was changed from the outside.
-on_queue_updated :: proc() {
-	queue_ui_on_queue_updated(&state)
+// "From the outside" may also be referred as "external" for simplicity.
+on_queue_updated_by_external :: proc() {
+	queue_ui_on_queue_updated_by_external(&state)
 }
 on_album_list_updated :: proc() {
 	albums_ui_on_album_list_updated(&state)
