@@ -144,7 +144,7 @@ queue_ui_on_screen_updated :: proc(state: ^State) {
 	// width and height are zeros) when calling `scroll_set` and the content
 	// length may be larger that it should be because of that.
 	length := _queue_ui_contents_length()
-	ui.scroll_update_max_offset(self.box, &self.scroll, length)
+	ui.scroll_update_length(self.box, &self.scroll, length)
 
 	off := i32(index - 1) * self.list.item_height
 	ui.scroll_set(&self.scroll, f32(off))
@@ -166,7 +166,7 @@ queue_ui_on_keyboard_key :: proc(state: ^State, key: win.Key, mods: win.Mods) {
 		_queue_ui_scroll_to_cur_song(state)
 
 	case key == .G && shift, key == .End:
-		ui.scroll_to(self.box, &self.scroll, self.scroll.max_offset)
+		ui.scroll_to(self.box, &self.scroll, self.scroll.length)
 	case key == .G, key == .Home:
 		ui.scroll_to(self.box, &self.scroll, 0)
 	}

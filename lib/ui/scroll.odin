@@ -6,7 +6,12 @@ Scroll :: struct {
 	rect, thumb:       Rect,
 	offset:            f32,
 	from, to:          f32,
-	max_offset:        f32,
+	// Length of the scrollable area.
+	length:            f32,
+	// Highest offset at which scroll should stop. Lowest is always 0.
+	// "Stretches" to the current offset whenever length of the scrollable area
+	// shrinks, so scroll doesn't immediately jump.
+	stop_offset:       f32,
 	velocity:          f32,
 	timer:             Seconds,
 	is_hovering:       bool,
@@ -25,9 +30,10 @@ scroll_update :: proc(box: ^Box, s: ^Scroll, dt: Seconds) {
 	box.scroll = s.offset
 }
 
-scroll_update_max_offset :: proc(box: Box, s: ^Scroll, length: i32) {
-	length := max(length, 1)
-	s.max_offset = f32(length - box.height)
+scroll_update_length :: proc(box: Box, s: ^Scroll, contents: i32) {
+	contents := max(contents, 1)
+	s.length = f32(contents - box.height)
+	s.stop_offset = max(s.stop_offset, s.length)
 }
 
 _scroll_update_offset :: proc(s: ^Scroll, dt: Seconds) {
@@ -46,11 +52,10 @@ _scroll_update_offset :: proc(s: ^Scroll, dt: Seconds) {
 
 	s.offset += s.velocity
 
-	if s.offset >= s.max_offset {
-		s.offset = s.max_offset
+	if s.offset >= s.stop_offset {
+		s.offset = s.stop_offset
 		s.velocity = 0
-	}
-	if s.offset <= 0 {
+	} else if s.offset <= 0 {
 		s.offset = 0
 		s.velocity = 0
 	}
@@ -62,6 +67,10 @@ _scroll_update_offset :: proc(s: ^Scroll, dt: Seconds) {
 		s.velocity += d
 	} else {
 		s.velocity = 0
+	}
+
+	if s.offset >= s.length {
+		s.stop_offset = max(s.length, s.offset)
 	}
 }
 
@@ -96,24 +105,26 @@ _scroll_update_pointer_drag :: proc(box: Box, s: ^Scroll) {
 scroll_on_scroll :: proc(s: ^Scroll, scroll: f32, touchpad: bool) {
 	if touchpad {
 		s.velocity = scroll * SCROLL_TOUCH_MULPLIER
-	} else if !is_almost_zero(scroll) {
-		if s.timer <= 0 {
-			s.to = s.offset
-		}
+		return
+	}
+	if is_almost_zero(scroll) do return
 
-		s.from = math.floor(s.offset)
-		s.to += scroll * SCROLL_WHEEL_MULPLIER
-		s.to = clamp(math.floor(s.to), 0, s.max_offset)
+	if s.timer <= 0 {
+		s.to = s.offset
+	}
 
-		if s.from != s.to {
-			s.velocity = 0
-			s.timer = SCROLL_ANIM_DURATION
-		}
+	s.from = math.floor(s.offset)
+	s.to += scroll * SCROLL_WHEEL_MULPLIER
+	s.to = clamp(math.floor(s.to), 0, s.stop_offset)
+
+	if s.from != s.to {
+		s.velocity = 0
+		s.timer = SCROLL_ANIM_DURATION
 	}
 }
 
 scroll_set :: proc(s: ^Scroll, offset: f32) {
-	s.offset = clamp(offset, 0, s.max_offset)
+	s.offset = clamp(offset, 0, s.stop_offset)
 	s.to = s.offset
 	s.timer = 0
 	s.velocity = 0
@@ -121,13 +132,13 @@ scroll_set :: proc(s: ^Scroll, offset: f32) {
 
 scroll_by :: proc(s: ^Scroll, diff: f32) {
 	if !is_almost_zero(diff) {
-		s.offset = clamp(s.offset + diff, 0, s.max_offset)
+		s.offset = clamp(s.offset + diff, 0, s.stop_offset)
 		s.velocity = 0
 	}
 }
 
 scroll_to :: proc(box: Box, s: ^Scroll, offset: f32) {
-	offset := clamp(offset, 0, s.max_offset)
+	offset := clamp(offset, 0, s.stop_offset)
 	diff := offset - s.offset
 	height := f32(box.height)
 
@@ -146,9 +157,9 @@ scroll_to :: proc(box: Box, s: ^Scroll, offset: f32) {
 scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color, active_color: Color) {
 	box := ctx.box
 
-	scroll_update_max_offset(ctx.box, s, length)
+	scroll_update_length(ctx.box, s, length)
 
-	progress := s.offset / s.max_offset
+	progress := s.offset / s.stop_offset
 
 	s.thumb.width = box.padding.x
 	s.thumb.height = max(box.height * box.height / length, 32)
@@ -217,5 +228,5 @@ scroll_hovering_item :: proc(
 }
 
 scroll_content_length :: proc(box: Box, s: ^Scroll) -> i32 {
-	return i32(s.max_offset) + box.height
+	return i32(s.stop_offset) + box.height
 }
