@@ -2,4 +2,4 @@
 
 package mupwit
 
-IMAGE_ICONS_SIZE :: [2]i32{112, 16}
+IMAGE_ICONS_SIZE :: [2]i32{144, 16}

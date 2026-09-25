@@ -46,6 +46,8 @@ Command_Reorder_Song :: struct {
 Command_Remove_Song :: struct {
 	index: mpd.Song_Index,
 }
+Command_Shuffle_Queue :: struct {}
+Command_Clear_Queue :: struct {}
 
 Command_Disconnect :: struct {}
 
@@ -65,6 +67,8 @@ Command :: union #no_nil {
 	Command_Seek_Song,
 	Command_Reorder_Song,
 	Command_Remove_Song,
+	Command_Shuffle_Queue,
+	Command_Clear_Queue,
 	Command_Disconnect,
 }
 
@@ -179,6 +183,15 @@ player_remove_song :: proc(player: ^Player, index: mpd.Song_Index) {
 	_command_send(player._shared.commands, Command_Remove_Song{index})
 }
 
+player_shuffle_queue :: proc(player: ^Player) {
+	if len(player.queue) <= 1 do return
+	_command_send(player._shared.commands, Command_Shuffle_Queue{})
+}
+player_clear_queue :: proc(player: ^Player) {
+	if len(player.queue) == 0 do return
+	_command_send(player._shared.commands, Command_Clear_Queue{})
+}
+
 // ------------------------------
 // Request commands.
 // ------------------------------
@@ -288,6 +301,10 @@ _player_handle_command :: proc(
 		status := mpd.request_status(client) or_return
 		_response_send(shared.responses, status)
 		return nil
+	case Command_Shuffle_Queue:
+		return mpd.send_and_forget(client, "shuffle")
+	case Command_Clear_Queue:
+		return mpd.send_and_forget(client, "clear")
 
 	case Command_Disconnect:
 		// Do nothing.

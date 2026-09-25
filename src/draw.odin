@@ -14,8 +14,6 @@ rect_size :: ui.rect_size
 rect_center :: ui.rect_center
 within :: ui.within
 
-ICON_SIZE :: 16
-
 Icon :: enum {
 	Bar = 0,
 	Play,
@@ -24,6 +22,8 @@ Icon :: enum {
 	Next,
 	Small_Arrow_Right,
 	Disk,
+	Trash,
+	Shuffle,
 }
 
 draw_icon :: proc(state: ^State, ctx: ^ui.Context, icon: Icon, pos: Vec2, color: Color) {
@@ -38,17 +38,30 @@ draw_icon_button :: proc(
 	icon: Icon,
 	pos: Vec2,
 	color: Color,
+	size: i32 = ICON_BUTTON_SIZE,
 ) -> (
-	size: i32,
+	advance: i32,
 ) {
-	rect := Rect{pos.x, pos.y, ICON_BUTTON_SIZE, ICON_BUTTON_SIZE}
+	rect := Rect{pos.x, pos.y, size, size}
 	ui.button_on_draw(button, rect)
 
 	icon_pos := icon_center_inside(rect)
 	if button.is_down do icon_pos.y += 1
 	draw_icon(state, ctx, icon, icon_pos, color)
 
-	return ICON_BUTTON_SIZE
+	return size
+}
+
+draw_action_button :: proc(
+	state: ^State,
+	ctx: ^ui.Context,
+	button: ^ui.Button,
+	icon: Icon,
+	pos: Vec2,
+) -> (
+	advance: i32,
+) {
+	return draw_icon_button(state, ctx, button, icon, pos, state.theme.gray, TINY_BUTTON_SIZE)
 }
 
 icon_center_inside :: proc(inside: Rect) -> Vec2 {

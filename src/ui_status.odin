@@ -20,10 +20,12 @@ Status_Time_Mode :: enum {
 @(private = "file")
 self: struct {
 	button_play:      ui.Button,
+	button_clear:     ui.Button,
+	button_shuffle:   ui.Button,
 	slider:           ui.Slider,
 	tween:            ui.Tween(f32),
 	queue_tween:      ui.Tween(f32),
-	queue_rect:       Rect,
+	time_rect:        Rect,
 	time_mode:        Status_Time_Mode,
 	offset:           f32,
 	queue_offset:     f32,
@@ -44,13 +46,16 @@ status_ui_update :: proc(state: ^State, dt: Seconds) {
 	off = ui.tween_ease(&self.queue_tween, self.queue_offset, .Sine_In_Out)
 	self.cur_queue_offset = i32(off)
 
-	if state.screen == .Player {
+	switch {
+	case state.screen == .Player:
+		// Hide both queue status and this one.
 		_status_ui_set_offset(STATUS_MAX_HEIGHT)
 		return
-	}
-	if state.player.cur_song == nil {
+	case state.player.cur_song == nil:
+		// Hide only the status, queue status may be visible.
 		_status_ui_set_offset(STATUS_HEIGHT)
-	} else {
+	case:
+		// Show.
 		_status_ui_set_offset(0)
 	}
 
@@ -62,22 +67,18 @@ status_ui_update :: proc(state: ^State, dt: Seconds) {
 
 	player := &state.player
 
-	if ui.button_update(&self.button_play) {
-		player_toggle_play(player)
-	}
-
-	if ui.slider_update(&self.slider) {
-		player_seek_percent(player, self.slider.progress)
-	}
-
-	if ui.is_pointer_inside(self.queue_rect) {
-		ui.set_cursor(.Pointer)
-
-		if ui.is_clicked(.Left) {
-			self.time_mode = enum_rotate_variant(self.time_mode, 1)
-		} else if ui.is_clicked(.Right) {
-			self.time_mode = enum_rotate_variant(self.time_mode, -1)
+	if self.cur_offset == 0 {
+		if ui.button_update(&self.button_play) {
+			player_toggle_play(player)
 		}
+
+		if ui.slider_update(&self.slider) {
+			player_seek_percent(player, self.slider.progress)
+		}
+	}
+
+	if self.cur_queue_offset == 0 {
+		_queue_status_ui_update(state)
 	}
 }
 
@@ -146,6 +147,25 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	}
 }
 
+_queue_status_ui_update :: proc(state: ^State) {
+	if ui.button_update(&self.button_clear) {
+		player_clear_queue(&state.player)
+	}
+	if ui.button_update(&self.button_shuffle) {
+		player_shuffle_queue(&state.player)
+	}
+
+	if ui.is_pointer_inside(self.time_rect) {
+		ui.set_cursor(.Pointer)
+
+		if ui.is_clicked(.Left) {
+			self.time_mode = enum_rotate_variant(self.time_mode, 1)
+		} else if ui.is_clicked(.Right) {
+			self.time_mode = enum_rotate_variant(self.time_mode, -1)
+		}
+	}
+}
+
 _queue_status_ui_draw :: proc(state: ^State, ctx: ^ui.Context, rect: Rect) {
 	H_GAP :: GAP * 2
 
@@ -154,34 +174,65 @@ _queue_status_ui_draw :: proc(state: ^State, ctx: ^ui.Context, rect: Rect) {
 	rect := rect
 	rect.y += self.cur_queue_offset
 
-	if self.queue_offset == 0 && self.queue_tween.timer <= 0 {
-		self.queue_rect = rect
+	{
+		r := rect
+		r.width /= 2
+		r.x = rect.x + rect.width - r.width
+		self.time_rect = r
 	}
 
 	_status_ui_draw_box(state, ctx, rect)
 
-	count_str := fmt.tprint("♪", len(player.queue))
-
 	pos := rect_pos(rect)
-	pos.y += ctx.font_height + rect.height / 2 - ctx.font_height / 2
+	pos.y += rect.height / 2 - TINY_BUTTON_SIZE / 2
 	pos.x += H_GAP
-	ui.draw_text(ctx, count_str, pos, state.theme.gray)
 
-	time_str: string
-	elapsed := player.queue_elapsed + player.elapsed
+	// TODO: move these buttons into a context menu to not clutter the UI.
+	// Draw action buttons.
+	{
+		btn :: draw_action_button
+		G :: GAP / 2
+
+		pos.x -= G
+		pos.x += btn(state, ctx, &self.button_shuffle, .Shuffle, pos) + G
+		pos.x += btn(state, ctx, &self.button_clear, .Trash, pos) + G
+	}
+
+	pos.x += GAP
+	pos.y = rect.y + ctx.font_height
+	pos.y += rect.height / 2 - ctx.font_height / 2
+
+	// Draw number of songs.
+	{
+		count_str := fmt.tprint("♪", len(player.queue))
+		ui.draw_text(ctx, count_str, pos, state.theme.gray)
+	}
+
+	// Draw time.
+	{
+		elapsed := player.queue_elapsed + player.elapsed
+		duration := player.queue_duration
+		time_str := _queue_status_ui_time(elapsed, duration)
+
+		pos.x = rect.x + rect.width - H_GAP
+		ui.draw_text(ctx, time_str, pos, state.theme.gray, align = .End)
+	}
+}
+
+_queue_status_ui_time :: proc(elapsed, duration: Seconds) -> string {
+	elapsed := mpd.Seconds(elapsed)
+	duration := mpd.Seconds(duration)
 
 	switch self.time_mode {
 	case .Time_Left:
-		left := elapsed - player.queue_duration
-		time_str = fmt.tprint(mpd.Seconds(left))
+		return fmt.tprint(elapsed - duration)
 	case .Elapsed:
-		time_str = fmt.tprint(mpd.Seconds(elapsed))
+		return fmt.tprint(elapsed)
 	case .Elapsed_Duration:
-		time_str = fmt.tprint(mpd.Seconds(elapsed), '/', mpd.Seconds(player.queue_duration))
+		return fmt.tprint(elapsed, '/', duration)
+	case:
+		unreachable()
 	}
-
-	pos.x = rect.x + rect.width - H_GAP
-	ui.draw_text(ctx, time_str, pos, state.theme.gray, align = .End)
 }
 
 _status_ui_draw_box :: proc(state: ^State, cr: ^cairo.cairo_t, rect: Rect) {
