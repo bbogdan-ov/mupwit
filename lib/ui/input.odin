@@ -18,6 +18,9 @@ is_mouse_double_pressed :: proc(button: win.Button) -> bool {
 is_clicked :: proc(button: win.Button) -> bool {
 	return state.dragging == nil && is_mouse_released(button)
 }
+is_double_clicked :: proc(button: win.Button) -> bool {
+	return state.dragging == nil && is_mouse_double_pressed(button)
+}
 is_clicked_inside :: proc(button: win.Button, rect: Rect) -> bool {
 	return is_clicked(button) && is_pointer_inside(rect)
 }

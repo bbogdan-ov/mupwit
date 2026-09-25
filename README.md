@@ -73,6 +73,13 @@ Currently you should [build](#building) MUPWIT yourself, unfortunately.
 | `G`, `Shift-G` | Scroll to the top/bottom |
 | `LBM` | Play song |
 | Double `RMB` | Remove song |
+| `F1` | Play random album (temporary keybind) |
+
+**Albums keybinds:**
+
+| Key | Action |
+|-----|--------|
+| Double `LBM` | Play album |
 
 ## Building
 

@@ -46,7 +46,7 @@ queue_ui_update :: proc(state: ^State, dt: Seconds) {
 
 	if ui.is_clicked(.Left) {
 		_queue_ui_play_hovered_song(state)
-	} else if ui.state.dragging == nil && ui.is_mouse_double_pressed(.Right) {
+	} else if ui.is_double_clicked(.Right) {
 		_queue_ui_remove_hovered_song(state)
 	}
 }

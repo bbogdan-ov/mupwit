@@ -4,6 +4,7 @@ import "lib:mpd"
 import "lib:ui"
 
 Album_Item :: struct {
+	rect:        Rect,
 	album_index: mpd.Album_Index,
 	loader:      Cover_Loader,
 	is_in_view:  bool,
@@ -51,8 +52,15 @@ albums_ui_update :: proc(state: ^State, dt: Seconds) {
 		album_item_update(state, &item, dt)
 	}
 
-	if self.hovering_index != nil {
+	hovering, has_hovering := self.hovering_index.?
+	if has_hovering {
 		ui.set_cursor(.Pointer)
+
+		if ui.is_double_clicked(.Left) {
+			item := &self.items[hovering]
+			album := state.player.albums[item.album_index]
+			player_play_album(&state.player, mpd.album_name(album))
+		}
 	}
 }
 
