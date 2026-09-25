@@ -68,7 +68,9 @@ main :: proc() {
 	_adapt_theme_colors_to_bg()
 
 	ui.init()
+	defer ui.destroy()
 	assets_load(&state)
+	defer assets_destroy(&state)
 
 	player_init(&state.player)
 	player_connect(&state.player)
@@ -82,10 +84,10 @@ main :: proc() {
 
 	for win.should_run(state.window) {}
 
+	// NOTE: first close the window and only then clean up, so the window
+	// closes immidietely.
 	log.info("Closing the window...")
 	win.destroy(state.window)
-	assets_destroy(&state)
-	ui.destroy()
 }
 
 update :: proc(dt: Seconds) {

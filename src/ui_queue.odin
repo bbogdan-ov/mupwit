@@ -146,7 +146,6 @@ queue_ui_on_screen_updated :: proc(state: ^State) {
 	length := _queue_ui_contents_length()
 	ui.scroll_update_max_offset(self.box, &self.scroll, length)
 
-	// TODO: should also scroll to the current song when it is out of the view.
 	off := i32(index - 1) * self.list.item_height
 	ui.scroll_set(&self.scroll, f32(off))
 }
