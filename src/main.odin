@@ -64,7 +64,7 @@ main :: proc() {
 
 	state.theme.background = DEFAULT_BACKGROUND
 	state.theme._target_background = DEFAULT_BACKGROUND
-	state.theme.black = BOBO_BLACK
+	state.theme.black = BLACK
 	_adapt_theme_colors_to_bg()
 
 	ui.init()
@@ -201,7 +201,7 @@ set_background_from_cover :: proc(state: ^State, cover: ^Cover) {
 	if cover.color.a > 0 {
 		set_background(state, cover.color)
 	} else {
-		set_background(state, BOBO_WHITE)
+		set_background(state, WHITE)
 	}
 }
 
