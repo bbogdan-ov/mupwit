@@ -201,7 +201,7 @@ set_background_from_cover :: proc(state: ^State, cover: ^Cover) {
 	if cover.color.a > 0 {
 		set_background(state, cover.color)
 	} else {
-		set_background(state, WHITE)
+		set_background(state, DEFAULT_BACKGROUND)
 	}
 }
 

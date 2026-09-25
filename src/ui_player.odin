@@ -293,6 +293,8 @@ _player_ui_set_cover :: proc(state: ^State, cover: Maybe(^Cover)) {
 	if PLAYER_ADAPT_THEME_TO_COVER {
 		if cover, ok := cover.?; ok {
 			set_background_from_cover(state, cover)
+		} else {
+			set_background(state, DEFAULT_BACKGROUND)
 		}
 	}
 }
