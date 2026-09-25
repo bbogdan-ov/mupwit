@@ -90,12 +90,15 @@ item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: S
 		}
 
 		just_stopped := state.just_stopped_dragging
-		if just_stopped != ELEMENT_ID_NONE {
+		if state.dragging == nil && is_mouse_released(.Left) {
+			list.reordering = nil
+		} else if just_stopped != ELEMENT_ID_NONE {
 			// NOTE: only one element can be dragged at a time, so if an item
 			// is reodering (that also means that it is the one that is being
 			// dragged) it is the only that can be stopped dragging.
 			assert(just_stopped == Element_ID(item))
 			list.reordering = nil
+			list.just_reordered = list.reorder.from != list.reorder.to
 		}
 	}
 
@@ -195,8 +198,6 @@ item_update :: proc(box: Box, list: ^Item_List($T), item: ^T, index: Item_Index,
 
 	case state.just_stopped_dragging == id:
 		item_tween_to_rest(item, index, list.item_height)
-		list.reordering = nil
-		list.just_reordered = list.reorder.from != list.reorder.to
 
 	case state.dragging == id:
 		item.is_hovering = true
