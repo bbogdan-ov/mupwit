@@ -73,6 +73,25 @@ _queue_ui_scroll_to_cur_song :: proc(state: ^State) -> bool {
 	return true
 }
 
+_queue_ui_clear_list :: proc() {
+	for &item in self.list.items {
+		song_item_destroy(&item)
+	}
+	clear(&self.list.items)
+}
+
+_queue_ui_remove_item :: proc(index: ui.Item_Index) {
+	item := &self.list.items[index]
+	song_item_destroy(item)
+	ordered_remove(&self.list.items, int(index))
+
+	for i in index ..< ui.Item_Index(len(self.list.items)) {
+		item := &self.list.items[i]
+		item.song_index = mpd.Song_Index(i)
+		ui.item_tween_to_rest(item, i, self.list.item_height)
+	}
+}
+
 queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if !screen_is_visible(state, .Queue) do return
 
@@ -113,25 +132,6 @@ _queue_ui_contents_length :: proc() -> i32 {
 	return length
 }
 
-_queue_ui_clear_list :: proc() {
-	for &item in self.list.items {
-		song_item_destroy(&item)
-	}
-	clear(&self.list.items)
-}
-
-_queue_ui_remove_item :: proc(index: ui.Item_Index) {
-	item := &self.list.items[index]
-	song_item_destroy(item)
-	ordered_remove(&self.list.items, int(index))
-
-	for i in index ..< ui.Item_Index(len(self.list.items)) {
-		item := &self.list.items[i]
-		item.song_index = mpd.Song_Index(i)
-		ui.item_tween_to_rest(item, i, self.list.item_height)
-	}
-}
-
 queue_ui_on_screen_updated :: proc(state: ^State) {
 	if state.screen != .Queue do return
 
@@ -169,6 +169,9 @@ queue_ui_on_keyboard_key :: proc(state: ^State, key: win.Key, mods: win.Mods) {
 		ui.scroll_to(self.box, &self.scroll, self.scroll.length)
 	case key == .G, key == .Home:
 		ui.scroll_to(self.box, &self.scroll, 0)
+
+	case key == .F1:
+		player_play_random_album(&state.player)
 	}
 }
 

@@ -47,7 +47,7 @@ _player_handle_response :: proc(player: ^Player, response: Response) {
 
 	case Response_Queue:
 		_player_set_queue(player, res.list)
-		_player_set_status(player, res.status)
+		_player_set_status(player, res.status, force_song_updated = true)
 
 	case Response_Cover:
 		_player_handle_cover_response(player, res)

@@ -9,6 +9,19 @@ import "core:time"
 
 Command_Builder :: strings.Builder
 
+// Formats a MPD filter for a tag: `(<tag> == "<str>")`.
+tag_filter_make :: proc(tag, str: string, allocator := context.allocator) -> string {
+	write :: strings.write_string
+
+	sb := strings.builder_make(allocator)
+	write(&sb, "(")
+	write(&sb, tag)
+	write(&sb, " == ")
+	write_quoted_string(&sb, str)
+	write(&sb, ")")
+	return strings.to_string(sb)
+}
+
 cmd_begin :: proc(cmd: string, allocator := context.allocator) -> Command_Builder {
 	sb := strings.builder_make(allocator)
 	strings.write_string(&sb, cmd)
@@ -25,6 +38,11 @@ cmd_push_quoted :: proc(cmd: ^Command_Builder, str: string) {
 cmd_push_int :: proc(cmd: ^Command_Builder, n: int) {
 	strings.write_byte(cmd, ' ')
 	strings.write_int(cmd, n)
+}
+cmd_push_tag_filter :: proc(cmd: ^Command_Builder, tag, str: string) {
+	filter := tag_filter_make(tag, str, cmd.buf.allocator)
+	defer delete(filter, cmd.buf.allocator)
+	cmd_push_quoted(cmd, filter)
 }
 cmd_end :: proc(cmd: ^Command_Builder) -> string {
 	strings.write_byte(cmd, '\n')
@@ -68,7 +86,7 @@ request_status :: proc(client: ^Client, loc := #caller_location) -> (status: Sta
 	status, found = parser_next_status(&parser)
 	if !found {
 		log.error("MPD: Missing status response", location = loc)
-		log.errorf("MPD: Received string: ---\n%s\n---", parser.s, location = loc)
+		log.errorf("MPD: Received string:\n---\n%s\n---", parser.s, location = loc)
 		err = .Missing_Response
 		return
 	}
@@ -159,7 +177,7 @@ request_song_picture :: proc(
 		part, found = parser_next_binary(&parser, loc)
 		if !found {
 			log.errorf("MPD: Missing picture binary response for %q", file, location = loc)
-			log.errorf("MPD: Received string: ---\n%s\n---", parser.s, location = loc)
+			log.errorf("MPD: Received string:\n---\n%s\n---", parser.s, location = loc)
 			err = .Missing_Response
 			return
 		}

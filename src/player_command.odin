@@ -4,6 +4,7 @@ import "base:intrinsics"
 import "base:runtime"
 import "core:log"
 import "core:math"
+import "core:math/rand"
 import "core:strings"
 import "core:sync/chan"
 import "lib:mpd"
@@ -48,6 +49,10 @@ Command_Remove_Song :: struct {
 }
 Command_Shuffle_Queue :: struct {}
 Command_Clear_Queue :: struct {}
+Command_Play_Album :: struct {
+	name:      mpd.Album_Name,
+	allocator: runtime.Allocator,
+}
 
 Command_Disconnect :: struct {}
 
@@ -69,6 +74,7 @@ Command :: union #no_nil {
 	Command_Remove_Song,
 	Command_Shuffle_Queue,
 	Command_Clear_Queue,
+	Command_Play_Album,
 	Command_Disconnect,
 }
 
@@ -77,6 +83,8 @@ _command_destroy :: proc(command: Command) {
 	case Command_Request_Cover:
 		delete(string(cmd.file), cmd.allocator)
 		delete(string(cmd.key), cmd.allocator)
+	case Command_Play_Album:
+		delete(cmd.name, cmd.allocator)
 	}
 }
 
@@ -192,6 +200,28 @@ player_clear_queue :: proc(player: ^Player) {
 	_command_send(player._shared.commands, Command_Clear_Queue{})
 }
 
+player_play_album :: proc(player: ^Player, name: mpd.Album_Name) {
+	cmd := Command_Play_Album {
+		name      = strings.clone(name, player.allocator),
+		allocator = player.allocator,
+	}
+	_command_send(player._shared.commands, cmd)
+}
+
+player_play_random_album :: proc(player: ^Player) {
+	drained := player._album_pool_drained
+	if drained == 0 || drained >= len(player._album_pool) {
+		rand.shuffle(player._album_pool[:])
+		player._album_pool_drained = 0
+	}
+
+	index := player._album_pool[player._album_pool_drained]
+	album := player.albums[index]
+	player_play_album(player, mpd.album_name(album))
+
+	player._album_pool_drained += 1
+}
+
 // ------------------------------
 // Request commands.
 // ------------------------------
@@ -305,6 +335,18 @@ _player_handle_command :: proc(
 		return mpd.send_and_forget(client, "shuffle")
 	case Command_Clear_Queue:
 		return mpd.send_and_forget(client, "clear")
+
+	case Command_Play_Album:
+		mpd.send_and_forget(client, "clear") or_return
+
+		// Search for album songs and add them to the queue.
+		c := mpd.cmd_begin("findadd", context.allocator)
+		mpd.cmd_push_tag_filter(&c, "Album", cmd.name)
+		mpd.cmd_send(client, &c) or_return
+		mpd.recv_and_forget(client) or_return
+
+		// Play the first song.
+		return mpd.send_and_forget(client, "play")
 
 	case Command_Disconnect:
 		// Do nothing.

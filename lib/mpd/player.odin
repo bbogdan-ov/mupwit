@@ -169,6 +169,8 @@ Album :: struct {
 	songs: Song_List,
 }
 
+Album_Index :: distinct int
+
 Album_List :: distinct [dynamic]Album
 
 album_name :: proc(album: Album) -> Album_Name #no_bounds_check {

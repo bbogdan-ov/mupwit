@@ -4,7 +4,7 @@ import "lib:mpd"
 import "lib:ui"
 
 Album_Item :: struct {
-	album_index: ui.Item_Index,
+	album_index: mpd.Album_Index,
 	loader:      Cover_Loader,
 	is_in_view:  bool,
 }
@@ -92,7 +92,7 @@ albums_ui_on_album_list_updated :: proc(state: ^State) {
 
 	for _, i in state.player.albums {
 		item := Album_Item {
-			album_index = ui.Item_Index(i),
+			album_index = mpd.Album_Index(i),
 		}
 		append(&self.items, item)
 	}

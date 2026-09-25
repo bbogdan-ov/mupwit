@@ -55,6 +55,9 @@ Player :: struct {
 	// current one), does not account for the current song.
 	queue_elapsed:             Seconds,
 	albums:                    mpd.Album_List,
+	// Used for "play random album" so that albums don't repeat.
+	_album_pool:               [dynamic]mpd.Album_Index,
+	_album_pool_drained:       int,
 	// In which direction current song was skipped.
 	switch_direction:          Switch_Direction,
 
@@ -83,6 +86,8 @@ player_init :: proc(player: ^Player, allocator := context.allocator) {
 	player._client_thread.data = &player._shared
 
 	player._covers_cache = make(Covers_Cache, allocator)
+
+	player._album_pool = make([dynamic]mpd.Album_Index, allocator)
 
 	{
 		mutex := &player._shared.covers_thread_pool
@@ -135,6 +140,7 @@ player_destroy :: proc(player: ^Player) {
 	mpd.song_list_destroy(&player.queue)
 	mpd.album_list_destroy(player.albums)
 	_player_set_last_played_song(player, nil)
+	delete(player._album_pool)
 
 	chan.destroy(&player._shared.commands)
 	chan.destroy(&player._shared.responses)
@@ -152,7 +158,7 @@ player_update :: proc(player: ^Player, dt: Seconds) {
 	}
 }
 
-_player_set_status :: proc(player: ^Player, status: mpd.Status) {
+_player_set_status :: proc(player: ^Player, status: mpd.Status, force_song_updated := false) {
 	player.playstate = status.playstate
 	player.elapsed = Seconds(status.elapsed)
 	player.duration = Seconds(status.duration)
@@ -190,7 +196,7 @@ _player_set_status :: proc(player: ^Player, status: mpd.Status) {
 		_player_queue_calc_elapsed(player)
 	}
 
-	if prev_id != player.cur_song_id {
+	if prev_id != player.cur_song_id || force_song_updated {
 		on_cur_song_updated(prev_index, prev_id)
 	}
 }
@@ -241,6 +247,12 @@ _player_set_albums :: proc(player: ^Player, albums: mpd.Album_List) {
 
 	sort.quick_sort_proc(albums[:], sort_proc)
 	player.albums = albums
+
+	non_zero_resize(&player._album_pool, len(albums))
+	for i in 0 ..< len(albums) {
+		player._album_pool[i] = mpd.Album_Index(i)
+	}
+	player._album_pool_drained = 0
 
 	on_album_list_updated()
 }
