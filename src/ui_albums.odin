@@ -143,7 +143,7 @@ album_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Album_Item, inde
 
 		// TODO: draw placeholder for a missing album cover.
 		cover_draw(ctx, item.loader.cover, rect_pos(rect), f64(alpha))
-		ui.draw_box_bulgy(ctx, rect, state.theme.black)
+		ui.draw_box_bulgy(ctx, ui.pad(rect, -1), state.theme.black)
 		offset.y += rect.height
 	}
 
