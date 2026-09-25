@@ -172,7 +172,7 @@ _item_list_reorder :: proc(list: ^Item_List($T), reorder: Item_Reorder) {
 item_update :: proc(box: Box, list: ^Item_List($T), item: ^T, index: Item_Index, dt: Seconds) {
 	id := Element_ID(item)
 
-	// TODO!: finish tween if item is outside of the view.
+	// TODO: finish tween if item is outside of the view.
 	tween_update(&item.tween, dt)
 
 	rect := item_rect(box, item.position, list.item_height)

@@ -174,7 +174,7 @@ _player_ui_draw_cover :: proc(state: ^State, ctx: ^ui.Context, cover: Maybe(^Cov
 
 	drawn := cover_draw(ctx, cover, rect_pos(rect))
 	if !drawn {
-		// TODO!: draw a proper placeholder.
+		// TODO: draw a proper placeholder.
 		ui.draw_rect(ctx, rect, state.theme.gray)
 	}
 

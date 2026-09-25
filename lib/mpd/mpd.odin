@@ -85,7 +85,7 @@ recv_and_parse :: #force_inline proc(
 @(require_results)
 recv_and_forget :: proc(client: ^Client, loc := #caller_location) -> (err: Error) {
 	str: string
-	// TODO!!: should not allocate the string, but i have to for now because i
+	// TODO!: should not allocate the string, but i have to for now because i
 	// need to collect the whole response string in order to determine whether
 	// it is ended.
 	str, err = recv(client, context.allocator, loc)

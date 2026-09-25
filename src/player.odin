@@ -7,7 +7,7 @@
 // May be i should implement some kind of debounce to not request the queue
 // info right after it being changed?
 
-// TODO!: undo histroy.
+// TODO: undo histroy.
 
 package mupwit
 

@@ -45,7 +45,7 @@ Cover_Cache_Slot :: struct #all_or_none {
 	allocator: runtime.Allocator,
 }
 
-// TODO!: we should delete cached covers that are too old and not referenced by onyone.
+// TODO!: should delete cached covers that are too old and not referenced by onyone.
 Covers_Cache :: map[Cover_Key]Cover_Cache_Slot
 
 cover_ref :: proc(cover: ^Cover) -> ^Cover {
