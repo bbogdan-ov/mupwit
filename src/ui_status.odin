@@ -160,8 +160,10 @@ _queue_status_ui_update :: proc(state: ^State) {
 
 		if ui.is_clicked(.Left) {
 			self.time_mode = enum_rotate_variant(self.time_mode, 1)
+			ui.dirty(true)
 		} else if ui.is_clicked(.Right) {
 			self.time_mode = enum_rotate_variant(self.time_mode, -1)
+			ui.dirty(true)
 		}
 	}
 }

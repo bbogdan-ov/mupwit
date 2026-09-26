@@ -6,9 +6,8 @@ Item_Index :: i32
 
 // Reorderable item.
 Item :: struct {
-	tween:       Tween(f32),
-	position:    i32,
-	is_hovering: bool,
+	tween:    Tween(f32),
+	position: i32,
 }
 
 // List of reorderable items.
@@ -60,12 +59,15 @@ item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: S
 
 	scroll_update(box, scroll, dt)
 
-	list.hovering = nil
 	list.just_reordered = false
+
+	_item_list_update_hovering(box^, list)
 
 	from, to := item_list_visible_range(box^, list)
 	from = max(from - UPDATE_SCROLLOFF, 0)
 	to = min(to + UPDATE_SCROLLOFF, len(list.items))
+
+	reordering, has_reordering := list.reordering.?
 
 	for i in from ..< to {
 		index := Item_Index(i)
@@ -75,7 +77,6 @@ item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: S
 		}
 	}
 
-	reordering, has_reordering := list.reordering.?
 	if has_reordering {
 		// Update the currently reordering item separately from others so it
 		// updates no matter if it within the view or not.
@@ -102,13 +103,28 @@ item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: S
 		}
 	}
 
-	if has_reordering && state.dragging != nil {
+	if list.reordering != nil && state.dragging != nil {
 		set_cursor(.Grabbing)
 	} else if list.hovering != nil {
 		set_cursor(.Pointer)
 	}
 
 	list.userdata = nil
+}
+
+_item_list_update_hovering :: proc(box: Box, list: ^Item_List($T)) {
+	hovering: Maybe(Item_Index) = nil
+
+	if index, ok := list.reordering.?; ok {
+		hovering = index
+	} else if is_pointer_inside(box) {
+		py := rel_pointer(box).y / list.item_height
+		if within(py, 0, i32(len(list.items))) {
+			hovering = py
+		}
+	}
+
+	dirty_set(&list.hovering, hovering)
 }
 
 item_list_stop_reodering :: proc(list: ^Item_List($T)) -> bool {
@@ -164,12 +180,15 @@ _item_list_reorder :: proc(list: ^Item_List($T), reorder: Item_Reorder) {
 	// Update dragging ID because currently reordering item's address changed
 	// after reordering.
 	state.dragging = Element_ID(&list.items[reorder.to])
+	list.hovering = reorder.to
 
 	// Update and animate positions of the items that were moved.
 	for &other, i in list.items[start:end] {
 		index := Item_Index(start + i)
 		item_tween_to_rest(&other, index, list.item_height)
 	}
+
+	dirty(true)
 }
 
 item_update :: proc(box: Box, list: ^Item_List($T), item: ^T, index: Item_Index, dt: Seconds) {
@@ -180,15 +199,15 @@ item_update :: proc(box: Box, list: ^Item_List($T), item: ^T, index: Item_Index,
 
 	rect := item_rect(box, item.position, list.item_height)
 
-	switch state.can_drag {
-	case id:
-		item.is_hovering = true
-	case nil:
-		if state.dragging != nil do break
-
-		py := rel_pointer(box).y / list.item_height
-		item.is_hovering = is_pointer_inside(box) && py == index
-	}
+	// switch state.can_drag {
+	// case id:
+	// 	item.is_hovering = true
+	// case nil:
+	// 	if state.dragging != nil do break
+	//
+	// 	py := rel_pointer(box).y / list.item_height
+	// 	item.is_hovering = is_pointer_inside(box) && py == index
+	// }
 
 	switch {
 	case state.just_started_dragging == id:
@@ -200,11 +219,11 @@ item_update :: proc(box: Box, list: ^Item_List($T), item: ^T, index: Item_Index,
 		item_tween_to_rest(item, index, list.item_height)
 
 	case state.dragging == id:
-		item.is_hovering = true
-		item.position = rel_pointer(box).y + state.drag_offset.y
+		pos := rel_pointer(box).y + state.drag_offset.y
+		dirty_set(&item.position, pos)
 		_item_update_index(list, item, index)
 
-	case item.is_hovering && is_mouse_pressed(.Left):
+	case list.hovering == index && is_mouse_pressed(.Left):
 		set_can_drag(id, {0, rect.y - state.press_pos.y})
 
 		// NOTE: setting it right away so that this item is being updated
@@ -212,10 +231,6 @@ item_update :: proc(box: Box, list: ^Item_List($T), item: ^T, index: Item_Index,
 		// helds LMB on an item and scrolls away, this hack prevents the held
 		// item from not being updated due to it not being visible.
 		list.reordering = index
-	}
-
-	if item.is_hovering {
-		list.hovering = index
 	}
 
 	if list.item_update != nil {

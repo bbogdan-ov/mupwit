@@ -20,9 +20,9 @@ Scroll :: struct {
 }
 
 scroll_update :: proc(box: ^Box, s: ^Scroll, dt: Seconds) {
-	s.is_hovering = is_hovering(s.rect)
-	s.is_hovering_thumb = is_hovering(s.thumb)
-	s.is_dragging = state.dragging == Element_ID(s)
+	dirty_set(&s.is_hovering, is_hovering(s.rect))
+	dirty_set(&s.is_hovering_thumb, is_hovering(s.thumb))
+	dirty_set(&s.is_dragging, state.dragging == Element_ID(s))
 
 	_scroll_update_offset(s, dt)
 	_scroll_update_pointer_drag(box^, s)
@@ -33,24 +33,27 @@ scroll_update :: proc(box: ^Box, s: ^Scroll, dt: Seconds) {
 scroll_update_length :: proc(box: Box, s: ^Scroll, contents: i32) {
 	contents := max(contents, 1)
 	s.length = f32(contents - box.height)
-	s.stop_offset = max(s.stop_offset, s.length)
+	dirty_set(&s.stop_offset, max(s.stop_offset, s.length))
 }
 
 _scroll_update_offset :: proc(s: ^Scroll, dt: Seconds) {
 	if s.timer > 0 {
 		s.timer -= dt
+		dirty(true)
 
 		if s.timer <= 0 {
 			s.offset = s.to
+			s.timer = 0
 		} else {
 			progress := 1.0 - f32(s.timer / SCROLL_ANIM_DURATION)
 			s.offset = math.lerp(s.from, s.to, SCROLL_ANIM_EASE(progress))
 		}
-	} else {
-		s.timer = 0
 	}
 
-	s.offset += s.velocity
+	if !is_almost_zero(s.velocity) {
+		s.offset += s.velocity
+		dirty(true)
+	}
 
 	if s.offset >= s.stop_offset {
 		s.offset = s.stop_offset
@@ -124,15 +127,17 @@ scroll_on_scroll :: proc(s: ^Scroll, scroll: f32, touchpad: bool) {
 }
 
 scroll_set :: proc(s: ^Scroll, offset: f32) {
-	s.offset = clamp(offset, 0, s.stop_offset)
-	s.to = s.offset
+	offset := clamp(offset, 0, s.stop_offset)
+	dirty_set(&s.offset, offset)
+	s.to = offset
 	s.timer = 0
 	s.velocity = 0
 }
 
 scroll_by :: proc(s: ^Scroll, diff: f32) {
 	if !is_almost_zero(diff) {
-		s.offset = clamp(s.offset + diff, 0, s.stop_offset)
+		offset := clamp(s.offset + diff, 0, s.stop_offset)
+		dirty_set(&s.offset, offset)
 		s.velocity = 0
 	}
 }
@@ -152,6 +157,7 @@ scroll_to :: proc(box: Box, s: ^Scroll, offset: f32) {
 	s.to = offset
 	s.timer = SCROLL_ANIM_DURATION
 	s.velocity = 0
+	dirty(true)
 }
 
 scroll_draw :: proc(ctx: ^Context, s: ^Scroll, contents: i32, color, active_color: Color) {

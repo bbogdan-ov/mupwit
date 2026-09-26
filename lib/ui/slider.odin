@@ -10,8 +10,8 @@ Slider :: struct {
 slider_update :: proc(s: ^Slider) -> (changed: bool) {
 	id := Element_ID(s)
 
-	s.is_dragging = state.dragging == id
-	s.is_hovering = is_hovering(s.rect)
+	dirty_set(&s.is_dragging, state.dragging == id)
+	dirty_set(&s.is_hovering, is_hovering(s.rect))
 
 	if s.is_hovering || s.is_dragging {
 		set_cursor(.Pointer)
@@ -20,10 +20,12 @@ slider_update :: proc(s: ^Slider) -> (changed: bool) {
 	switch {
 	case s.is_dragging:
 		px := f32(state.pointer.x - s.rect.x)
-		s.progress = px / f32(s.rect.width)
-		s.progress = clamp(s.progress, 0, 1)
+		progress := px / f32(s.rect.width)
+		progress = clamp(progress, 0, 1)
+		dirty_set(&s.progress, progress)
 
 		changed = is_mouse_released(.Left)
+		dirty(changed)
 
 	case s.is_hovering && is_mouse_pressed(.Left) && state.dragging == nil:
 		start_dragging(id)

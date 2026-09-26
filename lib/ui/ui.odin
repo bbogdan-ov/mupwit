@@ -5,6 +5,7 @@ import win "lib:my_window"
 PIXEL_CHANNELS :: 4
 
 DRAG_START_THRESHOLD :: 10
+DIRTY_INVERVAL :: Seconds(2)
 
 ELEMENT_ID_NONE :: Element_ID(0)
 
@@ -12,6 +13,8 @@ Element_ID :: distinct uintptr
 
 State :: struct {
 	view:                   Rect,
+	dirty:                  bool,
+	dirty_timer:            Seconds,
 
 	// Currently dragged element.
 	dragging:               Maybe(Element_ID),
@@ -42,6 +45,8 @@ State :: struct {
 state: State
 
 init :: proc() {
+	state.dirty = true
+
 	ok := win.font_library_init(&state.font_library)
 	assert(ok) // TODO: handle error.
 }
@@ -50,7 +55,26 @@ destroy :: proc() {
 	win.font_library_destroy(state.font_library)
 }
 
+dirty :: proc(flag: bool) {
+	state.dirty |= flag
+}
+// Updates a value and if it has been changed, sets the `dirty` flag.
+dirty_set :: proc(current: ^$T, updated: T) {
+	if current^ != updated {
+		current^ = updated
+		dirty(true)
+	}
+}
+
 update :: proc(dt: Seconds) {
+	if state.dirty_timer > 0 {
+		state.dirty_timer -= dt
+	}
+	if state.dirty_timer <= 0 {
+		state.dirty_timer = DIRTY_INVERVAL
+		dirty(true)
+	}
+
 	_update_drag()
 
 	if state.double_click_timer > 0 {
@@ -95,6 +119,7 @@ start_dragging :: proc(id: Element_ID, loc := #caller_location) {
 	}
 	state.dragging = id
 	state.just_started_dragging = id
+	dirty(true)
 }
 stop_dragging :: proc(id: Element_ID, loc := #caller_location) {
 	if state.dragging == nil {
@@ -107,10 +132,12 @@ stop_dragging :: proc(id: Element_ID, loc := #caller_location) {
 	}
 	state.dragging = nil
 	state.just_stopped_dragging = id
+	dirty(true)
 }
 set_can_drag :: proc(id: Element_ID, offset: Vec2) {
 	state.can_drag = id
 	state.drag_offset = offset
+	dirty(true)
 }
 
 set_cursor :: proc(cursor: win.Cursor) {

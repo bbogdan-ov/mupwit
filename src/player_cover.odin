@@ -255,6 +255,7 @@ cover_loader_update :: proc(
 	case has_cover:
 		if !cover.loading && loader._alpha_timer > 0 {
 			loader._alpha_timer -= dt
+			ui.dirty(true)
 		}
 
 	case COVER_REQ_DELAY <= 0:
@@ -267,11 +268,11 @@ cover_loader_update :: proc(
 		return should_request
 
 	case !can_request:
-		loader._req_timer = COVER_REQ_DELAY
+		loader._req_timer = 0
 
-	case loader._req_timer > 0:
-		loader._req_timer -= dt
-		should_request = loader._req_timer <= 0
+	case loader._req_timer < COVER_REQ_DELAY:
+		loader._req_timer += dt
+		should_request = loader._req_timer >= COVER_REQ_DELAY
 	}
 	return should_request
 }

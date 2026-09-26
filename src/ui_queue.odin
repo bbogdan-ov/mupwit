@@ -11,7 +11,6 @@ Song_Item :: struct {
 	using item: ui.Item,
 	song_index: mpd.Song_Index,
 	loader:     Cover_Loader,
-	is_in_view: bool,
 }
 
 @(private = "file")
@@ -109,16 +108,17 @@ queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 
 	from, to := ui.item_list_visible_range(ctx.box, &self.list)
 	for i in from ..< to {
-		if self.list.reordering == ui.Item_Index(i) do continue
-		item := &self.list.items[i]
-		song_item_draw(state, ctx, item)
+		index := ui.Item_Index(i)
+		if self.list.reordering == index do continue
+		item := &self.list.items[index]
+		song_item_draw(state, ctx, item, index)
 	}
 
 	// Draw the currently reordering item above others.
 	reordering, has_reordering := self.list.reordering.?
 	if has_reordering {
 		item := &self.list.items[reordering]
-		song_item_draw(state, ctx, item)
+		song_item_draw(state, ctx, item, reordering)
 	}
 
 	length := _queue_ui_contents_length()
@@ -204,6 +204,8 @@ queue_ui_on_cur_song_updated :: proc(state: ^State, prev_index: Maybe(mpd.Song_I
 		if !ui.item_within_box(self.box, prev.position, height) do return
 	}
 
+	// FIXME!: it doesn't scroll to the current song when the queue changes and
+	// the new current song is outside of the view.
 	ui.item_list_scroll_to(self.box, &self.scroll, &self.list, ui.Item_Index(index))
 }
 
@@ -236,24 +238,23 @@ song_item_update :: proc(
 
 	state := cast(^State)list.userdata
 
-	request := cover_loader_update(&item.loader, item.is_in_view, dt)
+	is_in_view := ui.item_within_box(self.box, item.position, self.list.item_height)
+
+	request := cover_loader_update(&item.loader, is_in_view, dt)
 	if request {
 		song := &state.player.queue[item.song_index]
 		cover := cover_get_or_request(&state.player, song.file, song.album, .Small)
 		item.loader.cover = cover_ref(cover)
 	}
-
-	item.is_in_view = false
 }
 
-song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item) {
+song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item, index: ui.Item_Index) {
 	song := &state.player.queue[item.song_index]
-	item.is_in_view = true
 
 	pos := ui.item_tweened_pos(item)
 	rect := ui.item_rect(ctx.box, pos, self.list.item_height)
 
-	if item.is_hovering {
+	if self.list.hovering == index {
 		ui.draw_box_rounded(ctx, rect, state.theme.light_gray, filled = true)
 	}
 

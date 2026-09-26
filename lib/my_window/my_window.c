@@ -217,6 +217,7 @@ my_new(uint32_t width, uint32_t height) {
 		return NULL;
 
 	wayclient_init(&window->state, width, height);
+	window->state.draw_each_frame = false;
 
 	window->state.userdata = window;
 	window->state.on_frame = my__on_frame;
@@ -239,6 +240,16 @@ void
 my_destroy(My_Window *window) {
 	wayclient_destroy(&window->state);
 	free(window);
+}
+
+void
+my_redraw(My_Window *window) {
+	wayclient_draw_and_commit(&window->state);
+}
+
+void
+my_commit(My_Window *window) {
+	wl_surface_commit(window->state.wl_surface);
 }
 
 bool

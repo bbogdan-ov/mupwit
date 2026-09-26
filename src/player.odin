@@ -199,6 +199,8 @@ _player_set_status :: proc(player: ^Player, status: mpd.Status, force_song_updat
 	if prev_id != player.cur_song_id || force_song_updated {
 		on_cur_song_updated(prev_index, prev_id)
 	}
+
+	on_status_updated()
 }
 
 _player_set_last_played_song :: proc(player: ^Player, song: Maybe(mpd.Song)) {

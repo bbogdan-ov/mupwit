@@ -7,7 +7,6 @@ Album_Item :: struct {
 	rect:        Rect,
 	album_index: mpd.Album_Index,
 	loader:      Cover_Loader,
-	is_in_view:  bool,
 }
 
 @(private = "file")
@@ -40,16 +39,16 @@ albums_ui_update :: proc(state: ^State, dt: Seconds) {
 		pos.x /= ALBUM_WIDTH
 		index: ui.Item_Index = pos.y + pos.x
 		if within(index, 0, i32(len(self.items))) {
-			self.hovering_index = index
+			ui.dirty_set(&self.hovering_index, index)
 		} else {
-			self.hovering_index = nil
+			ui.dirty_set(&self.hovering_index, nil)
 		}
 	} else {
-		self.hovering_index = nil
+		ui.dirty_set(&self.hovering_index, nil)
 	}
 
-	for &item in self.items {
-		album_item_update(state, &item, dt)
+	for &item, i in self.items {
+		album_item_update(state, &item, ui.Item_Index(i), dt)
 	}
 
 	hovering, has_hovering := self.hovering_index.?
@@ -113,8 +112,13 @@ album_item_destroy :: proc(item: ^Album_Item) {
 	}
 }
 
-album_item_update :: proc(state: ^State, item: ^Album_Item, dt: Seconds) {
-	request := cover_loader_update(&item.loader, item.is_in_view, dt)
+album_item_update :: proc(state: ^State, item: ^Album_Item, index: ui.Item_Index, dt: Seconds) {
+	pos := _album_item_pos(index)
+	pos.y += -self.box.y - i32(self.box.scroll)
+
+	is_in_view := -ALBUM_HEIGHT < pos.y && pos.y < self.box.height
+
+	request := cover_loader_update(&item.loader, is_in_view, dt)
 	if request {
 		album := state.player.albums[item.album_index]
 		song := mpd.album_first_song(album)
@@ -122,17 +126,16 @@ album_item_update :: proc(state: ^State, item: ^Album_Item, dt: Seconds) {
 		cover := cover_get_or_request(&state.player, song.file, song.album, .Medium)
 		item.loader.cover = cover_ref(cover)
 	}
-
-	item.is_in_view = false
 }
 
 album_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Album_Item, index: ui.Item_Index) {
 	album := &state.player.albums[item.album_index]
-	item.is_in_view = true
+
+	pos := _album_item_pos(index)
 
 	rect: Rect
-	rect.x = ctx.box.x + (index % ALBUM_GRID_COLUMS) * ALBUM_WIDTH
-	rect.y = ctx.box.y + (index / ALBUM_GRID_COLUMS) * ALBUM_HEIGHT - i32(ctx.box.scroll)
+	rect.x = ctx.box.x + pos.x
+	rect.y = ctx.box.y + pos.y - i32(ctx.box.scroll)
 	rect.width = ALBUM_WIDTH
 	rect.height = ALBUM_HEIGHT
 
@@ -185,4 +188,11 @@ _album_ui_rows :: proc() -> int {
 	count := len(self.items)
 	count += count % ALBUM_GRID_COLUMS
 	return count
+}
+
+_album_item_pos :: proc(index: ui.Item_Index) -> Vec2 {
+	v: Vec2
+	v.x = (index % ALBUM_GRID_COLUMS) * ALBUM_WIDTH
+	v.y = (index / ALBUM_GRID_COLUMS) * ALBUM_HEIGHT
+	return v
 }

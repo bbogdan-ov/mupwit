@@ -105,6 +105,13 @@ update :: proc(dt: Seconds) {
 
 	win.set_cursor(state.window, ui.state.cursor)
 	ui.update(dt)
+
+	if ui.state.dirty {
+		win.redraw(state.window)
+		ui.state.dirty = false
+	} else {
+		win.commit(state.window)
+	}
 }
 
 update_theme :: proc(dt: Seconds) {
@@ -266,23 +273,31 @@ on_screen_updated :: proc() {
 
 // These functions are called by the `Player` struct whenever something happens.
 
+on_status_updated :: proc() {
+	ui.dirty(true)
+}
 on_cur_song_updated :: proc(prev_index: Maybe(mpd.Song_Index), prev_id: Maybe(mpd.Song_Id)) {
 	player_ui_on_cur_song_updated(&state)
 	queue_ui_on_cur_song_updated(&state, prev_index)
+	ui.dirty(true)
 }
 // Only being called when the queue was changed from the outside.
 // "From the outside" may also be referred as "external" for simplicity.
 on_queue_updated_by_external :: proc() {
 	queue_ui_on_queue_updated_by_external(&state)
+	ui.dirty(true)
 }
 on_album_list_updated :: proc() {
 	albums_ui_on_album_list_updated(&state)
+	ui.dirty(true)
 }
 on_song_reordered :: proc(from, to: mpd.Song_Index) {
 	queue_ui_on_song_reordered(from, to)
+	ui.dirty(true)
 }
 on_song_removed :: proc(index: mpd.Song_Index) {
 	queue_ui_on_song_removed(index)
+	ui.dirty(true)
 }
 
 // These functions are listeners for window events.

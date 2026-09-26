@@ -17,12 +17,14 @@ tween_play :: proc(t: ^Tween($T), from: T, duration: Seconds) {
 	t.duration = duration
 }
 
-tween_update :: proc(t: ^Tween($T), dt: Seconds) {
+tween_update :: proc(t: ^Tween($T), dt: Seconds, set_dirty := true) -> (updated: bool) {
 	if t.timer > 0 {
 		t.timer -= dt
-	} else {
-		t.timer = 0
+		if t.timer <= 0 do t.timer = 0
+		dirty(set_dirty)
+		return true
 	}
+	return false
 }
 
 tween_finish :: proc(t: ^Tween($T)) {

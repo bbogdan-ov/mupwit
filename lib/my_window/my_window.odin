@@ -220,6 +220,8 @@ foreign lib {
 	@(require_results)
 	new :: proc(width, height: u32) -> ^Window ---
 	destroy :: proc(win: ^Window) ---
+	redraw :: proc(win: ^Window) ---
+	commit :: proc(win: ^Window) ---
 
 	should_run :: proc(win: ^Window) -> bool ---
 
