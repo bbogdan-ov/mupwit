@@ -1,6 +1,10 @@
 #+vet explicit-allocators
 
-// Music Player Daemon client library.
+//
+// Simple Music Player Daemon client library.
+// Nothing fancy, just establishes a connection with a MPD server and sends or
+// receives strings in a synchronous manner.
+//
 
 package mpd
 

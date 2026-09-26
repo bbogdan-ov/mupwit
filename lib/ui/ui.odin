@@ -1,3 +1,20 @@
+//
+// Small and simple half-retained-mode software-rendering GUI library that uses
+// Cairo for drawing.
+//
+// What i mean by "half-retained-mode" is that you should manually store
+// interactible elements (buttons, sliders, etc) somewhere and they also depend
+// on their own state from a previous frame. For example before checking
+// whether a button is being pressed you must draw it at least once so it can
+// know its dimensions. This approach has an obvious downside - you can't know
+// dimensions (position and size) of an elements until it is drawn at least
+// once. But it is also a simpler approach than traditional retained-mode GUI
+// and more flexible than traditional immediate-mode GUI.
+//
+// All layout calculations are done manually, but may be i should make a simple
+// layout library like Clay?..
+//
+
 package ui
 
 import win "lib:my_window"
@@ -9,10 +26,12 @@ DIRTY_INVERVAL :: Seconds(2)
 
 ELEMENT_ID_NONE :: Element_ID(0)
 
+// Unique ID of an element. Most elements just use their pointers as their IDs.
 Element_ID :: distinct uintptr
 
 State :: struct {
 	view:                   Rect,
+	// When `true`, indicates that the screen should be redrawn.
 	dirty:                  bool,
 	dirty_timer:            Seconds,
 

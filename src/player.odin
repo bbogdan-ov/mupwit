@@ -1,5 +1,16 @@
 #+vet explicit-allocators
 
+//
+// `Player` manages everything that is tied to MPD using multithreading to
+// communicate with a MPD server. It opens a MPD connection in a separate
+// thread (often referred as a "client thread") and uses messages to pass data
+// between threads ("commands" and "responses").
+//
+// `Player` is also responsible for managing the cache of song covers.
+//
+// Any `player_*`, `cover_*` function is safe to use inside the main thread.
+//
+
 // FIXME!!!: MUPWIT may freeze if queue changes too quickly.
 // I don't know where the freeze happens because it may also freeze the main
 // thread which stops the app from responding, but sometimes only the player
