@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <freetype2/ft2build.h>
 #include FT_FREETYPE_H
@@ -78,10 +79,12 @@ typedef void (*My_Pointer_Button_Callback)(My_Window *window, My_Button button, 
 typedef void (*My_Pointer_Motion_Callback)(My_Window *window, double x, double y);
 typedef void (*My_Pointer_Scroll_Callback)(My_Window *window, double x, double y, bool touchpad);
 typedef void (*My_Pointer_Enter_Callback)(My_Window *window, bool leave);
-typedef void (*My_Keyboard_Key_Callback)(My_Window *window, uint32_t keycode, My_Key_State key_state, My_Mods mods);
+typedef void (*My_Keyboard_Key_Callback)(My_Window *window, uint32_t keycode, My_Key_State key_state, My_Mods mods, char *text, uint32_t text_len);
 
 struct My_Window {
 	Wayclient_State state;
+
+	struct timespec prev_frame_time;
 
 	void *userdata;
 	My_Frame_Callback on_frame;
@@ -95,6 +98,15 @@ struct My_Window {
 
 void my__on_frame(Wayclient_State *state) {
 	My_Window *window = state->userdata;
+
+	struct timespec now, start;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	start = window->prev_frame_time;
+	uint32_t elapsed_ms = (now.tv_sec - start.tv_sec) * 1000 + (now.tv_nsec - start.tv_nsec) / 1000000;
+	window->prev_frame_time = now;
+
+	wayclient_update_key_repetition(state, elapsed_ms);
+
 	if (window->on_frame != NULL)
 		window->on_frame(window);
 }
@@ -186,7 +198,16 @@ void my__on_keyboard_key(
 	if ((state->pressed_mods_mask & state->alt_mask) != 0)
 		mods |= MY_MOD_ALT;
 
-	window->on_keyboard_key(window, keycode, key_state, mods);
+	char text[8];
+	uint32_t text_len = xkb_keysym_to_utf8(keysym, text, sizeof(text));
+	if (text_len > 0) {
+		// NOTE: -1 because `xkb_keysym_to_utf8` returns length inluding null-terminator.
+		text_len -= 1;
+	} else {
+		text_len = 0;
+	}
+
+	window->on_keyboard_key(window, keycode, key_state, mods, text, text_len);
 }
 
 My_Window *

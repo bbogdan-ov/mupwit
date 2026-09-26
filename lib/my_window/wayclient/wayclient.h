@@ -65,6 +65,11 @@ struct Wayclient_State {
 	// }
 	// ```
 	xkb_mod_mask_t       pressed_mods_mask;
+	uint32_t             repeat_rate_ms;
+	uint32_t             repeat_delay_ms;
+	uint32_t             repeat_timer_ms;
+	uint32_t             last_pressed_key;
+	bool                 is_repeating;
 
 	struct wp_cursor_shape_manager_v1 *wp_cursor_manager;
 	struct wp_cursor_shape_device_v1  *wp_cursor_device;
@@ -142,9 +147,27 @@ wayclient_draw_and_commit(Wayclient_State *state);
 bool
 wayclient_set_cursor(Wayclient_State *state, enum wp_cursor_shape_device_v1_shape cursor);
 
+// FIXME!!: using `on_frame` to update timers will cap repetition rate to the
+// rate this callback is being called at. (usually 60 times per second)
+// So if `on_frame` is being called 60 times per seconds, the max repetition
+// rate your app can handle will be 60.
+// This is not a problem for most people i think, so it'll work for now. But it
+// looks like some apps handle this properly. (Alacritty for example can handle
+// almost any repeatition rate)
+
+// Updates timers needed to implement key repetition event, due to some
+// compositors don't fire this event themselves.
+// Call this in the `on_frame` callback of your app.
+// `elapsed_ms` is time in milliseconds passed since previous frame.
+void
+wayclient_update_key_repetition(Wayclient_State *state, uint32_t elapsed_ms);
+
 // ------------------------------
 // Internal functions.
 // ------------------------------
+
+void
+wayclient__invoke_keyboard_key_event(Wayclient_State *state, uint32_t key, uint32_t key_state);
 
 // Update buffers and SHM pool accordingly to the current window size.
 void

@@ -2,6 +2,7 @@ package mupwit
 
 import "core:log"
 import "core:mem"
+import "core:strings"
 import "core:time"
 import "lib:mpd"
 
@@ -209,29 +210,14 @@ set_background_from_cover :: proc(state: ^State, cover: ^Cover) {
 // Listeners.
 // ------------------------------
 
-Key_Event :: struct {
-	key:   win.Key,
-	state: win.Key_State,
-	mods:  win.Mods,
-}
+Key_Event :: win.Key_Event
+is_key :: win.is_key
+is_ctrl_key :: win.is_ctrl_key
+is_shift_key :: win.is_shift_key
+is_ctrl_shift_key :: win.is_ctrl_shift_key
 
-is_key :: proc(ev: Key_Event, key: win.Key, mods: win.Mods = nil) -> bool {
-	return ev.key == key && ev.mods == mods
-}
-is_shift_key :: proc(ev: Key_Event, key: win.Key) -> bool {
-	return is_key(ev, key, {.Shift})
-}
-is_ctrl_key :: proc(ev: Key_Event, key: win.Key) -> bool {
-	return is_key(ev, key, {.Ctrl})
-}
-is_ctrl_shift_key :: proc(ev: Key_Event, key: win.Key) -> bool {
-	return is_key(ev, key, {.Ctrl, .Shift})
-}
-
-on_keyboard_key :: proc(key: win.Key, key_state: win.Key_State, mods: win.Mods) -> bool {
-	if key_state != .Pressed do return true
-
-	ev := Key_Event{key, key_state, mods}
+on_keyboard_key :: proc(ev: Key_Event) -> bool {
+	if ev.state != .Pressed && ev.state != .Repeated do return true
 
 	player := &state.player
 
@@ -355,7 +341,18 @@ _window_on_keyboard_key :: proc "c" (
 	key: win.Key,
 	key_state: win.Key_State,
 	mods: win.Mods,
+	text: [^]u8,
+	text_len: u32,
 ) {
 	context = make_default_context()
-	on_keyboard_key(key, key_state, mods)
+
+	text := strings.string_from_ptr(text, int(text_len))
+	event := Key_Event {
+		key   = key,
+		state = key_state,
+		mods  = mods,
+		text  = text,
+	}
+
+	on_keyboard_key(event)
 }

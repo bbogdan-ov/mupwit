@@ -72,6 +72,7 @@ Cursor :: enum i32 {
 Key_State :: enum i32 {
 	Released = 0,
 	Pressed,
+	Repeated,
 }
 
 Mod :: enum i32 {
@@ -205,7 +206,14 @@ Pointer_Button_Callback :: #type proc "c" (win: ^Window, button: Button, state: 
 Pointer_Motion_Callback :: #type proc "c" (win: ^Window, x, y: f64)
 Pointer_Scroll_Callback :: #type proc "c" (win: ^Window, x, y: f64, touchpad: bool)
 Pointer_Enter_Callback :: #type proc "c" (win: ^Window, leave: bool)
-Keyboard_Key_Callback :: #type proc "c" (win: ^Window, key: Key, key_state: Key_State, mods: Mods)
+Keyboard_Key_Callback :: #type proc "c" (
+	win: ^Window,
+	key: Key,
+	key_state: Key_State,
+	mods: Mods,
+	text: [^]u8,
+	text_len: u32,
+)
 
 @(default_calling_convention = "c", link_prefix = "my_")
 foreign lib {
@@ -236,4 +244,24 @@ foreign lib {
 	font_face_load :: proc(library: Font_Library, face: ^Font_Face, data: [^]u8, size, face_index: u32) -> (ok: bool) ---
 	font_face_destroy :: proc(face: Font_Face) ---
 	font_library_destroy :: proc(library: Font_Library) ---
+}
+
+Key_Event :: struct {
+	key:   Key,
+	state: Key_State,
+	mods:  Mods,
+	text:  string,
+}
+
+is_key :: proc(ev: Key_Event, key: Key, mods: Mods = nil) -> bool {
+	return ev.key == key && ev.mods == mods
+}
+is_shift_key :: proc(ev: Key_Event, key: Key) -> bool {
+	return is_key(ev, key, {.Shift})
+}
+is_ctrl_key :: proc(ev: Key_Event, key: Key) -> bool {
+	return is_key(ev, key, {.Ctrl})
+}
+is_ctrl_shift_key :: proc(ev: Key_Event, key: Key) -> bool {
+	return is_key(ev, key, {.Ctrl, .Shift})
 }

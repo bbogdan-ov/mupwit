@@ -154,15 +154,16 @@ scroll_to :: proc(box: Box, s: ^Scroll, offset: f32) {
 	s.velocity = 0
 }
 
-scroll_draw :: proc(ctx: ^Context, s: ^Scroll, length: i32, color, active_color: Color) {
+scroll_draw :: proc(ctx: ^Context, s: ^Scroll, contents: i32, color, active_color: Color) {
 	box := ctx.box
 
-	scroll_update_length(ctx.box, s, length)
+	contents := max(contents, 1)
+	scroll_update_length(ctx.box, s, contents)
 
 	progress := s.offset / s.stop_offset
 
 	s.thumb.width = box.padding.x
-	s.thumb.height = max(box.height * box.height / length, 32)
+	s.thumb.height = max(box.height * box.height / contents, 32)
 	s.thumb.x = box.x + box.width
 	s.thumb.y = box.y + i32(f32(box.height - s.thumb.height) * progress)
 	if s.thumb.height >= box.height {

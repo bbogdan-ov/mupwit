@@ -310,6 +310,11 @@ wayclient__wl_keyboard_handle_leave(
 	struct wl_surface *surface
 ) {
 	Wayclient_State *state = data;
+
+	state->last_pressed_key = 0;
+	state->is_repeating = false;
+	state->repeat_timer_ms = 0;
+
 	if (state->on_keyboard_leave != NULL)
 		state->on_keyboard_leave(state);
 }
@@ -325,11 +330,22 @@ wayclient__wl_keyboard_handle_key(
 ) {
 	Wayclient_State *state = data;
 	if (state->on_keyboard_key == NULL) return;
+	if (key_state == WL_KEYBOARD_KEY_STATE_REPEATED) {
+		// TODO: for now i'll completely ignore compositor's "key repeated"
+		// events and use only my implementation, but i should use compositor's
+		// one if available.
+		return;
+	}
 
-	// "...clients must add 8 to the key event keycode" for xkb keymap format.
-	xkb_keysym_t keysym = xkb_state_key_get_one_sym(state->xkb_state, key + 8);
+	if (key_state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+		state->last_pressed_key = key;
+		state->is_repeating = false;
+		state->repeat_timer_ms = 0;
+	} else if (key_state == WL_KEYBOARD_KEY_STATE_RELEASED && state->last_pressed_key == key) {
+		state->last_pressed_key = 0;
+	}
 
-	state->on_keyboard_key(state, key, keysym, key_state);
+	wayclient__invoke_keyboard_key_event(state, key, key_state);
 }
 
 static void
@@ -364,11 +380,9 @@ wayclient__wl_keyboard_handle_repeat_info(
 	int32_t rate,
 	int32_t delay
 ) {
-	// Wayclient_State *state = data;
-
-	// TODO!!: implement key press repeation.
-	// For now repeated keypress (after you hold on a key and wait a little
-	// delay) doesn't get registered.
+	Wayclient_State *state = data;
+	state->repeat_rate_ms = 1000 / rate;
+	state->repeat_delay_ms = delay;
 }
 
 struct wl_keyboard_listener wayclient__wl_keyboard_listener = {
@@ -661,9 +675,45 @@ wayclient_set_cursor(Wayclient_State *state, enum wp_cursor_shape_device_v1_shap
 	return true;
 }
 
+void
+wayclient_update_key_repetition(Wayclient_State *state, uint32_t elapsed_ms) {
+	if (state->last_pressed_key == 0) {
+		state->is_repeating = false;
+		state->repeat_timer_ms = 0;
+		return;
+	}
+
+	state->repeat_timer_ms += elapsed_ms;
+
+	if (state->is_repeating) {
+		if (state->repeat_timer_ms >= state->repeat_rate_ms) {
+			wayclient__invoke_keyboard_key_event(
+				state,
+				state->last_pressed_key,
+				WL_KEYBOARD_KEY_STATE_REPEATED
+			);
+			state->repeat_timer_ms = 0;
+		}
+	} else {
+		if (state->repeat_timer_ms >= state->repeat_delay_ms) {
+			state->is_repeating = true;
+			state->repeat_timer_ms = 0;
+		}
+	}
+}
+
 // ------------------------------
 // Internal functions.
 // ------------------------------
+
+void
+wayclient__invoke_keyboard_key_event(Wayclient_State *state, uint32_t key, uint32_t key_state) {
+	if (state->on_keyboard_key == NULL) return;
+
+	// "...clients must add 8 to the key event keycode" for xkb keymap format.
+	xkb_keysym_t keysym = xkb_state_key_get_one_sym(state->xkb_state, key + 8);
+	state->on_keyboard_key(state, key, keysym, key_state);
+}
 
 void
 wayclient__update_buffers_size(Wayclient_State *state) {
