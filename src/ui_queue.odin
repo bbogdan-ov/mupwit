@@ -210,7 +210,7 @@ queue_ui_on_cur_song_updated :: proc(state: ^State, prev_index: Maybe(mpd.Song_I
 }
 
 queue_ui_on_song_reordered :: proc(from, to: mpd.Song_Index) {
-	start, end := ui.range_unflip(from, to)
+	start, end := ui.range_sort(from, to)
 	for i in start ..= end {
 		item := &self.list.items[i]
 		item.song_index = mpd.Song_Index(i)

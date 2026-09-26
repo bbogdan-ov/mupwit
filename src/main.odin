@@ -28,6 +28,7 @@ Theme :: struct {
 State :: struct {
 	window:       ^win.Window,
 	player:       Player,
+	commands:     Commands,
 	screen:       Screen,
 	prev_screen:  Screen,
 	screen_tween: ui.Tween(f32),
@@ -76,6 +77,9 @@ main :: proc() {
 	player_init(&state.player)
 	player_connect(&state.player)
 	defer player_destroy(&state.player)
+
+	commands_init(&state.commands)
+	defer commands_destroy(&state.commands)
 
 	status_ui_init()
 	queue_ui_init()
@@ -314,6 +318,7 @@ _window_draw :: proc "c" (window: ^win.Window, cr: ^cairo.cairo_t, surface: ^cai
 	ctx.cr = cr
 	ctx.surface = surface
 	ctx.box.rect = ui.state.view
+	ctx.crop_text = true
 
 	draw(&ctx)
 }

@@ -56,7 +56,7 @@ Command_Play_Album :: struct {
 
 Command_Disconnect :: struct {}
 
-Command :: union #no_nil {
+Player_Command :: union #no_nil {
 	Command_Request_Status,
 	Command_Request_Queue,
 	Command_Request_Albums,
@@ -78,7 +78,7 @@ Command :: union #no_nil {
 	Command_Disconnect,
 }
 
-_command_destroy :: proc(command: Command) {
+_command_destroy :: proc(command: Player_Command) {
 	#partial switch cmd in command {
 	case Command_Request_Cover:
 		delete(string(cmd.file), cmd.allocator)
@@ -88,7 +88,7 @@ _command_destroy :: proc(command: Command) {
 	}
 }
 
-_command_send :: proc(ch: Commands_Chan, command: Command) {
+_command_send :: proc(ch: Commands_Chan, command: Player_Command) {
 	chan.send(ch, command)
 }
 
@@ -96,22 +96,30 @@ _command_send :: proc(ch: Commands_Chan, command: Command) {
 // Playback commands.
 // ------------------------------
 
-player_toggle_play :: proc(player: ^Player) {
-	cmds := player._shared.commands
-
+player_play_or_resume :: proc(player: ^Player) {
 	switch player.playstate {
 	case .Play:
-		_command_send(cmds, Command_Pause{})
-		player.playstate = .Pause
 	case .Pause:
-		_command_send(cmds, Command_Resume{})
+		_command_send(player._shared.commands, Command_Resume{})
 		player.playstate = .Play
 	case .Stop:
-		_command_send(cmds, Command_Play{})
+		_command_send(player._shared.commands, Command_Play{})
 		player.playstate = .Play
 	}
 }
-
+player_pause :: proc(player: ^Player) {
+	if player.playstate == .Play {
+		_command_send(player._shared.commands, Command_Pause{})
+		player.playstate = .Pause
+	}
+}
+player_toggle_play :: proc(player: ^Player) {
+	if player.playstate == .Play {
+		player_pause(player)
+	} else {
+		player_play_or_resume(player)
+	}
+}
 player_next :: proc(player: ^Player) {
 	if player.cur_song == nil do return
 	_command_send(player._shared.commands, Command_Next{})
@@ -259,7 +267,7 @@ player_request_cover :: proc(
 _player_handle_command :: proc(
 	shared: ^Player_Shared,
 	client: ^mpd.Client,
-	command: Command,
+	command: Player_Command,
 ) -> (
 	err: mpd.Error,
 ) {

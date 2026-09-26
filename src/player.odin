@@ -32,8 +32,8 @@ import "lib:mpd"
 STATUS_REQUEST_INVERVAL :: Seconds(0.5)
 TARGET_CLIENT_THREAD_TPS :: 30
 
-Commands_Chan :: distinct chan.Chan(Command)
-Responses_Chan :: distinct chan.Chan(Response)
+Commands_Chan :: distinct chan.Chan(Player_Command)
+Responses_Chan :: distinct chan.Chan(Player_Response)
 
 Switch_Direction :: enum {
 	From_None = 0, // This is the first song to be played.
@@ -110,12 +110,12 @@ player_init :: proc(player: ^Player, allocator := context.allocator) {
 	}
 
 	{
-		ch, err := chan.create_buffered(chan.Chan(Command), 10, player.allocator)
+		ch, err := chan.create_buffered(Commands_Chan, 10, player.allocator)
 		assert(err == nil) // TODO: handle error.
 		player._shared.commands = Commands_Chan(ch)
 	}
 	{
-		ch, err := chan.create_buffered(chan.Chan(Response), 10, player.allocator)
+		ch, err := chan.create_buffered(Responses_Chan, 10, player.allocator)
 		assert(err == nil) // TODO: handle error.
 		player._shared.responses = Responses_Chan(ch)
 	}

@@ -170,7 +170,7 @@ within :: #force_inline proc "contextless" (
 	return from <= v && v < to
 }
 
-range_unflip :: #force_inline proc "contextless" (
+range_sort :: #force_inline proc "contextless" (
 	start, end: $T,
 ) -> (
 	T,

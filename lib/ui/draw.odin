@@ -16,6 +16,7 @@ Context :: struct {
 	surface:     ^cairo.surface_t,
 	box:         Box, // Current box rect. Elements should adapt to this box.
 	font_height: i32, // Current font height.
+	crop_text:   bool,
 }
 
 Align :: enum {
@@ -24,7 +25,7 @@ Align :: enum {
 	End,
 }
 
-@(deferred_in_out = _box_end)
+@(deferred_in_out = _end_box)
 begin_box :: proc(ctx: ^Context, rect: Rect, padding: Vec2 = {}, scroll: f32 = 0) -> (prev: Box) {
 	prev = ctx.box
 	ctx.box.rect = pad(rect, padding)
@@ -32,18 +33,27 @@ begin_box :: proc(ctx: ^Context, rect: Rect, padding: Vec2 = {}, scroll: f32 = 0
 	ctx.box.scroll = scroll
 	return prev
 }
-_box_end :: proc(ctx: ^Context, _: Rect, _: Vec2, _: f32, prev: Box) {
+_end_box :: proc(ctx: ^Context, _: Rect, _: Vec2, _: f32, prev: Box) {
 	ctx.box = prev
 }
 
-@(deferred_in = _clip_end)
-begin_clip :: proc(ctx: ^Context) -> bool {
+@(deferred_in = _end_clip)
+begin_clip :: proc(ctx: ^Context) {
 	_rectangle(ctx, ctx.box)
 	cairo.clip(ctx)
-	return true
 }
-_clip_end :: proc(ctx: ^Context) {
+_end_clip :: proc(ctx: ^Context) {
 	cairo.reset_clip(ctx)
+}
+
+@(deferred_in_out = _end_crop_text)
+begin_crop_text :: proc(ctx: ^Context, crop: bool) -> (prev: bool) {
+	prev = ctx.crop_text
+	ctx.crop_text = crop
+	return prev
+}
+_end_crop_text :: proc(ctx: ^Context, _, prev: bool) {
+	ctx.crop_text = prev
 }
 
 // ------------------------------
@@ -81,7 +91,7 @@ draw_glyphs :: proc(
 
 		// TODO!: should replace the last char with ellipsis (...) when
 		// the text is being cropped.
-		if i32(text_ext.x_advance + ext.x_advance) > max_advance {
+		if ctx.crop_text && i32(text_ext.x_advance + ext.x_advance) > max_advance {
 			break
 		}
 

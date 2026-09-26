@@ -17,25 +17,25 @@ Response_Cover :: struct #all_or_none {
 	allocator: runtime.Allocator,
 }
 
-Response :: union {
+Player_Response :: union {
 	mpd.Status,
 	mpd.Album_List,
 	Response_Queue,
 	Response_Cover,
 }
 
-_response_destroy :: proc(response: Response) {
+_response_destroy :: proc(response: Player_Response) {
 	#partial switch res in response {
 	case Response_Cover:
 		delete(string(res.key), res.allocator)
 	}
 }
 
-_response_send :: proc(ch: Responses_Chan, response: Response) {
+_response_send :: proc(ch: Responses_Chan, response: Player_Response) {
 	chan.send(ch, response)
 }
 
-_player_handle_response :: proc(player: ^Player, response: Response) {
+_player_handle_response :: proc(player: ^Player, response: Player_Response) {
 	defer _response_destroy(response)
 
 	switch res in response {
