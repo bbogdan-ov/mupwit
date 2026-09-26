@@ -4,7 +4,6 @@ import "core:fmt"
 import "core:math/ease"
 
 import "lib:mpd"
-import win "lib:my_window"
 import "lib:ui"
 
 @(private = "file")
@@ -207,10 +206,11 @@ _player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context) -> (height: i32)
 	return height
 }
 
-player_ui_on_keyboard_key :: proc(state: ^State, key: win.Key, mods: win.Mods) {
-	if TEST_COVERS && key == .Enter {
+@(require_results)
+player_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bool) {
+	if TEST_COVERS && ev.key == .Enter {
 		new: int
-		if .Shift in mods {
+		if ev.mods == {.Shift} {
 			new = TEST_CUR_FILE - 1
 			state.player.switch_direction = .Previous
 		} else {
@@ -232,7 +232,11 @@ player_ui_on_keyboard_key :: proc(state: ^State, key: win.Key, mods: win.Mods) {
 			file := mpd.Song_File(item[1])
 			_player_ui_request_cover(state, file, album, .Huge)
 		}
+
+		return false
 	}
+
+	return true
 }
 
 player_ui_on_cur_song_updated :: proc(state: ^State) {

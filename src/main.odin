@@ -209,31 +209,61 @@ set_background_from_cover :: proc(state: ^State, cover: ^Cover) {
 // Listeners.
 // ------------------------------
 
-on_keyboard_key :: proc(key: win.Key, key_state: win.Key_State, mods: win.Mods) {
-	if key_state != .Pressed do return
+Key_Event :: struct {
+	key:   win.Key,
+	state: win.Key_State,
+	mods:  win.Mods,
+}
+
+is_key :: proc(ev: Key_Event, key: win.Key, mods: win.Mods = nil) -> bool {
+	return ev.key == key && ev.mods == mods
+}
+is_shift_key :: proc(ev: Key_Event, key: win.Key) -> bool {
+	return is_key(ev, key, {.Shift})
+}
+is_ctrl_key :: proc(ev: Key_Event, key: win.Key) -> bool {
+	return is_key(ev, key, {.Ctrl})
+}
+is_ctrl_shift_key :: proc(ev: Key_Event, key: win.Key) -> bool {
+	return is_key(ev, key, {.Ctrl, .Shift})
+}
+
+on_keyboard_key :: proc(key: win.Key, key_state: win.Key_State, mods: win.Mods) -> bool {
+	if key_state != .Pressed do return true
+
+	ev := Key_Event{key, key_state, mods}
 
 	player := &state.player
-	shift := .Shift in mods
+
+	// All `*_on_keyboard_key` listeners should return `true` whenever they
+	// allow others to handle this key, in other words, this event will
+	// "propagate" to other listeners. If a listener returns `false` it means
+	// that it consumed that key and noone else can handle it.
+	// For example when you are handling text box input you should disable
+	// propagation for all keys ("consume" them) so that if you press 'q' it
+	// doesn't trigger the app to close.
+
+	player_ui_on_keyboard_key(&state, ev) or_return
+	queue_ui_on_keyboard_key(&state, ev) or_return
 
 	switch {
-	case key == .Esc, key == .Q:
+	case is_key(ev, .Esc), is_key(ev, .Q):
 		win.set_should_close(state.window, true)
 
-	case key == .Tab:
-		diff := -1 if shift else +1
-		screen := enum_rotate_variant(state.screen, diff)
-		set_screen(&state, screen)
+	case is_key(ev, .Tab):
+		set_screen(&state, enum_rotate_variant(state.screen, 1))
+	case is_shift_key(ev, .Tab):
+		set_screen(&state, enum_rotate_variant(state.screen, -1))
 
-	case key == .Space:
+	case is_key(ev, .Space):
 		player_toggle_play(player)
-	case key == .Dot && shift:
+	case is_shift_key(ev, .Dot):
 		player_next(player)
-	case key == .Comma && shift:
+	case is_shift_key(ev, .Comma):
 		player_previous(player)
 	}
 
-	player_ui_on_keyboard_key(&state, key, mods)
-	queue_ui_on_keyboard_key(&state, key, mods)
+	return true
 }
 
 // TODO: would be cool to add touchpad gestures.

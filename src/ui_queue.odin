@@ -5,7 +5,6 @@
 package mupwit
 
 import "lib:mpd"
-import win "lib:my_window"
 import "lib:ui"
 
 Song_Item :: struct {
@@ -156,23 +155,25 @@ queue_ui_on_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
 	ui.scroll_on_scroll(&self.scroll, scroll, touchpad)
 }
 
-queue_ui_on_keyboard_key :: proc(state: ^State, key: win.Key, mods: win.Mods) {
-	if state.screen != .Queue do return
-
-	shift := .Shift in mods
+queue_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bool) {
+	if state.screen != .Queue do return true
 
 	switch {
-	case key == .Z:
+	case is_key(ev, .Z):
 		_queue_ui_scroll_to_cur_song(state)
-
-	case key == .G && shift, key == .End:
-		ui.scroll_to(self.box, &self.scroll, self.scroll.length)
-	case key == .G, key == .Home:
+	case is_key(ev, .G), is_key(ev, .Home):
 		ui.scroll_to(self.box, &self.scroll, 0)
+	case is_shift_key(ev, .G), is_key(ev, .End):
+		ui.scroll_to(self.box, &self.scroll, self.scroll.length)
 
-	case key == .F1:
+	case is_key(ev, .F1):
 		player_play_random_album(&state.player)
+
+	case:
+		propagate = true
 	}
+
+	return propagate
 }
 
 queue_ui_on_queue_updated_by_external :: proc(state: ^State) {
