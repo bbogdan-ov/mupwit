@@ -113,9 +113,11 @@ player_toggle_play :: proc(player: ^Player) {
 }
 
 player_next :: proc(player: ^Player) {
+	if player.cur_song == nil do return
 	_command_send(player._shared.commands, Command_Next{})
 }
 player_previous :: proc(player: ^Player) {
+	if player.cur_song == nil do return
 	_command_send(player._shared.commands, Command_Previous{})
 }
 
@@ -306,7 +308,7 @@ _player_handle_command :: proc(
 	case Command_Play:
 		return mpd.send_and_forget(client, "play")
 	case Command_Next:
-		return mpd.send_and_forget(client, "nextbobo")
+		return mpd.send_and_forget(client, "next")
 	case Command_Previous:
 		return mpd.send_and_forget(client, "previous")
 	case Command_Resume:
