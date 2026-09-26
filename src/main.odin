@@ -106,6 +106,9 @@ update :: proc(dt: Seconds) {
 	win.set_cursor(state.window, ui.state.cursor)
 	ui.update(dt)
 
+	// TODO: would be much better if it could redraw only those areas that has
+	// been chagned, so, for example, it doesn't waste time on redrawing the whole queue when
+	// only the progress bar in the status changes.
 	if ui.state.dirty {
 		win.redraw(state.window)
 		ui.state.dirty = false
