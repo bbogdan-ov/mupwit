@@ -166,9 +166,6 @@ queue_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bo
 	case is_shift_key(ev, .G), is_key(ev, .End):
 		ui.scroll_to(self.box, &self.scroll, self.scroll.length)
 
-	case is_key(ev, .F1):
-		player_play_random_album(&state.player)
-
 	case:
 		propagate = true
 	}
@@ -222,10 +219,7 @@ queue_ui_on_song_removed :: proc(index: mpd.Song_Index) {
 }
 
 song_item_destroy :: proc(item: ^Song_Item) {
-	if cover, ok := item.loader.cover.?; ok {
-		cover_unref(cover)
-		item.loader.cover = nil
-	}
+	cover_maybe_unref(item.loader.cover)
 }
 
 song_item_update :: proc(
@@ -238,14 +232,10 @@ song_item_update :: proc(
 
 	state := cast(^State)list.userdata
 
-	is_in_view := ui.item_within_box(self.box, item.position, self.list.item_height)
+	is_in_view := ui.item_within_view(self.box, item.position, self.list.item_height)
+	song := &state.player.queue[item.song_index]
 
-	request := cover_loader_update(&item.loader, is_in_view, dt)
-	if request {
-		song := &state.player.queue[item.song_index]
-		cover := cover_get_or_request(&state.player, song.file, song.album, .Small)
-		item.loader.cover = cover_ref(cover)
-	}
+	cover_loader_update(&state.player, &item.loader, song.file, song.album, .Small, is_in_view, dt)
 }
 
 song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item, index: ui.Item_Index) {

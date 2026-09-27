@@ -2,6 +2,7 @@
 
 package mupwit
 
+import "base:runtime"
 import "core:math/linalg"
 import "core:thread"
 import "core:time"
@@ -11,11 +12,24 @@ import "vendor:stb/image"
 import "lib:cairo"
 import "lib:mpd"
 
-_Cover_Thread_Data :: struct #all_or_none {
+Cover_Thread_Data :: struct #all_or_none {
 	responses: Responses_Chan,
 	key:       Cover_Key,
 	size:      Cover_Size,
 	picture:   mpd.Picture,
+	allocator: runtime.Allocator, // Allocator used to allocate a pointer to this data.
+}
+
+// FIXME: cover thread data won't be freed properly when destroying the thead
+// pool if a task that owns this data has never started. I've tried to free
+// data of tasks that haven't executed, but it triggers a double-free for some
+// reason. I'll ignore it for now because destraction of the thread pool
+// happens only at the end of the program, so its not a big deal.
+cover_thread_data_free :: proc(data: ^Cover_Thread_Data, loc := #caller_location) {
+	assert(data != nil)
+
+	mpd.picture_destroy(data.picture, loc)
+	free(data, data.allocator, loc)
 }
 
 // Decode a cover from a picture data on a separate thread.
@@ -28,11 +42,12 @@ _cover_decode_and_send :: proc(
 ) {
 	alloc := shared.allocator
 
-	data := _Cover_Thread_Data {
+	data := Cover_Thread_Data {
 		responses = shared.responses,
 		key       = cover_key_clone(key, alloc),
 		size      = size,
 		picture   = picture,
+		allocator = alloc,
 	}
 
 	{
@@ -47,11 +62,8 @@ _cover_decode_and_send :: proc(
 }
 
 _do_decode_cover :: proc(task: thread.Task) {
-	data := cast(^_Cover_Thread_Data)task.data
-	defer {
-		mpd.picture_destroy(data.picture)
-		free(data, task.allocator)
-	}
+	data := cast(^Cover_Thread_Data)task.data
+	defer cover_thread_data_free(data)
 
 	response := Response_Cover {
 		key       = data.key, // Already cloned with `task.allocator`.

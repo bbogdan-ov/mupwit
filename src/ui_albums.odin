@@ -106,10 +106,7 @@ albums_ui_on_album_list_updated :: proc(state: ^State) {
 }
 
 album_item_destroy :: proc(item: ^Album_Item) {
-	if cover, ok := item.loader.cover.?; ok {
-		cover_unref(cover)
-		item.loader.cover = nil
-	}
+	cover_maybe_unref(item.loader.cover)
 }
 
 album_item_update :: proc(state: ^State, item: ^Album_Item, index: ui.Item_Index, dt: Seconds) {
@@ -118,14 +115,18 @@ album_item_update :: proc(state: ^State, item: ^Album_Item, index: ui.Item_Index
 
 	is_in_view := -ALBUM_HEIGHT < pos.y && pos.y < self.box.height
 
-	request := cover_loader_update(&item.loader, is_in_view, dt)
-	if request {
-		album := state.player.albums[item.album_index]
-		song := mpd.album_first_song(album)
+	album := state.player.albums[item.album_index]
+	song := mpd.album_first_song(album)
 
-		cover := cover_get_or_request(&state.player, song.file, song.album, .Medium)
-		item.loader.cover = cover_ref(cover)
-	}
+	cover_loader_update(
+		&state.player,
+		&item.loader,
+		song.file,
+		song.album,
+		.Medium,
+		is_in_view,
+		dt,
+	)
 }
 
 album_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Album_Item, index: ui.Item_Index) {

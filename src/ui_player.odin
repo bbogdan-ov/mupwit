@@ -18,6 +18,12 @@ self: struct {
 	update_cover_timer: Seconds,
 }
 
+player_ui_destroy :: proc() {
+	cover_maybe_unref(self.prev_cover)
+	cover_maybe_unref(self.cover)
+	cover_maybe_unref(self.loading_cover)
+}
+
 player_ui_update :: proc(state: ^State, dt: Seconds) {
 	_player_ui_update_cover_handling(state, dt)
 
@@ -286,7 +292,6 @@ _player_ui_request_cover :: proc(
 
 _player_ui_set_cover :: proc(state: ^State, cover: Maybe(^Cover)) {
 	if prev, ok := self.prev_cover.?; ok {
-		assert(prev.ref_count >= 2)
 		cover_unref(prev)
 	}
 	self.prev_cover = self.cover

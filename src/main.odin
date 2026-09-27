@@ -86,6 +86,7 @@ main :: proc() {
 	defer queue_ui_destroy()
 	albums_ui_init()
 	defer albums_ui_destroy()
+	defer player_ui_destroy()
 
 	for win.should_run(state.window) {}
 
@@ -261,6 +262,9 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 		player_next(player)
 	case is_shift_key(ev, .Comma):
 		player_previous(player)
+
+	case is_key(ev, .F1):
+		player_play_random_album(&state.player)
 	}
 
 	return true

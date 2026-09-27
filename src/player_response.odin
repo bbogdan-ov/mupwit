@@ -27,7 +27,7 @@ Player_Response :: union {
 _response_destroy :: proc(response: Player_Response) {
 	#partial switch res in response {
 	case Response_Cover:
-		delete(string(res.key), res.allocator)
+		cover_key_delete(res.key, res.allocator)
 	}
 }
 

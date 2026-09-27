@@ -3,19 +3,24 @@
 package mupwit
 
 import "base:runtime"
+import "core:container/lru"
 import "core:log"
 import "core:strings"
-import "lib:ui"
 
 import "lib:cairo"
 import "lib:mpd"
+import "lib:ui"
 
 COVER_CHANNELS :: 4 // Number of channels of each pixel in a cover surface.
 
+MAX_COVER_CACHE_ENTRIES :: 28
 MAX_COVER_DECODE_THREADS :: 4
 
-// Either an album name or a song file, because some songs may not have an album.
-Cover_Key :: distinct string
+Cover_Key :: struct {
+	// Either an album name or a song file, because some songs may not have an album.
+	str:  string,
+	size: Cover_Size,
+}
 
 Cover_Size :: enum {
 	Small = 0,
@@ -40,14 +45,14 @@ Cover :: struct #all_or_none {
 	loading:   bool,
 }
 
-Cover_Cache_Slot :: struct #all_or_none {
-	key:       Cover_Key,
-	covers:    [Cover_Size]Maybe(^Cover),
+Cover_Cache_Entry :: struct {
+	cover:     ^Cover,
+	// Key allocator.
 	allocator: runtime.Allocator,
 }
 
 // TODO!: should delete cached covers that are too old and not referenced by onyone.
-Covers_Cache :: map[Cover_Key]Cover_Cache_Slot
+Covers_Cache :: lru.Cache(Cover_Key, Cover_Cache_Entry)
 
 cover_ref :: proc(cover: ^Cover) -> ^Cover {
 	assert(cover != nil)
@@ -56,8 +61,6 @@ cover_ref :: proc(cover: ^Cover) -> ^Cover {
 	return cover
 }
 
-// Last one to call this function must be the cache, so it can properly update
-// the cache table.
 cover_unref :: proc(cover: ^Cover) {
 	assert(cover != nil)
 
@@ -71,45 +74,55 @@ cover_unref :: proc(cover: ^Cover) {
 	free(cover, cover.allocator)
 }
 
-cover_key_make :: proc(file: mpd.Song_File, album: mpd.Album_Name) -> Cover_Key {
-	if len(album) > 0 {
-		return Cover_Key(album)
-	} else {
-		assert(len(file) > 0)
-		return Cover_Key(file)
+cover_maybe_unref :: proc(cover: Maybe(^Cover)) {
+	if cover, ok := cover.?; ok {
+		cover_unref(cover)
 	}
 }
-cover_key_clone :: proc(key: Cover_Key, allocator := context.allocator) -> Cover_Key {
-	s := strings.clone(string(key), allocator)
-	return Cover_Key(s)
+
+cover_key_make :: proc(file: mpd.Song_File, album: mpd.Album_Name, size: Cover_Size) -> Cover_Key {
+	if len(album) > 0 {
+		return Cover_Key{album, size}
+	} else {
+		assert(len(file) > 0)
+		return Cover_Key{string(file), size}
+	}
+}
+cover_key_clone :: proc(
+	key: Cover_Key,
+	allocator := context.allocator,
+	loc := #caller_location,
+) -> Cover_Key {
+	s := strings.clone(string(key.str), allocator, loc)
+	return Cover_Key{s, key.size}
 }
 cover_key_make_cloned :: proc(
 	file: mpd.Song_File,
 	album: mpd.Album_Name,
+	size: Cover_Size,
 	allocator := context.allocator,
+	loc := #caller_location,
 ) -> Cover_Key {
-	key := cover_key_make(file, album)
-	return cover_key_clone(key, allocator)
+	key := cover_key_make(file, album, size)
+	return cover_key_clone(key, allocator, loc)
+}
+cover_key_delete :: proc(key: Cover_Key, allocator := context.allocator, loc := #caller_location) {
+	delete(key.str, allocator, loc)
 }
 
-_covers_cache_destroy :: proc(cache: Covers_Cache) {
-	for _, slot in cache {
-		_cover_cache_slot_destroy(slot)
+covers_cache_init :: proc(cache: ^Covers_Cache, allocator := context.allocator) {
+	lru.init(cache, MAX_COVER_CACHE_ENTRIES, allocator, allocator)
+
+	cache.on_remove = proc(key: Cover_Key, entry: Cover_Cache_Entry, userdata: rawptr) {
+		// NOTE: someone may still have a reference to this cover, so this
+		// `cover_unref` is not guaranteed to free the cover memory.
+		cover_unref(entry.cover)
+		cover_key_delete(key, entry.allocator)
 	}
-	delete(cache)
 }
 
-_cover_cache_slot_destroy :: proc(slot: Cover_Cache_Slot) {
-	delete(string(slot.key), slot.allocator)
-	for cover in slot.covers {
-		c := cover.? or_continue
-		// NOTE: this function is assumed to be called at the destraction of
-		// the entire cache, which is called at the program end, therefore all
-		// other objects referencing this cover will also be deleted, so no
-		// worries if there are some dangling references left.
-		c.ref_count = 1
-		cover_unref(c)
-	}
+covers_cache_destroy :: proc(cache: ^Covers_Cache) {
+	lru.destroy(cache, true)
 }
 
 cover_get :: proc(
@@ -123,9 +136,9 @@ cover_get :: proc(
 ) {
 	assert(len(file) > 0)
 
-	key := cover_key_make(file, album)
-	slot := player._covers_cache[key] or_return
-	return slot.covers[size].?
+	key := cover_key_make(file, album, size)
+	entry := lru.get(&player._covers_cache, key) or_return
+	return entry.cover, true
 }
 
 // Returns the pointer to the cached cover (without creating a reference) by a
@@ -137,26 +150,16 @@ cover_get_or_request :: proc(
 	file: mpd.Song_File,
 	album: mpd.Album_Name,
 	size: Cover_Size,
+	loc := #caller_location,
 ) -> ^Cover {
 	assert(len(file) > 0)
 
-	temp_key := cover_key_make(file, album)
+	temp_key := cover_key_make(file, album, size)
 
-	slot, ok := &player._covers_cache[temp_key]
+	entry, ok := lru.get(&player._covers_cache, temp_key)
 	if ok {
-		cover, ok := slot.covers[size].?
-		if ok {
-			// Yay we've got a cached cover!
-			return cover
-		}
-	} else {
-		key := cover_key_clone(temp_key, player.allocator)
-		player._covers_cache[key] = {
-			key       = key,
-			covers    = {},
-			allocator = player.allocator,
-		}
-		slot = &player._covers_cache[key]
+		// Yay we've got a cached cover!
+		return entry.cover
 	}
 
 	c := Cover {
@@ -166,8 +169,11 @@ cover_get_or_request :: proc(
 		loading   = true,
 		allocator = player.allocator,
 	}
-	cover := new_clone(c, player.allocator)
-	slot.covers[size] = cover
+	cover := new_clone(c, c.allocator, loc)
+
+	key := cover_key_clone(temp_key, player.allocator, loc)
+	entry = Cover_Cache_Entry{cover, player.allocator}
+	lru.set(&player._covers_cache, key, entry)
 
 	player_request_cover(player, file, album, size)
 
@@ -175,16 +181,13 @@ cover_get_or_request :: proc(
 }
 
 _player_handle_cover_response :: proc(player: ^Player, res: Response_Cover) {
-	has_slot, has_cover, loading: bool
+	has_entry, loading: bool
 	block: {
-		slot: ^Cover_Cache_Slot
-		slot, has_slot = &player._covers_cache[res.key]
-		if !has_slot do break block
+		entry: ^Cover_Cache_Entry
+		entry, has_entry = lru.get_ptr(&player._covers_cache, res.key)
+		if !has_entry do break block
 
-		cover: ^Cover
-		cover, has_cover = slot.covers[res.size].?
-		if !has_cover do break block
-
+		cover := entry.cover
 		loading = cover.loading
 		if !cover.loading do break block
 
@@ -195,9 +198,8 @@ _player_handle_cover_response :: proc(player: ^Player, res: Response_Cover) {
 	}
 
 	log.errorf(
-		"Couldn't update cover with an invalid state: has_slot = %v, has_cover = %v, loading = %v",
-		has_slot,
-		has_cover,
+		"Couldn't update cover with an invalid state: has_entry = %v, loading = %v",
+		has_entry,
 		loading,
 	)
 }
@@ -240,41 +242,46 @@ Cover_Loader :: struct {
 }
 
 cover_loader_update :: proc(
+	player: ^Player,
 	loader: ^Cover_Loader,
+	file: mpd.Song_File,
+	album: mpd.Album_Name,
+	size: Cover_Size,
 	can_request: bool,
 	dt: Seconds,
-) -> (
-	should_request: bool,
 ) {
 	cover, has_cover := loader.cover.?
-	if COVER_REQ_DELAY > 0 && !has_cover {
-		loader._alpha_timer = COVER_ALPHA_ANIM_DURATION
-	}
 
 	switch {
-	case has_cover:
-		if !cover.loading && loader._alpha_timer > 0 {
-			loader._alpha_timer -= dt
-			ui.dirty(true)
-		}
+	case has_cover && !cover.loading && loader._alpha_timer <= 0: // Do nothing.
 
-	case COVER_REQ_DELAY <= 0:
-		if !can_request do break
-		if loader._alpha_timer < COVER_ALPHA_ANIM_DURATION {
-			loader._alpha_timer = COVER_ALPHA_ANIM_DURATION
-			should_request = true
-		}
-		// Code below should be optimized out.
-		return should_request
+	case has_cover && !cover.loading:
+		loader._alpha_timer -= dt
+		ui.dirty(true)
+
+	case has_cover:
+		loader._alpha_timer = COVER_ALPHA_ANIM_DURATION
 
 	case !can_request:
 		loader._req_timer = 0
 
-	case loader._req_timer < COVER_REQ_DELAY:
+	case:
+		cover, ok := cover_get(player, file, album, size)
+		if ok {
+			loader.cover = cover_ref(cover)
+			ui.dirty(true)
+			break
+		}
+
 		loader._req_timer += dt
-		should_request = loader._req_timer >= COVER_REQ_DELAY
+
+		request := loader._req_timer >= COVER_REQ_DELAY
+		if request {
+			cover := cover_get_or_request(player, file, album, size)
+			loader.cover = cover_ref(cover)
+		}
 	}
-	return should_request
+
 }
 
 cover_loader_alpha :: proc(loader: ^Cover_Loader) -> f32 {

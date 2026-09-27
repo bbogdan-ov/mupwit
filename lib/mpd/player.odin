@@ -198,14 +198,12 @@ album_list_destroy :: proc(list: Album_List) {
 
 Picture :: struct {
 	data_size: int `size`,
-	mimetype:  string `type`,
 	data:      []u8,
 	allocator: runtime.Allocator,
 }
 
-picture_destroy :: proc(picture: Picture) {
-	delete(picture.data, picture.allocator)
-	delete(picture.mimetype, picture.allocator)
+picture_destroy :: proc(picture: Picture, loc := #caller_location) {
+	delete(picture.data, picture.allocator, loc)
 }
 
 @(init, private)

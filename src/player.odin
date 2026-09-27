@@ -96,7 +96,7 @@ player_init :: proc(player: ^Player, allocator := context.allocator) {
 	player._client_thread = thread.create(_do_connect)
 	player._client_thread.data = &player._shared
 
-	player._covers_cache = make(Covers_Cache, allocator)
+	covers_cache_init(&player._covers_cache, player.allocator)
 
 	player._album_pool = make([dynamic]mpd.Album_Index, allocator)
 
@@ -143,10 +143,16 @@ player_destroy :: proc(player: ^Player) {
 		defer mutex_unlock(mutex)
 
 		thread.pool_shutdown(pool)
+		// FIXME: when calling `cover_thread_data_free` here a double-free of
+		// the picture in this data occures, not sure why.
+		// for task in pool.tasks_done {
+		// 	data := cast(^Cover_Thread_Data)task.data
+		// 	cover_thread_data_free(data)
+		// }
 		thread.pool_destroy(pool)
 	}
 
-	_covers_cache_destroy(player._covers_cache)
+	covers_cache_destroy(&player._covers_cache)
 
 	mpd.song_list_destroy(&player.queue)
 	mpd.album_list_destroy(player.albums)

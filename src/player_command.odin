@@ -82,7 +82,7 @@ _command_destroy :: proc(command: Player_Command) {
 	#partial switch cmd in command {
 	case Command_Request_Cover:
 		delete(string(cmd.file), cmd.allocator)
-		delete(string(cmd.key), cmd.allocator)
+		cover_key_delete(cmd.key, cmd.allocator)
 	case Command_Play_Album:
 		delete(cmd.name, cmd.allocator)
 	}
@@ -255,7 +255,7 @@ player_request_cover :: proc(
 	alloc := player.allocator
 
 	file := mpd.Song_File(strings.clone(string(file), alloc))
-	key := cover_key_make_cloned(file, album, alloc)
+	key := cover_key_make_cloned(file, album, size, alloc)
 	cmd := Command_Request_Cover{key, file, size, alloc}
 	_command_send(player._shared.commands, cmd)
 }

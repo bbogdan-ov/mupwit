@@ -268,6 +268,10 @@ item_within_box :: proc(box: Box, pos: i32, height: i32) -> bool {
 	pos := pos - box.y - i32(box.scroll)
 	return -height < pos && pos < box.height
 }
+item_within_view :: proc(box: Box, pos: i32, height: i32) -> bool {
+	pos := pos - box.y - i32(box.scroll)
+	return -height * 2 < pos && pos < state.view.height + height
+}
 
 item_tween_to_rest :: proc(item: ^Item, index: Item_Index, height: i32) {
 	_item_start_pos_tween(item)
