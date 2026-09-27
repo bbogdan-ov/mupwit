@@ -269,6 +269,12 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 	return true
 }
 
+on_pointer_motion :: proc(pos: Vec2) {
+	ui.on_pointer_motion(pos)
+
+	queue_ui_on_pointer_motion()
+}
+
 // TODO: would be cool to add touchpad gestures.
 on_pointer_scroll :: proc(scroll: f32, touchpad: bool) {
 	queue_ui_on_scroll(&state, scroll, touchpad)
@@ -349,7 +355,8 @@ _window_on_pointer_button :: proc "c" (
 	ui.on_pointer_button(button, button_state)
 }
 _window_on_pointer_motion :: proc "c" (window: ^win.Window, x, y: f64) {
-	ui.on_pointer_motion({i32(x), i32(y)})
+	context = make_default_context()
+	on_pointer_motion({i32(x), i32(y)})
 }
 _window_on_pointer_scroll :: proc "c" (window: ^win.Window, x, y: f64, touchpad: bool) {
 	context = make_default_context()

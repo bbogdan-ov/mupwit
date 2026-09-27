@@ -219,8 +219,11 @@ to_cstr :: #force_inline proc(s: string) -> cstring {
 // ------------------------------
 
 // Moves an element from one index to another within a slice.
-// Returns the range of the elements of the slice that has been shifted.
-slice_reorder :: proc(slice: []$T, from, to: int) -> (start, end: int) {
+// Returns a range of the elements of the slice that have been shifted.
+slice_reorder :: proc(slice: []$T, from, to: int, loc := #caller_location) -> (start, end: int) {
+	assert(within(from, 0, len(slice)), loc = loc)
+	assert(within(to, 0, len(slice)), loc = loc)
+
 	el := slice[from]
 
 	start, end = from, to

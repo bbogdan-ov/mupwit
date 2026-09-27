@@ -19,13 +19,16 @@ slider_update :: proc(s: ^Slider) -> (changed: bool) {
 
 	switch {
 	case s.is_dragging:
+		if !is_mouse_down(.Left) {
+			stop_dragging(id)
+			changed = true
+			break
+		}
+
 		px := f32(state.pointer.x - s.rect.x)
 		progress := px / f32(s.rect.width)
 		progress = clamp(progress, 0, 1)
 		dirty_set(&s.progress, progress)
-
-		changed = is_mouse_released(.Left)
-		dirty(changed)
 
 	case s.is_hovering && is_mouse_pressed(.Left) && state.dragging == nil:
 		start_dragging(id)

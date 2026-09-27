@@ -21,8 +21,11 @@ self: struct {
 }
 
 queue_ui_init :: proc() {
-	self.list = ui.item_list_make(Song_Item, SONG_HEIGHT, context.allocator)
-	self.list.item_update = song_item_update
+	ui.item_list_init(&self.list, SONG_HEIGHT, context.allocator)
+	self.list.item_update = queue_ui_list_item_update
+	self.list.on_item_reordered = queue_ui_list_on_item_reordered
+	self.list.on_item_start_reordering = queue_ui_list_on_item_start_reordering
+	self.list.on_item_stop_reordering = queue_ui_list_on_item_stop_reordering
 }
 
 queue_ui_destroy :: proc() {
@@ -35,12 +38,6 @@ queue_ui_update :: proc(state: ^State, dt: Seconds) {
 
 	self.list.userdata = state
 	ui.item_list_update(&self.box, &self.scroll, &self.list, dt)
-
-	if self.list.just_reordered {
-		from := mpd.Song_Index(self.list.reorder.from)
-		to := mpd.Song_Index(self.list.reorder.to)
-		player_reorder_song(&state.player, from, to)
-	}
 
 	if ui.is_clicked(.Left) {
 		_queue_ui_play_hovered_song(state)
@@ -57,17 +54,31 @@ _queue_ui_play_hovered_song :: proc(state: ^State) -> bool {
 }
 
 _queue_ui_remove_hovered_song :: proc(state: ^State) -> bool {
+	ui.item_list_stop_reordering(&self.list)
+
 	hovering := self.list.hovering.? or_return
 	item := &self.list.items[hovering]
 	player_remove_song(&state.player, item.song_index)
 	return true
 }
 
-_queue_ui_scroll_to_cur_song :: proc(state: ^State) -> bool {
-	index := state.player.cur_song.? or_return
+_queue_ui_scroll_to_cur_song :: proc(state: ^State, smooth := true) -> bool {
+	song_index := state.player.cur_song.? or_return
+	index := ui.Item_Index(song_index)
+
 	item := &self.list.items[index]
-	off := item.position - self.list.item_height
-	ui.scroll_to(self.box, &self.scroll, f32(off))
+	off := item.position.y - self.list.item_height
+
+	if ui.controls() != .Keyboard {
+		ui.item_list_set_hovering(&self.list, index)
+		ui.scroll_to(self.box, &self.scroll, f32(off), smooth = smooth)
+	} else {
+		ui.item_list_set_cursor(self.box, &self.scroll, &self.list, index)
+		if self.list.reorder_state != .Active {
+			ui.scroll_to(self.box, &self.scroll, f32(off), smooth = smooth)
+		}
+	}
+
 	return true
 }
 
@@ -109,16 +120,16 @@ queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	from, to := ui.item_list_visible_range(ctx.box, &self.list)
 	for i in from ..< to {
 		index := ui.Item_Index(i)
-		if self.list.reordering == index do continue
+		if ui.item_is_reodering(&self.list, index) do continue
 		item := &self.list.items[index]
 		song_item_draw(state, ctx, item, index)
 	}
 
 	// Draw the currently reordering item above others.
-	reordering, has_reordering := self.list.reordering.?
-	if has_reordering {
-		item := &self.list.items[reordering]
-		song_item_draw(state, ctx, item, reordering)
+	if self.list.reorder_state != .None {
+		index := self.list.reordering
+		item := &self.list.items[index]
+		song_item_draw(state, ctx, item, index)
 	}
 
 	length := _queue_ui_contents_length()
@@ -134,8 +145,7 @@ _queue_ui_contents_length :: proc() -> i32 {
 queue_ui_on_screen_updated :: proc(state: ^State) {
 	if state.screen != .Queue do return
 
-	index, has_song := state.player.cur_song.?
-	if !has_song do return
+	if state.player.cur_song == nil do return
 
 	// FIXME: this is a crutch, should be a better and automated way to update
 	// scroll content length, but it'll work for now.
@@ -145,8 +155,7 @@ queue_ui_on_screen_updated :: proc(state: ^State) {
 	length := _queue_ui_contents_length()
 	ui.scroll_update_length(self.box, &self.scroll, length)
 
-	off := i32(index - 1) * self.list.item_height
-	ui.scroll_set(&self.scroll, f32(off))
+	_queue_ui_scroll_to_cur_song(state, smooth = false)
 }
 
 queue_ui_on_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
@@ -158,13 +167,18 @@ queue_ui_on_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
 queue_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bool) {
 	if state.screen != .Queue do return true
 
+	ui.item_list_on_keyboard_key(self.box, &self.scroll, &self.list, ev) or_return
+
 	switch {
 	case is_key(ev, .Z):
 		_queue_ui_scroll_to_cur_song(state)
-	case is_key(ev, .G), is_key(ev, .Home):
-		ui.scroll_to(self.box, &self.scroll, 0)
-	case is_shift_key(ev, .G), is_key(ev, .End):
-		ui.scroll_to(self.box, &self.scroll, self.scroll.length)
+
+	case is_key(ev, .Enter), is_ctrl_key(ev, .J):
+		if ui.controls() != .Keyboard do break
+		_queue_ui_play_hovered_song(state)
+	case is_key(ev, .D):
+		if ui.controls() != .Keyboard do break
+		_queue_ui_remove_hovered_song(state)
 
 	case:
 		propagate = true
@@ -173,17 +187,21 @@ queue_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bo
 	return propagate
 }
 
+queue_ui_on_pointer_motion :: proc() {
+	ui.item_list_on_pointer_motion(&self.list)
+}
+
 queue_ui_on_queue_updated_by_external :: proc(state: ^State) {
 	player := &state.player
 
-	ui.item_list_stop_reodering(&self.list)
+	ui.item_list_cancel_reordering(&self.list)
 
 	_queue_ui_clear_list()
 	non_zero_reserve(&self.list.items, len(player.queue))
 
 	for _, index in player.queue {
 		item := Song_Item {
-			position   = i32(index) * self.list.item_height,
+			item       = ui.item_make(ui.Item_Index(index), self.list.item_height),
 			song_index = mpd.Song_Index(index),
 		}
 		append(&self.list.items, item)
@@ -198,7 +216,7 @@ queue_ui_on_cur_song_updated :: proc(state: ^State, prev_index: Maybe(mpd.Song_I
 		// Scroll only to a song that was visible before.
 		prev := &self.list.items[prev_index]
 		height := self.list.item_height
-		if !ui.item_within_box(self.box, prev.position, height) do return
+		if !ui.item_within_box(self.box, prev.position.y, height) do return
 	}
 
 	// FIXME!: it doesn't scroll to the current song when the queue changes and
@@ -222,7 +240,7 @@ song_item_destroy :: proc(item: ^Song_Item) {
 	cover_maybe_unref(item.loader.cover)
 }
 
-song_item_update :: proc(
+queue_ui_list_item_update :: proc(
 	list: ^ui.Item_List(Song_Item),
 	item: ^Song_Item,
 	index: ui.Item_Index,
@@ -232,17 +250,52 @@ song_item_update :: proc(
 
 	state := cast(^State)list.userdata
 
-	is_in_view := ui.item_within_view(self.box, item.position, self.list.item_height)
+	is_in_view := ui.item_within_view(self.box, item.position.y, self.list.item_height)
 	song := &state.player.queue[item.song_index]
 
 	cover_loader_update(&state.player, &item.loader, song.file, song.album, .Small, is_in_view, dt)
 }
 
+queue_ui_list_on_item_reordered :: proc(
+	list: ^ui.Item_List(Song_Item),
+	item: ^Song_Item,
+	index: ui.Item_Index,
+	reorder: ui.Item_Reorder,
+) {
+	state := cast(^State)list.userdata
+
+	from := mpd.Song_Index(reorder.from)
+	to := mpd.Song_Index(reorder.to)
+	player_reorder_song(&state.player, from, to)
+}
+
+queue_ui_list_on_item_start_reordering :: proc(
+	list: ^ui.Item_List(Song_Item),
+	item: ^Song_Item,
+	index: ui.Item_Index,
+) {
+	if ui.controls() == .Keyboard {
+		item.position.x = GAP * 2
+	}
+}
+
+queue_ui_list_on_item_stop_reordering :: proc(
+	list: ^ui.Item_List(Song_Item),
+	item: ^Song_Item,
+	index: ui.Item_Index,
+) {
+	item.position.x = 0
+}
+
 song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item, index: ui.Item_Index) {
 	song := &state.player.queue[item.song_index]
 
-	pos := ui.item_tweened_pos(item)
-	rect := ui.item_rect(ctx.box, pos, self.list.item_height)
+	pos := item.cur_position
+	rect := ctx.box.rect
+	rect.x += pos.x
+	rect.y += pos.y - i32(ctx.box.scroll)
+	rect.width -= pos.x
+	rect.height = self.list.item_height
 
 	if self.list.hovering == index {
 		ui.draw_box_rounded(ctx, rect, state.theme.light_gray, filled = true)

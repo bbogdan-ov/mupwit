@@ -95,7 +95,7 @@ Key :: enum u32 {
 	Seven         = 8,
 	Eight         = 9,
 	Nine          = 10,
-	Ten           = 11,
+	Zero          = 11,
 	Minus         = 12,
 	Equal         = 13,
 	Backspace     = 14,

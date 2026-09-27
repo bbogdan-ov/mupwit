@@ -21,13 +21,18 @@ import win "lib:my_window"
 
 PIXEL_CHANNELS :: 4
 
-DRAG_START_THRESHOLD :: 10
 DIRTY_INVERVAL :: Seconds(2)
 
 ELEMENT_ID_NONE :: Element_ID(0)
 
 // Unique ID of an element. Most elements just use their pointers as their IDs.
 Element_ID :: distinct uintptr
+
+Controls :: enum {
+	Any = 0,
+	Keyboard,
+	Mouse,
+}
 
 State :: struct {
 	view:                   Rect,
@@ -37,16 +42,15 @@ State :: struct {
 
 	// Currently dragged element.
 	dragging:               Maybe(Element_ID),
+	defer_stop_dragging:    bool,
 	just_started_dragging:  Element_ID,
 	just_stopped_dragging:  Element_ID,
-	// Element was pressed and might be started dragging when user moves
-	// mouse with a button held down by some distance.
-	can_drag:               Maybe(Element_ID),
 	// Offset of the currently dragged element relative to the mouse pointer.
 	drag_offset:            Vec2,
 	drag_scroll_offset:     f32,
 
 	// Input.
+	_controls:              Controls,
 	pointer:                Vec2,
 	prev_pointer:           Vec2,
 	press_pos:              Vec2,
@@ -94,8 +98,6 @@ update :: proc(dt: Seconds) {
 		dirty(true)
 	}
 
-	_update_drag()
-
 	if state.double_click_timer > 0 {
 		state.double_click_timer -= dt
 	}
@@ -103,32 +105,17 @@ update :: proc(dt: Seconds) {
 		state.double_click_timer = DOUBLE_CLICK_DURATION
 	}
 
+	if state.defer_stop_dragging {
+		state.dragging = nil
+		state.defer_stop_dragging = false
+	}
+
+	state.just_started_dragging = ELEMENT_ID_NONE
+	state.just_stopped_dragging = ELEMENT_ID_NONE
 	state.mouse_pressed = false
 	state.prev_pointer = state.pointer
 	state.mouse_released_buttons = {}
 	state.cursor = .Default
-}
-
-_update_drag :: proc() {
-	state.just_started_dragging = ELEMENT_ID_NONE
-	state.just_stopped_dragging = ELEMENT_ID_NONE
-
-	dragging, has_dragging := state.dragging.?
-
-	if !has_dragging {
-		can_drag, ok := state.can_drag.?
-		if is_mouse_down(.Left) && ok {
-			diff := state.pointer - state.press_pos
-			if abs(diff.x) + abs(diff.y) > DRAG_START_THRESHOLD {
-				start_dragging(can_drag)
-				state.can_drag = nil
-			}
-		} else {
-			state.can_drag = nil
-		}
-	} else if is_mouse_released(.Left) {
-		stop_dragging(dragging)
-	}
 }
 
 start_dragging :: proc(id: Element_ID, loc := #caller_location) {
@@ -149,18 +136,29 @@ stop_dragging :: proc(id: Element_ID, loc := #caller_location) {
 		if ODIN_DEBUG do panic("Stopped dragging a wrong element", loc)
 		return
 	}
-	state.dragging = nil
+	state.defer_stop_dragging = true
 	state.just_stopped_dragging = id
-	dirty(true)
-}
-set_can_drag :: proc(id: Element_ID, offset: Vec2) {
-	state.can_drag = id
-	state.drag_offset = offset
 	dirty(true)
 }
 
 set_cursor :: proc(cursor: win.Cursor) {
 	state.cursor = cursor
+}
+
+set_controls :: proc(controls: Controls) -> (ok: bool) {
+	if controls == .Any {
+		state._controls = .Any
+		return true
+	} else if state._controls == .Any {
+		state._controls = controls
+		return true
+	} else {
+		return state._controls == controls
+	}
+}
+
+controls :: proc() -> Controls {
+	return state._controls
 }
 
 on_pointer_button :: proc "contextless" (button: win.Button, button_state: win.Button_State) {

@@ -13,7 +13,7 @@ Scroll :: struct {
 	// shrinks, so scroll doesn't immediately jump.
 	stop_offset:       f32,
 	velocity:          f32,
-	timer:             Seconds,
+	timer, duration:   Seconds,
 	is_hovering:       bool,
 	is_hovering_thumb: bool,
 	is_dragging:       bool,
@@ -45,7 +45,7 @@ _scroll_update_offset :: proc(s: ^Scroll, dt: Seconds) {
 			s.offset = s.to
 			s.timer = 0
 		} else {
-			progress := 1.0 - f32(s.timer / SCROLL_ANIM_DURATION)
+			progress := 1.0 - f32(s.timer / s.duration)
 			s.offset = math.lerp(s.from, s.to, SCROLL_ANIM_EASE(progress))
 		}
 	}
@@ -86,6 +86,11 @@ _scroll_update_pointer_drag :: proc(box: Box, s: ^Scroll) {
 
 	switch {
 	case s.is_dragging:
+		if !is_mouse_down(.Left) {
+			stop_dragging(id)
+			break
+		}
+
 		length := scroll_content_length(box, s)
 		factor := f32(box.height) / f32(length)
 		delta := f32(state.pointer.y - state.press_pos.y) / factor
@@ -122,7 +127,7 @@ scroll_on_scroll :: proc(s: ^Scroll, scroll: f32, touchpad: bool) {
 
 	if s.from != s.to {
 		s.velocity = 0
-		s.timer = SCROLL_ANIM_DURATION
+		_scroll_play_timer(s, SCROLL_ANIM_DURATION)
 	}
 }
 
@@ -142,7 +147,18 @@ scroll_by :: proc(s: ^Scroll, diff: f32) {
 	}
 }
 
-scroll_to :: proc(box: Box, s: ^Scroll, offset: f32) {
+scroll_to :: proc(
+	box: Box,
+	s: ^Scroll,
+	offset: f32,
+	smooth := true,
+	duration := SCROLL_ANIM_DURATION,
+) {
+	if !smooth {
+		scroll_set(s, offset)
+		return
+	}
+
 	offset := clamp(offset, 0, s.stop_offset)
 	diff := offset - s.offset
 	height := f32(box.height)
@@ -155,9 +171,14 @@ scroll_to :: proc(box: Box, s: ^Scroll, offset: f32) {
 	}
 
 	s.to = offset
-	s.timer = SCROLL_ANIM_DURATION
+	_scroll_play_timer(s, duration)
 	s.velocity = 0
 	dirty(true)
+}
+
+_scroll_play_timer :: proc(s: ^Scroll, duration: Seconds) {
+	s.timer = duration
+	s.duration = duration
 }
 
 scroll_draw :: proc(ctx: ^Context, s: ^Scroll, contents: i32, color, active_color: Color) {

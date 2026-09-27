@@ -236,7 +236,7 @@ _player_ui_request_cur_cover :: proc(state: ^State) {
 
 	cover := cover_get_or_request(&state.player, song.file, song.album, COVER_SIZE)
 	if cover.loading {
-		assert(self.loading_cover == nil)
+		cover_maybe_unref(self.loading_cover)
 
 		// Do not set the new cover right away if it is loading. We'll wait
 		// for the new cover to load and only then apply it.
