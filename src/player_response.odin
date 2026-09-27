@@ -5,8 +5,7 @@ import "core:sync/chan"
 import "lib:mpd"
 
 Response_Queue :: struct #all_or_none {
-	list:   mpd.Song_List,
-	status: mpd.Status,
+	list: mpd.Song_List,
 }
 
 Response_Cover :: struct #all_or_none {
@@ -47,7 +46,6 @@ _player_handle_response :: proc(player: ^Player, response: Player_Response) {
 
 	case Response_Queue:
 		_player_set_queue(player, res.list)
-		_player_set_status(player, res.status, force_song_updated = true)
 
 	case Response_Cover:
 		_player_handle_cover_response(player, res)

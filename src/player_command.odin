@@ -281,8 +281,7 @@ _player_handle_command :: proc(
 
 	case Command_Request_Queue:
 		queue := mpd.request_queue(client, shared.allocator) or_return
-		status := mpd.request_status(client) or_return
-		_response_send(shared.responses, Response_Queue{queue, status})
+		_response_send(shared.responses, Response_Queue{queue})
 		return nil
 
 	case Command_Request_Albums:

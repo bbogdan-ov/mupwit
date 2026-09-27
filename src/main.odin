@@ -244,7 +244,6 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 	// propagation for all keys ("consume" them) so that if you press 'q' it
 	// doesn't trigger the app to close.
 
-	player_ui_on_keyboard_key(&state, ev) or_return
 	queue_ui_on_keyboard_key(&state, ev) or_return
 
 	switch {

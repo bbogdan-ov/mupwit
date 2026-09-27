@@ -8,14 +8,14 @@ import "lib:ui"
 
 @(private = "file")
 self: struct {
-	button_prev:        ui.Button,
-	button_play:        ui.Button,
-	button_next:        ui.Button,
-	slider:             ui.Slider,
-	cover_tween:        ui.Tween(f32),
-	prev_cover, cover:  Maybe(^Cover),
-	loading_cover:      Maybe(^Cover),
-	update_cover_timer: Seconds,
+	button_prev:       ui.Button,
+	button_play:       ui.Button,
+	button_next:       ui.Button,
+	slider:            ui.Slider,
+	cover_tween:       ui.Tween(f32),
+	prev_cover, cover: Maybe(^Cover),
+	loading_cover:     Maybe(^Cover),
+	req_cover_timer:   Seconds,
 }
 
 player_ui_destroy :: proc() {
@@ -56,19 +56,17 @@ player_ui_update :: proc(state: ^State, dt: Seconds) {
 }
 
 _player_ui_update_cover_handling :: proc(state: ^State, dt: Seconds) {
-	if self.update_cover_timer > 0 {
-		self.update_cover_timer -= dt
+	if self.req_cover_timer > 0 {
+		self.req_cover_timer -= dt
 
-		if self.update_cover_timer <= 0 {
-			_player_ui_update_cover(state)
+		if self.req_cover_timer <= 0 {
+			_player_ui_request_cur_cover(state)
 		}
 	}
 
-	if cover, ok := self.loading_cover.?; ok {
-		if !cover.loading {
-			_player_ui_set_cover(state, cover)
-			self.loading_cover = nil
-		}
+	loading, has_loading := self.loading_cover.?
+	if has_loading && !loading.loading {
+		_player_ui_set_cover(state, cover_ref(loading))
 	}
 }
 
@@ -212,76 +210,34 @@ _player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context) -> (height: i32)
 	return height
 }
 
-@(require_results)
-player_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bool) {
-	if TEST_COVERS && ev.key == .Enter {
-		new: int
-		if ev.mods == {.Shift} {
-			new = TEST_CUR_FILE - 1
-			state.player.switch_direction = .Previous
-		} else {
-			new = TEST_CUR_FILE + 1
-			state.player.switch_direction = .Next
-		}
-		if self.cover == nil {
-			state.player.switch_direction = .From_None
-		}
-
-		TEST_CUR_FILE = ui.wrap(new, len(TEST_FILES))
-
-		if new < 0 || len(TEST_FILES) <= new {
-			_player_ui_set_cover(state, nil)
-			state.player.switch_direction = .To_None
-		} else {
-			item := TEST_FILES[TEST_CUR_FILE]
-			album := item[0]
-			file := mpd.Song_File(item[1])
-			_player_ui_request_cover(state, file, album, .Huge)
-		}
-
-		return false
-	}
-
-	return true
-}
-
 player_ui_on_cur_song_updated :: proc(state: ^State) {
-	if !TEST_COVERS {
-		_player_ui_defer_cover_update(state)
-	}
-}
-
-_player_ui_defer_cover_update :: proc(state: ^State) {
 	song, has_song := player_cur_song(&state.player)
-	if has_song {
-		cover, has_cover := cover_get(&state.player, song.file, song.album, .Huge)
-		if has_cover {
-			_player_ui_set_cover(state, cover_ref(cover))
-		} else {
-			self.update_cover_timer = COVER_REQ_DELAY
-		}
-	} else {
+	if !has_song {
 		_player_ui_set_cover(state, nil)
+		return
+	}
+
+	cover, has_cover := cover_get(&state.player, song.file, song.album, .Huge)
+	if has_cover {
+		_player_ui_set_cover(state, cover_ref(cover))
+	} else {
+		self.req_cover_timer = COVER_REQ_DELAY
 	}
 }
 
-_player_ui_update_cover :: proc(state: ^State) {
+_player_ui_request_cur_cover :: proc(state: ^State) {
+	COVER_SIZE :: Cover_Size.Huge
+
 	song, has_song := player_cur_song(&state.player)
-	if has_song {
-		_player_ui_request_cover(state, song.file, song.album, .Huge)
-	} else {
+	if !has_song {
 		_player_ui_set_cover(state, nil)
+		return
 	}
-}
 
-_player_ui_request_cover :: proc(
-	state: ^State,
-	file: mpd.Song_File,
-	album: mpd.Album_Name,
-	size: Cover_Size,
-) {
-	cover := cover_get_or_request(&state.player, file, album, .Huge)
+	cover := cover_get_or_request(&state.player, song.file, song.album, COVER_SIZE)
 	if cover.loading {
+		assert(self.loading_cover == nil)
+
 		// Do not set the new cover right away if it is loading. We'll wait
 		// for the new cover to load and only then apply it.
 		self.loading_cover = cover_ref(cover)
@@ -291,11 +247,12 @@ _player_ui_request_cover :: proc(
 }
 
 _player_ui_set_cover :: proc(state: ^State, cover: Maybe(^Cover)) {
-	if prev, ok := self.prev_cover.?; ok {
-		cover_unref(prev)
-	}
+	cover_maybe_unref(self.prev_cover)
 	self.prev_cover = self.cover
 	self.cover = cover
+
+	cover_maybe_unref(self.loading_cover)
+	self.loading_cover = nil
 
 	ui.tween_play(&self.cover_tween, 0, PLAYER_COVER_ANIM_DURATION)
 
@@ -306,37 +263,4 @@ _player_ui_set_cover :: proc(state: ^State, cover: Maybe(^Cover)) {
 			set_background(state, DEFAULT_BACKGROUND)
 		}
 	}
-}
-
-TEST_COVERS :: false
-TEST_CUR_FILE: int = 0
-TEST_FILES := [?][2]string {
-	{`Telepathic Onset`, `Alec Normal/Telepathic Onset/001 One Floor Down.mp3`},
-	{`Knives Out`, `Radiohead/Knives Out/001 Cuttooth.mp3`},
-	{`Amnesiac`, `Radiohead/Amnesiac/009 Hunting Bears.mp3`},
-	{`In Rainbows`, `Radiohead/In Rainbows/004 Weird Fishes ___ Arpeggi.mp3`},
-	{
-		`Her Revolution`,
-		`Burial, Four Tet and Thom Yorke/Her Revolution ___ His Rope/001 Her Revolution.mp3`,
-	},
-	{`An Awesome Wave`, `alt-J/An Awesome Wave/001 Intro.mp3`},
-	{``, `alt-J/other/353.mp3`},
-	{`AMOK`, `Atoms For Peace/AMOK/001 Before Your Very Eyes....mp3`},
-	{
-		`Minecraft – Volume Beta`,
-		`C418/Minecraft - Volume Beta/C418 - Minecraft - Volume Beta - 01-01 Ki.flac`,
-	},
-	{`Viator`, `Jack Stauber/Viator/001 On.mp3`},
-	{`0`, `Low Roar/0/001 Breathe In.flac`},
-	{`0`, `Low Roar/0/002 Easy Way Out.flac`},
-	{`Com Lag: 2+2=5`, `Radiohead/Com Lag: 2+2=5/002 I Am a Wicked Child.mp3`},
-	{`Currents`, `Tame Impala/Currents/001 Let It Happen.mp3`},
-	{
-		`A Light for Attracting Attention`,
-		`The Smile/A Light for Attracting Attention/000 The Same.mp3`,
-	},
-	{`ANIMA`, `Thom Yorke/ANIMA/001 Traffic.mp3`},
-	{`The Eraser`, `Thom Yorke/The Eraser/001 The Eraser.mp3`},
-	{`LOST SONGS VOL. 4: 2003-2021`, `Whitey/LOST SONGS VOL. 4: 2003-2021/001 DRAG IT OUT.mp3`},
-	{``, `Alec Normal/other/Breakaway.mp3`},
 }

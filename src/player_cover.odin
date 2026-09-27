@@ -54,29 +54,29 @@ Cover_Cache_Entry :: struct {
 // TODO!: should delete cached covers that are too old and not referenced by onyone.
 Covers_Cache :: lru.Cache(Cover_Key, Cover_Cache_Entry)
 
-cover_ref :: proc(cover: ^Cover) -> ^Cover {
-	assert(cover != nil)
-	assert(cover.ref_count > 0)
+cover_ref :: proc(cover: ^Cover, loc := #caller_location) -> ^Cover {
+	assert(cover != nil, loc = loc)
+	assert(cover.ref_count > 0, loc = loc)
 	cover.ref_count += 1
 	return cover
 }
 
-cover_unref :: proc(cover: ^Cover) {
-	assert(cover != nil)
+cover_unref :: proc(cover: ^Cover, loc := #caller_location) {
+	assert(cover != nil, loc = loc)
+	assert(cover.ref_count > 0, loc = loc)
 
-	assert(cover.ref_count > 0)
 	cover.ref_count -= 1
 	if cover.ref_count > 0 do return
 
 	if surface, ok := cover.surface.?; ok {
 		cairo.surface_destroy(surface)
 	}
-	free(cover, cover.allocator)
+	free(cover, cover.allocator, loc)
 }
 
-cover_maybe_unref :: proc(cover: Maybe(^Cover)) {
+cover_maybe_unref :: proc(cover: Maybe(^Cover), loc := #caller_location) {
 	if cover, ok := cover.?; ok {
-		cover_unref(cover)
+		cover_unref(cover, loc)
 	}
 }
 

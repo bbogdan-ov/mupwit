@@ -23,6 +23,7 @@
 package mupwit
 
 import "base:runtime"
+import "core:log"
 import "core:sort"
 import "core:sync/chan"
 import "core:thread"
@@ -62,6 +63,7 @@ Player :: struct {
 	last_played_song:          Maybe(mpd.Song),
 	queue:                     mpd.Song_List,
 	queue_duration:            Seconds,
+	_queue_version:            int,
 	// Time elapsed within the queue (sum of durations of songs before the
 	// current one), does not account for the current song.
 	queue_elapsed:             Seconds,
@@ -175,7 +177,7 @@ player_update :: proc(player: ^Player, dt: Seconds) {
 	}
 }
 
-_player_set_status :: proc(player: ^Player, status: mpd.Status, force_song_updated := false) {
+_player_set_status :: proc(player: ^Player, status: mpd.Status) {
 	player.playstate = status.playstate
 	player.elapsed = Seconds(status.elapsed)
 	player.duration = Seconds(status.duration)
@@ -190,31 +192,42 @@ _player_set_status :: proc(player: ^Player, status: mpd.Status, force_song_updat
 		player.cur_song_id = nil
 	}
 
+	queue_chagned := false
+	if player._queue_version != status.queue_version {
+		queue_chagned = true
+		player._queue_version = status.queue_version
+	}
+
 	prev, has_prev := prev_index.?
 	cur, has_cur := player.cur_song.?
 
-	if player.cur_song != prev_index {
-		if !has_prev && has_cur {
+	song_changed := player.cur_song_id != prev_id
+
+	if song_changed {
+		if has_cur && !has_prev {
 			player.switch_direction = .From_None
-		} else if has_prev && !has_cur {
+		} else if !has_cur && has_prev {
 			player.switch_direction = .To_None
-			player.queue_elapsed = 0
 
 			if len(player.queue) > 0 {
 				prev_song := player.queue[prev]
 				_player_set_last_played_song(player, prev_song)
 			}
+		} else if queue_chagned {
+			player.switch_direction = .Next
 		} else if cur > prev {
 			player.switch_direction = .Next
 		} else if cur < prev {
 			player.switch_direction = .Previous
 		}
 
-		_player_queue_calc_elapsed(player)
+		on_cur_song_updated(prev_index, prev_id)
 	}
 
-	if prev_id != player.cur_song_id || force_song_updated {
-		on_cur_song_updated(prev_index, prev_id)
+	if queue_chagned {
+		_player_queue_calc_duration_and_elapsed(player)
+	} else if song_changed {
+		_player_queue_calc_elapsed(player)
 	}
 
 	on_status_updated()
@@ -247,9 +260,6 @@ _player_set_queue :: proc(player: ^Player, queue: mpd.Song_List) {
 	mpd.song_list_destroy(&player.queue)
 	player.queue = queue
 
-	_player_queue_calc_duration_and_elapsed(player)
-	player.elapsed = 0
-
 	on_queue_updated_by_external()
 }
 
@@ -277,21 +287,25 @@ _player_set_albums :: proc(player: ^Player, albums: mpd.Album_List) {
 }
 
 _player_queue_calc_duration_and_elapsed :: proc(player: ^Player) {
+	player.queue_elapsed = 0
+
 	cur := player.cur_song.? or_else 0
 
 	player.queue_duration = 0
-	player.queue_elapsed = 0
 	for song, i in player.queue {
 		player.queue_duration += Seconds(song.duration)
-		if i < int(cur) do player.queue_elapsed += Seconds(song.duration)
+		if i < int(cur) {
+			player.queue_elapsed += Seconds(song.duration)
+		}
 	}
 }
 
 _player_queue_calc_elapsed :: proc(player: ^Player) {
+	player.queue_elapsed = 0
+
 	cur, ok := player.cur_song.?
 	if !ok do return
 
-	player.queue_elapsed = 0
 	for song, i in player.queue {
 		if i >= int(cur) do break
 		player.queue_elapsed += Seconds(song.duration)
@@ -336,16 +350,19 @@ _player_handle_changes :: proc(
 ) -> (
 	err: mpd.Error,
 ) {
+	changes := changes
 	if changes == nil do return
 
+	if .Playlist in changes {
+		log.debugf("Queue changed")
+
+		queue := mpd.request_queue(client, shared.allocator) or_return
+		_response_send(shared.responses, Response_Queue{queue})
+		changes |= {.Player}
+	}
 	if .Player in changes {
 		status := mpd.request_status(client) or_return
 		_response_send(shared.responses, status)
-	}
-	if .Playlist in changes {
-		queue := mpd.request_queue(client, shared.allocator) or_return
-		status := mpd.request_status(client) or_return
-		_response_send(shared.responses, Response_Queue{queue, status})
 	}
 
 	return nil
