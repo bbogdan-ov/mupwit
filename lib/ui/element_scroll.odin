@@ -163,9 +163,9 @@ scroll_to :: proc(
 	diff := offset - s.offset
 	height := f32(box.height)
 
-	if abs(diff) > height / 2 {
+	if abs(diff) > height * 2 {
 		// Jump near to the target offset if it's too far.
-		s.from = offset - height / 2 * math.sign(diff)
+		s.from = offset - height * math.sign(diff)
 	} else {
 		s.from = s.offset
 	}

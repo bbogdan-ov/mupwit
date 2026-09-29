@@ -1,7 +1,6 @@
 package ui
 
 import "base:intrinsics"
-import "core:math"
 
 import win "lib:my_window"
 
@@ -137,15 +136,7 @@ item_list_set_cursor :: proc(box: Box, scroll: ^Scroll, list: ^Item_List($T), cu
 
 		item := &list.items[list.reordering]
 
-		new_pos := index * list.item_height
-		diff := new_pos - item.cur_position.y
-		if abs(diff) > box.height / 2 {
-			item.cur_position.y = new_pos - box.height / 2 * math.sign(diff)
-		}
-
-		_item_start_pos_tween(item)
-		item.position.y = new_pos
-
+		item_tween_to_rest(item, index, list.item_height)
 		_item_reorder(list, index)
 	} else if list.hovering != index {
 		item_list_set_hovering(list, index)
