@@ -260,6 +260,12 @@ _player_set_queue :: proc(player: ^Player, queue: mpd.Song_List) {
 	mpd.song_list_destroy(&player.queue)
 	player.queue = queue
 
+	// TODO!!: refactor update of the current song index into a function.
+	cur, has_cur := player.cur_song.?
+	if has_cur && int(cur) >= len(player.queue) {
+		player.cur_song = nil
+	}
+
 	on_queue_updated_by_external()
 }
 

@@ -217,13 +217,19 @@ scroll_draw :: proc(ctx: ^Context, s: ^Scroll, contents: i32, color, active_colo
 // Returns the range of items within a scrollable box that are visible on
 // the screen.
 // NOTE: all items must have the same height.
-scroll_visible_range :: proc(box: Box, item_count: int, item_height: i32) -> (from, to: int) {
+scroll_visible_range :: proc(
+	box: Box,
+	item_count: Item_Index,
+	item_height: i32,
+) -> (
+	from, to: Item_Index,
+) {
 	assert(item_height > 0)
 
 	off := i32(box.scroll) - box.y
 
-	from = int(max(off, 0) / item_height)
-	to = int(max(off + state.view.height + item_height, 0) / item_height)
+	from = max(off, 0) / item_height
+	to = max(off + state.view.height + item_height, 0) / item_height
 	to = min(to, item_count)
 	return
 }
@@ -233,10 +239,10 @@ scroll_visible_range :: proc(box: Box, item_count: int, item_height: i32) -> (fr
 // NOTE: all items must have the same height.
 scroll_hovering_item :: proc(
 	box: Box,
-	item_count: int,
+	item_count: Item_Index,
 	item_height: i32,
 ) -> (
-	index: int,
+	index: Item_Index,
 	ok: bool,
 ) {
 	assert(item_height > 0)
@@ -249,7 +255,7 @@ scroll_hovering_item :: proc(
 	rect.height += i32(box.scroll)
 	if !overlap(p, rect) do return -1, false
 
-	index = int((p.y - box.y) / item_height)
+	index = (p.y - box.y) / item_height
 	if !within(index, 0, item_count) do return index, false
 
 	return index, true

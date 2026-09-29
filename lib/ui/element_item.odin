@@ -29,13 +29,17 @@ Reorder_State :: enum {
 // List of reorderable items.
 Item_List :: struct($T: typeid) where intrinsics.type_is_subtype_of(T, Item) {
 	items:                    [dynamic]T,
+	item_width:               i32,
 	item_height:              i32,
+	scroll_padding:           i32,
+	columns:                  Item_Index,
 	hovering:                 Maybe(Item_Index),
 	last_hovered:             Item_Index,
 	reordering:               Item_Index,
 	reorder_state:            Reorder_State,
 	reorder:                  Item_Reorder,
-	center_scroll:            bool,
+	reorderable:              bool,
+	_center_scroll:           bool,
 
 	// Callbacks.
 	userdata:                 rawptr,
@@ -52,7 +56,9 @@ Item_List :: struct($T: typeid) where intrinsics.type_is_subtype_of(T, Item) {
 
 item_list_init :: proc(list: ^Item_List($T), item_height: i32, allocator := context.allocator) {
 	list.items = make([dynamic]T, allocator)
+	list.item_width = 1
 	list.item_height = item_height
+	list.columns = 1
 }
 
 item_list_destroy :: proc(list: ^Item_List($T)) {
@@ -80,7 +86,7 @@ item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: S
 
 	from, to := item_list_visible_range(box^, list)
 	from = max(from - UPDATE_SCROLLOFF, 0)
-	to = min(to + UPDATE_SCROLLOFF, len(list.items))
+	to = min(to + UPDATE_SCROLLOFF, items_count(list))
 
 	for i in from ..< to {
 		index := Item_Index(i)
@@ -102,7 +108,7 @@ item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: S
 				scroll,
 				list,
 				list.reordering,
-				center = list.center_scroll,
+				center = list._center_scroll,
 				smooth = false,
 			)
 		}
@@ -117,21 +123,21 @@ item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: S
 	}
 }
 
-item_list_set_cursor :: proc(box: Box, scroll: ^Scroll, list: ^Item_List($T), cursor: Item_Index) {
-	count := Item_Index(len(list.items))
-	cursor := clamp(cursor, 0, count - 1)
+item_list_set_cursor :: proc(box: Box, scroll: ^Scroll, list: ^Item_List($T), cursor: Vec2) {
+	index := item_cursor_to_index(cursor, list.columns)
+	index = clamp(index, 0, items_count(list) - 1)
 
 	if controls() == .Mouse {
-		item_list_scroll_to(box, scroll, list, cursor, list.center_scroll)
+		item_list_scroll_to(box, scroll, list, index, list._center_scroll)
 		return
 	}
 
 	if list.reorder_state == .Active {
-		if list.reordering == cursor do return
+		if list.reordering == index do return
 
 		item := &list.items[list.reordering]
 
-		new_pos := cursor * list.item_height
+		new_pos := index * list.item_height
 		diff := new_pos - item.cur_position.y
 		if abs(diff) > box.height / 2 {
 			item.cur_position.y = new_pos - box.height / 2 * math.sign(diff)
@@ -140,16 +146,17 @@ item_list_set_cursor :: proc(box: Box, scroll: ^Scroll, list: ^Item_List($T), cu
 		_item_start_pos_tween(item)
 		item.position.y = new_pos
 
-		_item_reorder(list, cursor)
-	} else if list.hovering != cursor {
-		item_list_set_hovering(list, cursor)
-		item_list_scroll_to(box, scroll, list, cursor, list.center_scroll)
+		_item_reorder(list, index)
+	} else if list.hovering != index {
+		item_list_set_hovering(list, index)
+		item_list_scroll_to(box, scroll, list, index, list._center_scroll)
 	}
 }
 
 _item_list_update_reordering :: proc(box: Box, list: ^Item_List($T)) {
 	REORDER_START_THRESHOLD :: 10
 
+	if !list.reorderable do return
 	if controls() == .Keyboard do return
 
 	hovering, has_hovering := list.hovering.?
@@ -199,8 +206,7 @@ _item_list_update_hovering :: proc(box: Box, list: ^Item_List($T)) {
 	if controls() == .Keyboard {
 		hovering, has_hovering := list.hovering.?
 		if has_hovering {
-			count := Item_Index(len(list.items))
-			list.hovering = clamp(hovering, 0, count - 1)
+			list.hovering = clamp(hovering, 0, items_count(list) - 1)
 		}
 		return
 	}
@@ -210,9 +216,14 @@ _item_list_update_hovering :: proc(box: Box, list: ^Item_List($T)) {
 	if list.reorder_state != .None {
 		hovering = list.reordering
 	} else if is_hovering(box) {
-		py := rel_pointer(box).y / list.item_height
-		if within(py, 0, i32(len(list.items))) {
-			hovering = py
+		pointer := rel_pointer(box)
+		index := pointer.y / list.item_height * list.columns
+		if list.columns > 1 {
+			index += pointer.x / list.item_width
+		}
+
+		if within(index, 0, i32(len(list.items))) {
+			hovering = index
 		}
 	}
 
@@ -222,8 +233,7 @@ _item_list_update_hovering :: proc(box: Box, list: ^Item_List($T)) {
 item_list_set_hovering :: proc(list: ^Item_List($T), index: Maybe(Item_Index)) {
 	if list.reorder_state == .Active do return
 
-	count := i32(len(list.items))
-
+	count := items_count(list)
 	if count == 0 {
 		list.hovering = nil
 	} else if index, ok := index.?; ok {
@@ -236,7 +246,10 @@ item_list_set_hovering :: proc(list: ^Item_List($T), index: Maybe(Item_Index)) {
 }
 
 item_list_start_reordering :: proc(list: ^Item_List($T), index: Item_Index) {
+	if !list.reorderable do return
 	if list.reorder_state == .Active do return
+
+	assert(list.columns == 1, "TODO: reordering for multi-column lists is not implemented yet")
 
 	item := &list.items[index]
 	_item_start_pos_tween(item)
@@ -288,7 +301,7 @@ item_list_cancel_reordering :: proc(list: ^Item_List($T)) {
 
 _item_reorder_to_its_pos :: proc(list: ^Item_List($T), from: Item_Index) -> (to: Item_Index) {
 	item := &list.items[from]
-	to = _item_index_from_pos(item.position, list.item_height, len(list.items))
+	to = _item_index_from_pos(item.position, list.item_height, items_count(list))
 	_item_reorder(list, to)
 	return to
 }
@@ -333,10 +346,10 @@ item_list_scroll_to :: proc(
 	switch {
 	case center:
 		off = y + height / 2 - box.height / 2
-	case rel < height:
-		off = y - height
-	case rel > box.height - height * 2:
-		off = y - box.height + height * 2
+	case rel < list.scroll_padding:
+		off = y - list.scroll_padding
+	case rel > box.height - height - list.scroll_padding:
+		off = y - box.height + height + list.scroll_padding
 	case:
 		return
 	}
@@ -373,12 +386,13 @@ item_list_on_keyboard_key :: proc(
 	is_ctrl_key :: win.is_ctrl_key
 	is_shift_key :: win.is_shift_key
 
-	page_jump := box.height / list.item_height
-	jump := page_jump / 2
+	page_jump := max(box.height / list.item_height, 3)
+	jump := max(page_jump / 2, 2)
 
-	count := i32(len(list.items))
-	cursor := list.hovering.? or_else list.last_hovered
-	list.center_scroll = false
+	rows := item_list_rows(list)
+	hovering := list.hovering.? or_else list.last_hovered
+	cursor := item_cursor_from_index(hovering, list.columns)
+	list._center_scroll = false
 
 	is_reordering := list.reorder_state == .Active
 	
@@ -390,26 +404,29 @@ item_list_on_keyboard_key :: proc(
 		set_controls(.Keyboard) or_break
 		item_list_stop_reordering(list)
 
-	case is_key(ev, .J), is_key(ev, .Down): cursor += 1
-	case is_key(ev, .K), is_key(ev, .Up):   cursor -= 1
+	case is_key(ev, .J), is_key(ev, .Down):  cursor.y += 1
+	case is_key(ev, .K), is_key(ev, .Up):    cursor.y -= 1
+	case is_key(ev, .H), is_key(ev, .Left):  cursor.x -= 1
+	case is_key(ev, .L), is_key(ev, .Right): cursor.x += 1
 
-	case is_ctrl_key(ev, .D): cursor += jump
-	case is_ctrl_key(ev, .U): cursor -= jump
+	case is_ctrl_key(ev, .D): cursor.y += jump
+	case is_ctrl_key(ev, .U): cursor.y -= jump
 
-	case is_ctrl_key(ev, .F), is_key(ev, .Page_Down): cursor += page_jump
-	case is_ctrl_key(ev, .B), is_key(ev, .Page_Up):   cursor -= page_jump
+	case is_ctrl_key(ev, .F), is_key(ev, .Page_Down): cursor.y += page_jump
+	case is_ctrl_key(ev, .B), is_key(ev, .Page_Up):   cursor.y -= page_jump
 
 	case is_key(ev, .G), is_key(ev, .Home):
-		cursor = 0
+		cursor.y = 0
 	case is_shift_key(ev, .G), is_key(ev, .End):
-		cursor = count - 1
+		cursor.y = rows - 1
 	case is_shift_key(ev, .M):
-		cursor = count / 2
-		list.center_scroll = true
+		cursor.y = rows / 2
+		list._center_scroll = true
 
 	case is_key(ev, .R):
 		set_controls(.Keyboard) or_break
-		item_list_start_reordering(list, cursor)
+		index := item_cursor_to_index(cursor, list.columns)
+		item_list_start_reordering(list, index)
 
 	case:
 		return true
@@ -422,15 +439,11 @@ item_list_on_keyboard_key :: proc(
 	return false
 }
 
-item_list_on_pointer_motion :: proc(list: ^Item_List($T)) {
-	if controls() == .Keyboard {
-		set_controls(.Any)
-	}
-}
-
-item_make :: proc(index: Item_Index, height: i32) -> Item {
-	y := index * height
-	return Item{position = {0, y}, cur_position = {0, y}}
+item_make :: proc(list: ^Item_List($T), index: Item_Index) -> Item {
+	pos: Vec2
+	pos.x = index % list.columns * list.item_width
+	pos.y = index / list.columns * list.item_height
+	return Item{position = pos, cur_position = pos}
 }
 
 item_update :: proc(box: Box, list: ^Item_List($T), item: ^T, index: Item_Index, dt: Seconds) {
@@ -452,10 +465,10 @@ item_is_reodering :: #force_inline proc "contextless" (
 	return list.reorder_state != .None && list.reordering == index
 }
 
-_item_index_from_pos :: proc(position: Vec2, height: i32, #any_int count: int) -> Item_Index {
+_item_index_from_pos :: proc(position: Vec2, height: i32, count: Item_Index) -> Item_Index {
 	pos := position.y + height / 2
 	index := Item_Index(pos / height)
-	return clamp(index, 0, Item_Index(count) - 1)
+	return clamp(index, 0, count - 1)
 }
 
 // Returns item position relative to the view.
@@ -463,9 +476,33 @@ item_view :: proc(box: Box, position: Vec2) -> Vec2 {
 	return position + rect_pos(box) - Vec2{0, i32(box.scroll)}
 }
 
-item_list_visible_range :: proc(box: Box, list: ^Item_List($T)) -> (from, to: int) {
-	from, to = scroll_visible_range(box, len(list.items), list.item_height)
-	return
+item_list_visible_range :: proc(box: Box, list: ^Item_List($T)) -> (from, to: Item_Index) {
+	rows := item_list_rows(list)
+	from, to = scroll_visible_range(box, rows, list.item_height)
+	from *= list.columns
+	to = min(to * list.columns, items_count(list))
+	return from, to
+}
+
+items_count :: proc(list: ^Item_List($T)) -> Item_Index {
+	return Item_Index(len(list.items))
+}
+
+item_list_rows :: proc(list: ^Item_List($T)) -> Item_Index {
+	count := items_count(list) / list.columns
+	count += items_count(list) % list.columns
+	return count
+}
+
+item_list_content_height :: proc(list: ^Item_List($T)) -> i32 {
+	return item_list_rows(list) * list.item_height
+}
+
+item_cursor_from_index :: proc(index, columns: Item_Index) -> Vec2 {
+	return {index % columns, index / columns}
+}
+item_cursor_to_index :: proc(cursor: Vec2, columns: Item_Index) -> Item_Index {
+	return cursor.x + cursor.y * columns
 }
 
 item_within_box :: proc(box: Box, y: i32, height: i32) -> bool {

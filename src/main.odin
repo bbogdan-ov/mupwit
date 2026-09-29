@@ -148,7 +148,7 @@ _adapt_theme_colors_to_bg :: proc() {
 
 	hue, sat, light, _ = ui.color_to_hsl(bg)
 	sat *= 0.9
-	light *= 0.9
+	light *= 0.85
 	state.theme.light_gray = ui.color_from_hsl(hue, sat, light)
 }
 
@@ -245,6 +245,7 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 	// doesn't trigger the app to close.
 
 	queue_ui_on_keyboard_key(&state, ev) or_return
+	albums_ui_on_keyboard_key(&state, ev) or_return
 
 	switch {
 	case is_key(ev, .Esc), is_key(ev, .Q):
@@ -271,8 +272,6 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 
 on_pointer_motion :: proc(pos: Vec2) {
 	ui.on_pointer_motion(pos)
-
-	queue_ui_on_pointer_motion()
 }
 
 // TODO: would be cool to add touchpad gestures.

@@ -42,6 +42,8 @@ Currently you should [build](#building) MUPWIT yourself, unfortunately.
 - [x] Current song status.
 - [x] Album cover cache.
 - [x] Queue screen with basic manipulations. (reodering, deletion, etc)
+- [x] VIM keybinds.
+- [ ] Undo histroy, even for changes made outside MUPWIT.
 - [ ] Albums screen.
     - [x] List all albums.
     - [ ] Display album songs and info on click.
@@ -49,7 +51,6 @@ Currently you should [build](#building) MUPWIT yourself, unfortunately.
 - [ ] Playlists screen, same as albums screen.
     - [ ] Edit playlists.
     - [ ] Editing currently playing playlist from the queue.
-- [ ] VIM keybinds.
 - [ ] Search though lists. (albums, queue, playlists, etc)
 - [ ] And more...
 

@@ -22,6 +22,8 @@ self: struct {
 
 queue_ui_init :: proc() {
 	ui.item_list_init(&self.list, SONG_HEIGHT, context.allocator)
+	self.list.reorderable = true
+	self.list.scroll_padding = SONG_HEIGHT
 	self.list.item_update = queue_ui_list_item_update
 	self.list.on_item_reordered = queue_ui_list_on_item_reordered
 	self.list.on_item_start_reordering = queue_ui_list_on_item_start_reordering
@@ -73,7 +75,7 @@ _queue_ui_scroll_to_cur_song :: proc(state: ^State, smooth := true) -> bool {
 		ui.item_list_set_hovering(&self.list, index)
 		ui.scroll_to(self.box, &self.scroll, f32(off), smooth = smooth)
 	} else {
-		ui.item_list_set_cursor(self.box, &self.scroll, &self.list, index)
+		ui.item_list_set_cursor(self.box, &self.scroll, &self.list, {0, index})
 		if self.list.reorder_state != .Active {
 			ui.scroll_to(self.box, &self.scroll, f32(off), smooth = smooth)
 		}
@@ -132,14 +134,12 @@ queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		song_item_draw(state, ctx, item, index)
 	}
 
-	length := _queue_ui_contents_length()
-	scroll_draw(state, ctx, &self.scroll, length)
+	contents := _queue_ui_contents_height()
+	scroll_draw(state, ctx, &self.scroll, contents)
 }
 
-_queue_ui_contents_length :: proc() -> i32 {
-	length := i32(len(self.list.items)) * self.list.item_height
-	length += self.list.item_height
-	return length
+_queue_ui_contents_height :: proc() -> i32 {
+	return ui.item_list_content_height(&self.list) + self.list.item_height
 }
 
 queue_ui_on_screen_updated :: proc(state: ^State) {
@@ -152,8 +152,8 @@ queue_ui_on_screen_updated :: proc(state: ^State) {
 	// The problem with this solution is that `self.box` may be empty (i.e.
 	// width and height are zeros) when calling `scroll_set` and the content
 	// length may be larger that it should be because of that.
-	length := _queue_ui_contents_length()
-	ui.scroll_update_length(self.box, &self.scroll, length)
+	contents := _queue_ui_contents_height()
+	ui.scroll_update_length(self.box, &self.scroll, contents)
 
 	_queue_ui_scroll_to_cur_song(state, smooth = false)
 }
@@ -187,10 +187,6 @@ queue_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bo
 	return propagate
 }
 
-queue_ui_on_pointer_motion :: proc() {
-	ui.item_list_on_pointer_motion(&self.list)
-}
-
 queue_ui_on_queue_updated_by_external :: proc(state: ^State) {
 	player := &state.player
 
@@ -201,7 +197,7 @@ queue_ui_on_queue_updated_by_external :: proc(state: ^State) {
 
 	for _, index in player.queue {
 		item := Song_Item {
-			item       = ui.item_make(ui.Item_Index(index), self.list.item_height),
+			item       = ui.item_make(&self.list, ui.Item_Index(index)),
 			song_index = mpd.Song_Index(index),
 		}
 		append(&self.list.items, item)

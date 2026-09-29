@@ -175,6 +175,10 @@ on_pointer_button :: proc "contextless" (button: win.Button, button_state: win.B
 	}
 }
 
-on_pointer_motion :: proc "contextless" (pos: Vec2) {
+on_pointer_motion :: proc(pos: Vec2) {
 	state.pointer = pos
+
+	if controls() == .Keyboard {
+		set_controls(.Any)
+	}
 }

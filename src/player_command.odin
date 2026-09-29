@@ -190,8 +190,13 @@ player_remove_song :: proc(player: ^Player, index: mpd.Song_Index) {
 	ordered_remove(&player.queue, int(index))
 
 	cur_song, has_cur_song := player.cur_song.?
-	if has_cur_song && cur_song > index {
-		player.cur_song = cur_song - 1
+	if has_cur_song {
+		if cur_song == index && int(cur_song) >= len(player.queue) - 1 {
+			// TODO!!: refactor update of the current song index into a function.
+			player.cur_song = nil
+		} else if cur_song > index {
+			player.cur_song = cur_song - 1
+		}
 	}
 
 	player._ignore_next_queue_update = true

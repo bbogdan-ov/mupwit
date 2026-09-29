@@ -4,6 +4,7 @@ import "lib:mpd"
 import "lib:ui"
 
 Album_Item :: struct {
+	using item:  ui.Item,
 	rect:        Rect,
 	album_index: mpd.Album_Index,
 	loader:      Cover_Loader,
@@ -11,55 +12,34 @@ Album_Item :: struct {
 
 @(private = "file")
 self: struct {
-	items:          [dynamic]Album_Item,
-	scroll:         ui.Scroll,
-	box:            ui.Box,
-	hovering_index: Maybe(ui.Item_Index),
+	list:   ui.Item_List(Album_Item),
+	scroll: ui.Scroll,
+	box:    ui.Box,
 }
 
 albums_ui_init :: proc() {
-	self.items = make([dynamic]Album_Item, context.allocator)
+	ui.item_list_init(&self.list, ALBUM_HEIGHT, context.allocator)
+	self.list.item_width = ALBUM_WIDTH
+	self.list.columns = ALBUM_GRID_COLUMS
+	self.list.item_update = album_ui_list_item_update
 }
 
 albums_ui_destroy :: proc() {
 	_album_ui_clear_list()
-	delete(self.items)
-	self.items = nil
+	ui.item_list_destroy(&self.list)
 }
 
 albums_ui_update :: proc(state: ^State, dt: Seconds) {
 	if state.screen != .Albums do return
 
-	ui.scroll_update(&self.box, &self.scroll, dt)
+	self.list.userdata = state
+	ui.item_list_update(&self.box, &self.scroll, &self.list, dt)
 
-	if ui.is_hovering(self.box) {
-		pos := ui.rel_pointer(self.box)
-		pos.y /= ALBUM_HEIGHT
-		pos.y *= ALBUM_GRID_COLUMS
-		pos.x /= ALBUM_WIDTH
-		index: ui.Item_Index = pos.y + pos.x
-		if within(index, 0, i32(len(self.items))) {
-			ui.dirty_set(&self.hovering_index, index)
-		} else {
-			ui.dirty_set(&self.hovering_index, nil)
-		}
-	} else {
-		ui.dirty_set(&self.hovering_index, nil)
-	}
-
-	for &item, i in self.items {
-		album_item_update(state, &item, ui.Item_Index(i), dt)
-	}
-
-	hovering, has_hovering := self.hovering_index.?
-	if has_hovering {
-		ui.set_cursor(.Pointer)
-
-		if ui.is_double_clicked(.Left) {
-			item := &self.items[hovering]
-			album := state.player.albums[item.album_index]
-			player_play_album(&state.player, mpd.album_name(album))
-		}
+	hovering, has_hovering := self.list.hovering.?
+	if has_hovering && ui.is_double_clicked(.Left) {
+		item := &self.list.items[hovering]
+		album := state.player.albums[item.album_index]
+		player_play_album(&state.player, mpd.album_name(album))
 	}
 }
 
@@ -71,20 +51,17 @@ albums_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	ui.begin_box(ctx, box, GAP, self.scroll.offset)
 	self.box = ctx.box
 
-	rows := _album_ui_rows()
-	from, to := ui.scroll_visible_range(ctx.box, rows, ALBUM_HEIGHT)
-	from *= ALBUM_GRID_COLUMS
-	to = min(to * ALBUM_GRID_COLUMS, len(self.items))
+	from, to := ui.item_list_visible_range(ctx.box, &self.list)
 	for i in from ..< to {
-		if i >= len(self.items) do break
+		if i >= ui.items_count(&self.list) do break
 
 		index := ui.Item_Index(i)
-		item := &self.items[index]
+		item := &self.list.items[index]
 		album_item_draw(state, ctx, item, index)
 	}
 
-	length := _album_ui_content_length()
-	scroll_draw(state, ctx, &self.scroll, length)
+	contents := ui.item_list_content_height(&self.list)
+	scroll_draw(state, ctx, &self.scroll, contents)
 }
 
 albums_ui_on_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
@@ -93,23 +70,35 @@ albums_ui_on_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
 	ui.scroll_on_scroll(&self.scroll, scroll, touchpad)
 }
 
+albums_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bool) {
+	if state.screen != .Albums do return true
+
+	ui.item_list_on_keyboard_key(self.box, &self.scroll, &self.list, ev) or_return
+	return true
+}
+
 albums_ui_on_album_list_updated :: proc(state: ^State) {
 	_album_ui_clear_list()
-	non_zero_reserve(&self.items, len(state.player.albums))
+	non_zero_reserve(&self.list.items, len(state.player.albums))
 
 	for _, i in state.player.albums {
+		index := ui.Item_Index(i)
 		item := Album_Item {
+			item        = ui.item_make(&self.list, index),
 			album_index = mpd.Album_Index(i),
 		}
-		append(&self.items, item)
+		append(&self.list.items, item)
 	}
 }
 
-album_item_destroy :: proc(item: ^Album_Item) {
-	cover_maybe_unref(item.loader.cover)
-}
+album_ui_list_item_update :: proc(
+	list: ^ui.Item_List(Album_Item),
+	item: ^Album_Item,
+	index: ui.Item_Index,
+	dt: Seconds,
+) {
+	state := cast(^State)list.userdata
 
-album_item_update :: proc(state: ^State, item: ^Album_Item, index: ui.Item_Index, dt: Seconds) {
 	pos := _album_item_pos(index)
 	pos.y += -self.box.y - i32(self.box.scroll)
 
@@ -129,6 +118,10 @@ album_item_update :: proc(state: ^State, item: ^Album_Item, index: ui.Item_Index
 	)
 }
 
+album_item_destroy :: proc(item: ^Album_Item) {
+	cover_maybe_unref(item.loader.cover)
+}
+
 album_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Album_Item, index: ui.Item_Index) {
 	album := &state.player.albums[item.album_index]
 
@@ -137,12 +130,12 @@ album_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Album_Item, inde
 	rect: Rect
 	rect.x = ctx.box.x + pos.x
 	rect.y = ctx.box.y + pos.y - i32(ctx.box.scroll)
-	rect.width = ALBUM_WIDTH
-	rect.height = ALBUM_HEIGHT
+	rect.width = self.list.item_width
+	rect.height = self.list.item_height
 
 	ui.begin_box(ctx, rect, GAP)
 
-	if self.hovering_index == index {
+	if self.list.hovering == index {
 		ui.draw_box(ctx, rect, state.theme.light_gray, filled = true)
 	}
 
@@ -176,24 +169,13 @@ album_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Album_Item, inde
 }
 
 _album_ui_clear_list :: proc() {
-	for &item in self.items do album_item_destroy(&item)
-	clear(&self.items)
-}
-
-_album_ui_content_length :: proc() -> i32 {
-	rows := _album_ui_rows()
-	return i32(rows) / ALBUM_GRID_COLUMS * ALBUM_HEIGHT
-}
-
-_album_ui_rows :: proc() -> int {
-	count := len(self.items)
-	count += count % ALBUM_GRID_COLUMS
-	return count
+	for &item in self.list.items do album_item_destroy(&item)
+	clear(&self.list.items)
 }
 
 _album_item_pos :: proc(index: ui.Item_Index) -> Vec2 {
 	v: Vec2
-	v.x = (index % ALBUM_GRID_COLUMS) * ALBUM_WIDTH
-	v.y = (index / ALBUM_GRID_COLUMS) * ALBUM_HEIGHT
+	v.x = (index % self.list.columns) * ALBUM_WIDTH
+	v.y = (index / self.list.columns) * ALBUM_HEIGHT
 	return v
 }

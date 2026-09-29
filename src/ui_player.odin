@@ -246,6 +246,9 @@ _player_ui_request_cur_cover :: proc(state: ^State) {
 	}
 }
 
+// FIXME!!: sometimes it may not update the cover when the current song changes.
+// It happens very rearly an i'm not sure why, it seem to only happen when you
+// play switch albums.
 _player_ui_set_cover :: proc(state: ^State, cover: Maybe(^Cover)) {
 	cover_maybe_unref(self.prev_cover)
 	self.prev_cover = self.cover
