@@ -121,9 +121,15 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		// Draw song title and artist.
 		song, has_song := player_cur_or_last_song(&state.player)
 		if has_song {
+			title := song.title
+			artist := song.artist
+			// TODO: truncate URI only to the filename (not a full path).
+			if len(title) == 0 do title = string(song.file)
+			if len(artist) == 0 do artist = UNKNOWN
+
 			pos := rect_pos(ctx.box) + offset
-			pos.x += ui.draw_text(ctx, song.title, pos, state.theme.black).x
-			pos.x += ui.draw_text(ctx, fmt.tprint(" -", song.artist), pos, state.theme.gray).x
+			pos.x += ui.draw_text(ctx, title, pos, state.theme.black).x
+			pos.x += ui.draw_text(ctx, fmt.tprint(" -", artist), pos, state.theme.gray).x
 		}
 
 		// Draw slider.

@@ -51,6 +51,8 @@ COVER_SIZE_HUGE :: WINDOW_WIDTH - PLAYER_PADDING * 2
 COVER_SIZE_MEDIUM :: ALBUM_COVER_SIZE
 COVER_SIZE_SMALL :: SONG_COVER_SIZE
 
+UNKNOWN :: "<unknown>"
+
 // ------------------------------
 // Colors.
 // ------------------------------

@@ -129,16 +129,27 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if has_song {
 		offset.y += GAP * 3
 
+		title := song.title
+		artist := song.artist
+		// TODO: truncate URI only to the filename (not a full path).
+		if len(title) == 0 do title = string(song.file)
+		if len(artist) == 0 do artist = UNKNOWN
+
 		pos := rect_pos(ctx.box) + offset
 		height := ctx.font_height * 2 + GAP
 
 		pos.y += ctx.font_height
 		pos.y += ICON_BUTTON_SIZE / 2 - height / 2
-		ui.draw_text(ctx, song.title, pos, state.theme.black, bold = true)
+		ui.draw_text(ctx, title, pos, state.theme.black, bold = true)
 		pos.y += ctx.font_height + GAP / 2
 
-		artist := fmt.tprint(song.artist, '-', song.album)
-		ui.draw_text(ctx, artist, pos, state.theme.gray)
+		subtitle: string
+		if len(song.album) > 0 {
+			subtitle = fmt.tprint(song.artist, '-', song.album)
+		} else {
+			subtitle = song.artist
+		}
+		ui.draw_text(ctx, subtitle, pos, state.theme.gray)
 
 		offset.y += height
 	}
