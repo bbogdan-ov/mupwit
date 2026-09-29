@@ -183,7 +183,7 @@ recv :: proc(
 }
 
 @(require_results)
-_send_string :: proc(client: ^Client, str: string, loc := #caller_location) -> (err: Error) {
+send_string :: proc(client: ^Client, str: string, loc := #caller_location) -> (err: Error) {
 	if len(str) == 0 do return nil
 
 	_, send_err := net.send_tcp(client.socket, transmute([]u8)str)
@@ -195,7 +195,7 @@ _send_string :: proc(client: ^Client, str: string, loc := #caller_location) -> (
 
 @(require_results)
 send_const :: proc(client: ^Client, $str: string, loc := #caller_location) -> (err: Error) {
-	return _send_string(client, str + "\n", loc)
+	return send_string(client, str + "\n", loc)
 }
 
 @(require_results)

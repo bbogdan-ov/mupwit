@@ -54,6 +54,19 @@ COVER_SIZE_SMALL :: SONG_COVER_SIZE
 UNKNOWN :: "<unknown>"
 
 // ------------------------------
+// Misc.
+// ------------------------------
+
+// Time untill it is allowed to save an another queue state into the history.
+// It helps to save the current state of the queue in the history only once if
+// queue changes are frequent, for example when you do `mpc clear; mpc load
+// playlist; mpc shuffle` it changes the queue 3 times and the state of the
+// queue will be saved 3 times which is not what i want.
+PLAYER_QUEUE_HISTORY_DEBOUNCE :: Seconds(0.2)
+
+HISTORY_LIMIT :: 64
+
+// ------------------------------
 // Colors.
 // ------------------------------
 

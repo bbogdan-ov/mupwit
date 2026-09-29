@@ -4,6 +4,8 @@
 
 package mupwit
 
+import "core:log"
+import "core:sort"
 import "lib:mpd"
 import "lib:ui"
 
@@ -15,9 +17,10 @@ Song_Item :: struct {
 
 @(private = "file")
 self: struct {
-	list:   ui.Item_List(Song_Item),
-	box:    ui.Box,
-	scroll: ui.Scroll,
+	list:                ui.Item_List(Song_Item),
+	box:                 ui.Box,
+	scroll:              ui.Scroll,
+	list_just_reordered: bool,
 }
 
 queue_ui_init :: proc() {
@@ -96,7 +99,7 @@ _queue_ui_remove_item :: proc(index: ui.Item_Index) {
 	song_item_destroy(item)
 	ordered_remove(&self.list.items, int(index))
 
-	for i in index ..< ui.Item_Index(len(self.list.items)) {
+	for i in index ..< ui.items_count(&self.list) {
 		item := &self.list.items[i]
 		item.song_index = mpd.Song_Index(i)
 		ui.item_tween_to_rest(item, i, self.list.item_height)
@@ -112,7 +115,7 @@ queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	self.box = ctx.box
 
 	// Draw a little "empty" symbol.
-	if len(self.list.items) == 0 {
+	if ui.items_count(&self.list) == 0 {
 		pos := rect_center(ctx.box)
 		pos.y += ctx.font_height / 2
 		ui.draw_text(ctx, "❦", pos, state.theme.gray, align = .Center)
@@ -220,20 +223,46 @@ queue_ui_on_cur_song_updated :: proc(state: ^State, prev_index: Maybe(mpd.Song_I
 	ui.item_list_scroll_to(self.box, &self.scroll, &self.list, ui.Item_Index(index))
 }
 
-queue_ui_on_song_reordered :: proc(from, to: mpd.Song_Index) {
+queue_ui_on_song_reordered :: proc(state: ^State, from, to: mpd.Song_Index) {
+	from, to := ui.Item_Index(from), ui.Item_Index(to)
+
+	log.debugf("QUEUE UI: Song reordered: %v -> %v", from, to)
+
 	start, end := ui.range_sort(from, to)
+	if self.list_just_reordered {
+		self.list_just_reordered = false
+		for i in start ..= end {
+			item := &self.list.items[i]
+			item.song_index = mpd.Song_Index(i)
+		}
+
+		// Animate items reordering only if they were not reordered by dragging
+		// items in the list.
+		return
+	}
+
+	shift := ui.Item_Index(sort.compare_i32s(to, from))
+
 	for i in start ..= end {
-		item := &self.list.items[i]
-		item.song_index = mpd.Song_Index(i)
+		index := ui.Item_Index(i)
+		item := &self.list.items[index]
+
+		// Animate items reordering.
+		if index == to {
+			ui.item_tween_from_to(item, from, to, self.list.item_height)
+		} else {
+			ui.item_tween_from_to(item, index + shift, index, self.list.item_height)
+		}
+
+		item.song_index = mpd.Song_Index(index)
+		// NOTE: reset cover so it can be requested for the updated song on the next frame.
+		cover_maybe_unref(item.loader.cover)
+		item.loader.cover = nil
 	}
 }
 
 queue_ui_on_song_removed :: proc(index: mpd.Song_Index) {
 	_queue_ui_remove_item(ui.Item_Index(index))
-}
-
-song_item_destroy :: proc(item: ^Song_Item) {
-	cover_maybe_unref(item.loader.cover)
 }
 
 queue_ui_list_item_update :: proc(
@@ -260,6 +289,8 @@ queue_ui_list_on_item_reordered :: proc(
 ) {
 	state := cast(^State)list.userdata
 
+	self.list_just_reordered = true
+
 	from := mpd.Song_Index(reorder.from)
 	to := mpd.Song_Index(reorder.to)
 	player_reorder_song(&state.player, from, to)
@@ -281,6 +312,10 @@ queue_ui_list_on_item_stop_reordering :: proc(
 	index: ui.Item_Index,
 ) {
 	item.position.x = 0
+}
+
+song_item_destroy :: proc(item: ^Song_Item) {
+	cover_maybe_unref(item.loader.cover)
 }
 
 song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item, index: ui.Item_Index) {

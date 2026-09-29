@@ -53,7 +53,7 @@ cmd_destroy :: proc(cmd: ^Command_Builder) {
 }
 cmd_send :: proc(client: ^Client, cmd: ^Command_Builder, loc := #caller_location) -> Error {
 	str := cmd_end(cmd)
-	err := _send_string(client, str, loc)
+	err := send_string(client, str, loc)
 	cmd_destroy(cmd)
 	return err
 }

@@ -53,42 +53,47 @@ Player_Shared :: struct {
 
 Player :: struct {
 	// Playback state.
-	playstate:                 mpd.Play_State,
-	elapsed, duration:         Seconds,
-	cur_song:                  Maybe(mpd.Song_Index),
-	cur_song_id:               Maybe(mpd.Song_Id),
+	playstate:            mpd.Play_State,
+	elapsed, duration:    Seconds,
+	cur_song:             Maybe(mpd.Song_Index),
+	cur_song_id:          Maybe(mpd.Song_Id),
 	// Copy of a the last played song (before `cur_song` set to `nil`).
 	// Mostly used for animation, so elements that display the current song
 	// don't just disappear, but smoothly fade out with data of the last played song.
-	last_played_song:          Maybe(mpd.Song),
-	queue:                     mpd.Song_List,
-	queue_duration:            Seconds,
-	_queue_version:            int,
+	last_played_song:     Maybe(mpd.Song),
+	queue:                mpd.Song_List,
+	_queue_history_timer: Seconds,
+	queue_duration:       Seconds,
+	_queue_version:       int,
 	// Time elapsed within the queue (sum of durations of songs before the
 	// current one), does not account for the current song.
-	queue_elapsed:             Seconds,
-	albums:                    mpd.Album_List,
+	queue_elapsed:        Seconds,
+	albums:               mpd.Album_List,
 	// Used for "play random album" so that albums don't repeat.
-	_album_pool:               [dynamic]mpd.Album_Index,
-	_album_pool_drained:       int,
+	_album_pool:          [dynamic]mpd.Album_Index,
+	_album_pool_drained:  int,
 	// In which direction current song was skipped.
-	switch_direction:          Switch_Direction,
+	switch_direction:     Switch_Direction,
+	history:              History,
 
 	// Cache.
-	_covers_cache:             Covers_Cache,
+	_covers_cache:        Covers_Cache,
 
 	// Flags.
-	// Whether to ignore the next incoming "queue" response. Usually set after
-	// reordering items so it doesn't rebuild the items list.
-	_ignore_next_queue_update: bool,
+	_req_flags:           bit_field u16 {
+		// Whether to ignore the next incoming "queue" response. Usually set after
+		// reordering items so it doesn't rebuild the items list.
+		ignore_next_queue_update: bool | 1,
+		history_dont_push_next:   bool | 1,
+	},
 
 	// Client state.
-	_shared:                   Player_Shared,
-	_client_thread:            ^thread.Thread,
-	_status_req_timer:         Seconds,
+	_shared:              Player_Shared,
+	_client_thread:       ^thread.Thread,
+	_status_req_timer:    Seconds,
 
 	//
-	allocator:                 runtime.Allocator,
+	allocator:            runtime.Allocator,
 }
 
 player_init :: proc(player: ^Player, allocator := context.allocator) {
@@ -99,6 +104,7 @@ player_init :: proc(player: ^Player, allocator := context.allocator) {
 	player._client_thread.data = &player._shared
 
 	covers_cache_init(&player._covers_cache, player.allocator)
+	history_init(&player.history, allocator)
 
 	player._album_pool = make([dynamic]mpd.Album_Index, allocator)
 
@@ -134,7 +140,7 @@ player_connect :: proc(player: ^Player) {
 }
 
 player_destroy :: proc(player: ^Player) {
-	_command_send(player._shared.commands, Command_Disconnect{})
+	_player_send(player, Command_Disconnect{})
 
 	thread.join(player._client_thread)
 	thread.destroy(player._client_thread)
@@ -155,6 +161,7 @@ player_destroy :: proc(player: ^Player) {
 	}
 
 	covers_cache_destroy(&player._covers_cache)
+	history_destroy(&player.history)
 
 	mpd.song_list_destroy(&player.queue)
 	mpd.album_list_destroy(player.albums)
@@ -166,6 +173,10 @@ player_destroy :: proc(player: ^Player) {
 }
 
 player_update :: proc(player: ^Player, dt: Seconds) {
+	if player._queue_history_timer > 0 {
+		player._queue_history_timer -= dt
+	}
+
 	player._status_req_timer -= dt
 	if player._status_req_timer <= 0 {
 		player_request_status(player)
@@ -177,6 +188,7 @@ player_update :: proc(player: ^Player, dt: Seconds) {
 	}
 }
 
+// TODO!: save previous player state in the history whenever it changes outside of the app.
 _player_set_status :: proc(player: ^Player, status: mpd.Status) {
 	player.playstate = status.playstate
 	player.elapsed = Seconds(status.elapsed)
@@ -247,15 +259,28 @@ _player_set_last_played_song :: proc(player: ^Player, song: Maybe(mpd.Song)) {
 _player_set_queue :: proc(player: ^Player, queue: mpd.Song_List) {
 	queue := queue
 
-	if player._ignore_next_queue_update {
-		player._ignore_next_queue_update = false
+	if player._req_flags.ignore_next_queue_update {
+		player._req_flags.ignore_next_queue_update = false
 		// TODO: i should probably use the `playlist` version field of a
 		// MPD status instead of `mpd.song_lists_differ`.
 		if !mpd.song_lists_differ(player.queue, queue) {
 			mpd.song_list_destroy(&queue)
+			log.debugf("PLAYER: Queue received, but it was ignored due to the flag")
 			return
 		}
+
+		log.debugf("PLAYER: Received queue differs from the current queue, force update")
 	}
+
+	if !player._req_flags.history_dont_push_next && player._queue_history_timer <= 0 {
+		c := player_make_cmd_set_queue_from_songs(player, player.queue[:])
+		c.play = player.cur_song
+		c.seek = player.elapsed
+		_player_history_push(player, c)
+
+		player._queue_history_timer = PLAYER_QUEUE_HISTORY_DEBOUNCE
+	}
+	player._req_flags.history_dont_push_next = false
 
 	mpd.song_list_destroy(&player.queue)
 	player.queue = queue
@@ -360,7 +385,7 @@ _player_handle_changes :: proc(
 	if changes == nil do return
 
 	if .Playlist in changes {
-		log.debugf("Queue changed")
+		log.debugf("PLAYER: Queue changed, requesting up-to-date queue")
 
 		queue := mpd.request_queue(client, shared.allocator) or_return
 		_response_send(shared.responses, Response_Queue{queue})

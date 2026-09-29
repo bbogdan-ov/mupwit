@@ -510,6 +510,10 @@ item_within_view :: proc(box: Box, y: i32, height: i32) -> bool {
 	return -height * 2 < y && y < state.view.height + height
 }
 
+item_tween_from_to :: proc(item: ^Item, from, to: Item_Index, height: i32) {
+	item.cur_position.y = from * height
+	item_tween_to_rest(item, to, height)
+}
 item_tween_to_rest :: proc(item: ^Item, index: Item_Index, height: i32) {
 	_item_start_pos_tween(item)
 	item.position.y = index * height

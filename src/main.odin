@@ -235,6 +235,7 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 	if ev.state != .Pressed && ev.state != .Repeated do return true
 
 	player := &state.player
+	press := ev.state == .Pressed
 
 	// All `*_on_keyboard_key` listeners should return `true` whenever they
 	// allow others to handle this key, in other words, this event will
@@ -262,6 +263,11 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 		player_next(player)
 	case is_shift_key(ev, .Comma):
 		player_previous(player)
+
+	case press && is_key(ev, .U), press && is_ctrl_key(ev, .Z):
+		player_undo(player)
+	case press && is_shift_key(ev, .U), press && is_ctrl_shift_key(ev, .Z):
+		player_redo(player)
 
 	case is_key(ev, .F1):
 		player_play_random_album(&state.player)
@@ -307,7 +313,7 @@ on_album_list_updated :: proc() {
 	ui.dirty(true)
 }
 on_song_reordered :: proc(from, to: mpd.Song_Index) {
-	queue_ui_on_song_reordered(from, to)
+	queue_ui_on_song_reordered(&state, from, to)
 	ui.dirty(true)
 }
 on_song_removed :: proc(index: mpd.Song_Index) {
