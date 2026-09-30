@@ -123,6 +123,8 @@ item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: S
 }
 
 item_list_set_cursor :: proc(box: Box, scroll: ^Scroll, list: ^Item_List($T), cursor: Vec2) {
+	if items_count(list) == 0 do return
+
 	index := item_cursor_to_index(cursor, list.columns)
 	index = clamp(index, 0, items_count(list) - 1)
 
@@ -195,8 +197,11 @@ _item_list_update_reordering :: proc(box: Box, list: ^Item_List($T)) {
 
 _item_list_update_hovering :: proc(box: Box, list: ^Item_List($T)) {
 	if controls() == .Keyboard {
+		// Clamp `hovering` every frame.
 		hovering, has_hovering := list.hovering.?
-		if has_hovering {
+		if items_count(list) == 0 {
+			list.hovering = nil
+		} else if has_hovering {
 			list.hovering = clamp(hovering, 0, items_count(list) - 1)
 		}
 		return
@@ -226,7 +231,7 @@ item_list_set_hovering :: proc(list: ^Item_List($T), index: Maybe(Item_Index)) {
 
 	count := items_count(list)
 	if count == 0 {
-		list.hovering = nil
+		dirty_set(&list.hovering, nil)
 	} else if index, ok := index.?; ok {
 		index = clamp(index, 0, count - 1)
 		list.last_hovered = index
