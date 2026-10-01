@@ -65,7 +65,7 @@ status_ui_update :: proc(state: ^State, dt: Seconds) {
 		_status_ui_set_queue_offset(QUEUE_STATUS_HEIGHT)
 	}
 
-	player := &state.player
+	player := state.player
 
 	if self.cur_offset == 0 {
 		if ui.button_update(&self.button_play) {
@@ -119,7 +119,7 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		offset.y += -(ctx.font_height * 2 + ui.SLIDER_THICKNESS) / 2 + ctx.font_height
 
 		// Draw song title and artist.
-		song, has_song := player_cur_or_last_song(&state.player)
+		song, has_song := player_cur_or_last_song(state.player)
 		if has_song {
 			title := song.title
 			artist := song.artist
@@ -138,7 +138,7 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 			rect.height = ui.SLIDER_THICKNESS
 			rect.y += offset.y + ctx.font_height
 
-			progress := player_progress(&state.player)
+			progress := player_progress(state.player)
 			gray := state.theme.gray
 			ui.slider_draw(
 				ctx,
@@ -155,10 +155,10 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 
 _queue_status_ui_update :: proc(state: ^State) {
 	if ui.button_update(&self.button_clear) {
-		player_clear_queue(&state.player)
+		player_clear_queue(state.player)
 	}
 	if ui.button_update(&self.button_shuffle) {
-		player_shuffle_queue(&state.player)
+		player_shuffle_queue(state.player)
 	}
 
 	if ui.is_pointer_inside(self.time_rect) {
@@ -177,7 +177,7 @@ _queue_status_ui_update :: proc(state: ^State) {
 _queue_status_ui_draw :: proc(state: ^State, ctx: ^ui.Context, rect: Rect) {
 	H_GAP :: GAP * 2
 
-	player := &state.player
+	player := state.player
 
 	rect := rect
 	rect.y += self.cur_queue_offset

@@ -32,7 +32,7 @@ player_ui_update :: proc(state: ^State, dt: Seconds) {
 		return
 	}
 
-	player := &state.player
+	player := state.player
 
 	ui.tween_update(&self.cover_tween, dt)
 
@@ -73,7 +73,7 @@ _player_ui_update_cover_handling :: proc(state: ^State, dt: Seconds) {
 player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if !screen_is_visible(state, .Player) do return
 
-	player := &state.player
+	player := state.player
 	song, has_song := player_cur_or_last_song(player)
 
 	box := ctx.box
@@ -196,7 +196,7 @@ _player_ui_draw_cover :: proc(state: ^State, ctx: ^ui.Context, cover: Maybe(^Cov
 }
 
 _player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context) -> (height: i32) {
-	player := &state.player
+	player := state.player
 
 	elapsed_str := fmt.tprint(mpd.Seconds(player.elapsed))
 	duration_str := fmt.tprint(mpd.Seconds(player.duration))
@@ -222,13 +222,13 @@ _player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context) -> (height: i32)
 }
 
 player_ui_on_cur_song_updated :: proc(state: ^State) {
-	song, has_song := player_cur_song(&state.player)
+	song, has_song := player_cur_song(state.player)
 	if !has_song {
 		_player_ui_set_cover(state, nil)
 		return
 	}
 
-	cover, has_cover := cover_get(&state.player, song.file, song.album, .Huge)
+	cover, has_cover := cover_get(state.player, song.file, song.album, .Huge)
 	if has_cover {
 		_player_ui_set_cover(state, cover_ref(cover))
 	} else {
@@ -239,13 +239,13 @@ player_ui_on_cur_song_updated :: proc(state: ^State) {
 _player_ui_request_cur_cover :: proc(state: ^State) {
 	COVER_SIZE :: Cover_Size.Huge
 
-	song, has_song := player_cur_song(&state.player)
+	song, has_song := player_cur_song(state.player)
 	if !has_song {
 		_player_ui_set_cover(state, nil)
 		return
 	}
 
-	cover := cover_get_or_request(&state.player, song.file, song.album, COVER_SIZE)
+	cover := cover_get_or_request(state.player, song.file, song.album, COVER_SIZE)
 	if cover.loading {
 		cover_maybe_unref(self.loading_cover)
 

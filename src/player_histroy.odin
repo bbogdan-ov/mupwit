@@ -34,7 +34,7 @@ history_destroy :: proc(h: ^History) {
 	queue.destroy(&h.redo)
 }
 
-player_undo :: proc(player: ^Player) -> bool {
+player_undo :: proc(player: ^Base_Player) -> bool {
 	cmd := queue.pop_back_safe(&player.history.undo) or_return
 
 	count := queue.len(player.history.undo)
@@ -47,7 +47,7 @@ player_undo :: proc(player: ^Player) -> bool {
 	return true
 }
 
-player_redo :: proc(player: ^Player) -> bool {
+player_redo :: proc(player: ^Base_Player) -> bool {
 	cmd := queue.pop_back_safe(&player.history.redo) or_return
 
 	count := queue.len(player.history.redo)
@@ -60,7 +60,14 @@ player_redo :: proc(player: ^Player) -> bool {
 	return true
 }
 
-_player_history_push :: proc(player: ^Player, cmd: Player_Command, loc := #caller_location) {
+player_undo_count :: proc(player: ^Base_Player) -> int {
+	return queue.len(player.history.undo)
+}
+player_redo_count :: proc(player: ^Base_Player) -> int {
+	return queue.len(player.history.redo)
+}
+
+_player_history_push :: proc(player: ^Base_Player, cmd: Player_Command, loc := #caller_location) {
 	undo, redo := &player.history.undo, &player.history.redo
 
 	log.debugf("PLAYER: Push histroy: %v, state = %v", cmd, player.history._state)

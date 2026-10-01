@@ -34,8 +34,8 @@ parser_make :: proc(s: string) -> (p: Parser) {
 }
 
 // Deleted string of a parser if it was allocated on the heap.
-parser_destroy :: proc(p: Parser, allocator := context.allocator) {
-	delete(p.s, allocator)
+parser_destroy :: proc(p: Parser, allocator := context.allocator, loc := #caller_location) {
+	delete(p.s, allocator, loc)
 }
 
 parser_next_line :: proc(p: ^Parser) -> (line: string, found: bool) {
@@ -204,6 +204,60 @@ parser_next_binary :: proc(p: ^Parser, loc := #caller_location) -> (data: []u8, 
 	return data, true
 }
 
+parser_next_song_list :: proc(
+	parser: ^Parser,
+	allocator := context.allocator,
+	loc := #caller_location,
+) -> Song_List {
+	list := make(Song_List, 0, 32, allocator, loc)
+	for song in parser_next_song(parser, allocator, loc) {
+		append(&list, song, loc)
+	}
+	return list
+}
+
+parser_next_album_list :: proc(
+	parser: ^Parser,
+	allocator := context.allocator,
+	loc := #caller_location,
+) -> Album_List {
+	albums := make(Album_List, allocator, loc)
+
+	cur_album: string
+	cur_artist: string
+	album: Album
+
+	// TODO: `parser_next_song` should not probably allocate song right away,
+	// instead it should return song with strings sliced from the parser's
+	// string and then the user of this function can decide when to clone this
+	// song into the heap.
+	for song in parser_next_song(parser, allocator, loc) {
+		if len(song.album) == 0 {
+			song_destroy(song, loc)
+			continue
+		}
+
+		if song.album != cur_album || song.artist != cur_artist {
+			if album.songs != nil && len(album.songs) > 0 {
+				append(&albums, album, loc)
+			}
+
+			album = {}
+			album.songs = make(Song_List, allocator, loc)
+			cur_album = song.album
+			cur_artist = song.artist
+		}
+
+		append(&album.songs, song, loc)
+	}
+
+	if album.songs != nil && len(album.songs) > 0 {
+		append(&albums, album, loc)
+	}
+
+	return albums
+}
+
 _parse_struct_field_from_pair :: proc(
 	struct_: any,
 	pair: Pair,
@@ -216,6 +270,7 @@ _parse_struct_field_from_pair :: proc(
 		name := field.name if field.tag == "" else string(field.tag)
 		if name == pair.key {
 			value = reflect.struct_field_value(struct_, field)
+			break
 		}
 	}
 
@@ -267,7 +322,7 @@ _parse_struct_field_from_pair :: proc(
 		v, _ = _parse_enum(Single_State, pair, loc)
 
 	case:
-		panic(fmt.tprintf("Unsupported type: %T", value))
+		fmt.panicf("Unsupported type: %T", value, loc = loc)
 	}
 }
 

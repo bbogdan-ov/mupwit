@@ -1,0 +1,314 @@
+file: Low Roar/maybe tomorrow/001 David.flac
+Last-Modified: 2025-12-22T21:29:21Z
+Added: 2025-12-22T21:30:03Z
+Format: 44100:16:2
+Title: David
+Artist: Low Roar
+AlbumArtist: Low Roar
+Album: maybe tomorrow…
+Disc: 1
+Date: 2021
+Track: 1
+Genre: Indietronica - Folktronica
+Time: 337
+duration: 336.692
+Pos: 0
+Id: 735
+file: Low Roar/maybe tomorrow/002 Sleep Peacefully.flac
+Last-Modified: 2025-12-22T21:29:21Z
+Added: 2025-12-22T21:30:03Z
+Format: 44100:16:2
+Album: maybe tomorrow…
+Date: 2021-07-30
+Disc: 1
+Disc: 1
+Genre: Indietronica
+Genre: Folktronica
+Label: Tonequake Records
+MUSICBRAINZ_ALBUMARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_ALBUMID: db017c7b-37ce-41ce-9fe9-cd9ca6db5005
+MUSICBRAINZ_ARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_RELEASEGROUPID: 4f092316-6747-4d1f-8fdf-6a7886e02093
+MUSICBRAINZ_RELEASETRACKID: 220f42b4-c356-440b-8e77-05643193aaa9
+MUSICBRAINZ_TRACKID: f6a6a01d-22c3-42be-85aa-ed260ede5900
+OriginalDate: 2021-07-30
+Title: Sleep Peacefully
+Track: 2
+Artist: Low Roar
+AlbumArtist: Low Roar
+Track: 2
+Time: 168
+duration: 168.085
+Pos: 1
+Id: 736
+file: Low Roar/maybe tomorrow/003 Fucked Up.flac
+Last-Modified: 2025-12-22T21:29:23Z
+Added: 2025-12-22T21:30:03Z
+Format: 44100:16:2
+Album: maybe tomorrow…
+Date: 2021-07-30
+Disc: 1
+Disc: 1
+Genre: Indietronica
+Genre: Folktronica
+Label: Tonequake Records
+MUSICBRAINZ_ALBUMARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_ALBUMID: db017c7b-37ce-41ce-9fe9-cd9ca6db5005
+MUSICBRAINZ_ARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_RELEASEGROUPID: 4f092316-6747-4d1f-8fdf-6a7886e02093
+MUSICBRAINZ_RELEASETRACKID: 837b4719-fd8a-4f29-a8ad-816a9330c9dd
+MUSICBRAINZ_TRACKID: 88d336f8-0467-4201-b5d0-aaa2bc7174c1
+OriginalDate: 2021-07-30
+Title: Fucked Up
+Track: 3
+Artist: Low Roar
+AlbumArtist: Low Roar
+Track: 3
+Time: 540
+duration: 539.618
+Pos: 2
+Id: 737
+file: Low Roar/maybe tomorrow/004 Hummingbird.flac
+Last-Modified: 2025-12-22T21:29:23Z
+Added: 2025-12-22T21:30:03Z
+Format: 44100:16:2
+Album: maybe tomorrow…
+Date: 2021-07-30
+Disc: 1
+Disc: 1
+Genre: Indietronica
+Genre: Folktronica
+Label: Tonequake Records
+MUSICBRAINZ_ALBUMARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_ALBUMID: db017c7b-37ce-41ce-9fe9-cd9ca6db5005
+MUSICBRAINZ_ARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_RELEASEGROUPID: 4f092316-6747-4d1f-8fdf-6a7886e02093
+MUSICBRAINZ_RELEASETRACKID: 638cdb6c-1f80-478f-87bb-206bad9e6ba3
+MUSICBRAINZ_TRACKID: b2b5cec6-bbb9-4914-80ed-5906b1031b5d
+OriginalDate: 2021-07-30
+Title: Hummingbird
+Track: 4
+Artist: Low Roar
+AlbumArtist: Low Roar
+Track: 4
+Time: 353
+duration: 352.915
+Pos: 3
+Id: 738
+file: Low Roar/maybe tomorrow/005 Fade Away.flac
+Last-Modified: 2025-12-22T21:29:24Z
+Added: 2025-12-22T21:30:03Z
+Format: 44100:16:2
+Album: maybe tomorrow…
+Date: 2021-07-30
+Disc: 1
+Disc: 1
+Genre: Indietronica
+Genre: Folktronica
+Label: Tonequake Records
+MUSICBRAINZ_ALBUMARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_ALBUMID: db017c7b-37ce-41ce-9fe9-cd9ca6db5005
+MUSICBRAINZ_ARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_RELEASEGROUPID: 4f092316-6747-4d1f-8fdf-6a7886e02093
+MUSICBRAINZ_RELEASETRACKID: f9999ebc-2a89-4681-a38a-2f3b6944624f
+MUSICBRAINZ_TRACKID: d81a3d61-f934-4687-a586-181e19317e6c
+OriginalDate: 2021-07-30
+Title: Fade Away
+Track: 5
+Artist: Low Roar
+AlbumArtist: Low Roar
+Track: 5
+Time: 352
+duration: 351.700
+Pos: 4
+Id: 739
+file: Low Roar/maybe tomorrow/006 Burial Ground.flac
+Last-Modified: 2025-12-22T21:29:25Z
+Added: 2025-12-22T21:30:03Z
+Format: 44100:16:2
+Album: maybe tomorrow…
+Date: 2021-07-30
+Disc: 1
+Disc: 1
+Genre: Indietronica
+Genre: Folktronica
+Label: Tonequake Records
+MUSICBRAINZ_ALBUMARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_ALBUMID: db017c7b-37ce-41ce-9fe9-cd9ca6db5005
+MUSICBRAINZ_ARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_RELEASEGROUPID: 4f092316-6747-4d1f-8fdf-6a7886e02093
+MUSICBRAINZ_RELEASETRACKID: 35a46aca-7034-4ab3-a796-723bd4cd0aca
+MUSICBRAINZ_TRACKID: 7ba4f856-b2dc-4bbe-a3e2-3ab0be496e19
+OriginalDate: 2021-07-30
+Title: Burial Ground
+Track: 6
+Artist: Low Roar
+AlbumArtist: Low Roar
+Track: 6
+Time: 143
+duration: 142.832
+Pos: 5
+Id: 740
+file: Low Roar/maybe tomorrow/007 Stay Calm, Keep Quiet.flac
+Last-Modified: 2025-12-22T21:29:20Z
+Added: 2025-12-22T21:30:03Z
+Format: 44100:16:2
+Album: maybe tomorrow…
+Date: 2021-07-30
+Disc: 1
+Disc: 1
+Genre: Indietronica
+Genre: Folktronica
+Label: Tonequake Records
+MUSICBRAINZ_ALBUMARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_ALBUMID: db017c7b-37ce-41ce-9fe9-cd9ca6db5005
+MUSICBRAINZ_ARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_RELEASEGROUPID: 4f092316-6747-4d1f-8fdf-6a7886e02093
+MUSICBRAINZ_RELEASETRACKID: 299ab93e-943a-49a2-b723-8f5194b8fba4
+MUSICBRAINZ_TRACKID: 96c6ddae-f66f-4b65-a4b3-9fc49220ab79
+OriginalDate: 2021-07-30
+Title: Stay Calm, Keep Quiet
+Track: 7
+Artist: Low Roar
+AlbumArtist: Low Roar
+Track: 7
+Time: 247
+duration: 246.692
+Pos: 6
+Id: 741
+file: Low Roar/maybe tomorrow/008 Everything To Lose.flac
+Last-Modified: 2025-12-22T21:29:26Z
+Added: 2025-12-22T21:30:03Z
+Format: 44100:16:2
+Album: maybe tomorrow…
+Date: 2021-07-30
+Disc: 1
+Disc: 1
+Genre: Indietronica
+Genre: Folktronica
+Label: Tonequake Records
+MUSICBRAINZ_ALBUMARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_ALBUMID: db017c7b-37ce-41ce-9fe9-cd9ca6db5005
+MUSICBRAINZ_ARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_RELEASEGROUPID: 4f092316-6747-4d1f-8fdf-6a7886e02093
+MUSICBRAINZ_RELEASETRACKID: 454b745f-c0a2-4734-8d4d-395d4522960f
+MUSICBRAINZ_TRACKID: f8e3f4a6-f0de-4054-a192-0aa21c818161
+OriginalDate: 2021-07-30
+Title: Everything To Lose
+Track: 8
+Artist: Low Roar
+AlbumArtist: Low Roar
+Track: 8
+Time: 348
+duration: 348.374
+Pos: 7
+Id: 742
+file: Low Roar/maybe tomorrow/009 Captain.flac
+Last-Modified: 2025-12-22T21:29:26Z
+Added: 2025-12-22T21:30:03Z
+Format: 44100:16:2
+Album: maybe tomorrow…
+Date: 2021-07-30
+Disc: 1
+Disc: 1
+Genre: Indietronica
+Genre: Folktronica
+Label: Tonequake Records
+MUSICBRAINZ_ALBUMARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_ALBUMID: db017c7b-37ce-41ce-9fe9-cd9ca6db5005
+MUSICBRAINZ_ARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_RELEASEGROUPID: 4f092316-6747-4d1f-8fdf-6a7886e02093
+MUSICBRAINZ_RELEASETRACKID: ba9367e2-9a91-45c7-86da-561d389b9e73
+MUSICBRAINZ_TRACKID: cd03e463-7ba1-4c8b-ae20-8d138813c805
+OriginalDate: 2021-07-30
+Title: Captain
+Track: 9
+Artist: Low Roar
+AlbumArtist: Low Roar
+Track: 9
+Time: 340
+duration: 339.818
+Pos: 8
+Id: 743
+file: Low Roar/maybe tomorrow/010 Bye Bye.flac
+Last-Modified: 2025-12-22T21:29:28Z
+Added: 2025-12-22T21:30:03Z
+Format: 44100:16:2
+Album: maybe tomorrow…
+Date: 2021-07-30
+Disc: 1
+Disc: 1
+Genre: Indietronica
+Genre: Folktronica
+Label: Tonequake Records
+MUSICBRAINZ_ALBUMARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_ALBUMID: db017c7b-37ce-41ce-9fe9-cd9ca6db5005
+MUSICBRAINZ_ARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_RELEASEGROUPID: 4f092316-6747-4d1f-8fdf-6a7886e02093
+MUSICBRAINZ_RELEASETRACKID: ee62056f-1058-4c51-9f08-892cd9de1ad9
+MUSICBRAINZ_TRACKID: 8be48060-0e07-4faa-b95f-e63953592da2
+OriginalDate: 2021-07-30
+Title: Bye Bye
+Track: 10
+Artist: Low Roar
+AlbumArtist: Low Roar
+Track: 10
+Time: 447
+duration: 447.269
+Pos: 9
+Id: 744
+file: Low Roar/maybe tomorrow/011 Clareland.flac
+Last-Modified: 2025-12-22T21:29:28Z
+Added: 2025-12-22T21:30:03Z
+Format: 44100:16:2
+Album: maybe tomorrow…
+Date: 2021-07-30
+Disc: 1
+Disc: 1
+Genre: Indietronica
+Genre: Folktronica
+Label: Tonequake Records
+MUSICBRAINZ_ALBUMARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_ALBUMID: db017c7b-37ce-41ce-9fe9-cd9ca6db5005
+MUSICBRAINZ_ARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_RELEASEGROUPID: 4f092316-6747-4d1f-8fdf-6a7886e02093
+MUSICBRAINZ_RELEASETRACKID: f68e21db-d415-4652-95a8-c2c9813484aa
+MUSICBRAINZ_TRACKID: 5ed2643b-2be6-46b0-a509-c414d2c7be54
+OriginalDate: 2021-07-30
+Title: Clareland
+Track: 11
+Artist: Low Roar
+AlbumArtist: Low Roar
+Track: 11
+Time: 188
+duration: 188.133
+Pos: 10
+Id: 745
+file: Low Roar/maybe tomorrow/012 Everything To Lose (Single Edit).flac
+Last-Modified: 2025-12-22T21:29:29Z
+Added: 2025-12-22T21:30:03Z
+Format: 44100:16:2
+Album: maybe tomorrow…
+Date: 2021-07-30
+Disc: 1
+Disc: 1
+Genre: Indietronica
+Genre: Folktronica
+Label: Tonequake Records
+MUSICBRAINZ_ALBUMARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_ALBUMID: db017c7b-37ce-41ce-9fe9-cd9ca6db5005
+MUSICBRAINZ_ARTISTID: 2921ca1d-206e-411a-8d2e-e12494dcfa9a
+MUSICBRAINZ_RELEASEGROUPID: 4f092316-6747-4d1f-8fdf-6a7886e02093
+MUSICBRAINZ_RELEASETRACKID: bd83e798-67f2-42ad-8d6e-2ae08215d131
+MUSICBRAINZ_TRACKID: e05557d5-66c8-486d-805a-cf748ec5dc09
+OriginalDate: 2021-07-30
+Title: Everything To Lose (Single Edit)
+Track: 12
+Artist: Low Roar
+AlbumArtist: Low Roar
+Track: 12
+Time: 336
+duration: 336.011
+Pos: 11
+Id: 746
+OK

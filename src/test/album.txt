@@ -1,0 +1,100 @@
+file: Thom Yorke/ANIMA/001 Traffic.mp3
+Last-Modified: 2025-09-17T18:17:48Z
+Added: 2025-12-22T18:29:08Z
+Format: 48000:16:2
+Artist: Thom Yorke
+Title: Traffic
+Album: ANIMA
+Track: 1
+Genre: Electronica
+Time: 318
+duration: 317.993
+file: Thom Yorke/ANIMA/002 Last I Heard (... He Was Circling the Drain).mp3
+Last-Modified: 2025-09-17T18:17:48Z
+Added: 2025-12-22T18:29:08Z
+Format: 48000:16:2
+Artist: Thom Yorke
+Title: Last I Heard (... He Was Circling the Drain)
+Album: ANIMA
+Track: 2
+Genre: Electronica
+Time: 307
+duration: 306.773
+file: Thom Yorke/ANIMA/003 Twist.mp3
+Last-Modified: 2025-09-17T18:17:48Z
+Added: 2025-12-22T18:29:09Z
+Format: 48000:16:2
+Artist: Thom Yorke
+Title: Twist
+Album: ANIMA
+Track: 3
+Genre: Electronica
+Time: 423
+duration: 423.173
+file: Thom Yorke/ANIMA/004 Dawn Chorus.mp3
+Last-Modified: 2025-09-17T18:17:49Z
+Added: 2025-12-22T18:29:09Z
+Format: 48000:16:2
+Artist: Thom Yorke
+Title: Dawn Chorus
+Album: ANIMA
+Track: 4
+Genre: Electronica
+Time: 323
+duration: 323.093
+file: Thom Yorke/ANIMA/005 I Am a Very Rude Person.mp3
+Last-Modified: 2025-09-17T18:17:49Z
+Added: 2025-12-22T18:29:08Z
+Format: 48000:16:2
+Artist: Thom Yorke
+Title: I Am a Very Rude Person
+Album: ANIMA
+Track: 5
+Genre: Electronica
+Time: 225
+duration: 224.773
+file: Thom Yorke/ANIMA/006 Not the News.mp3
+Last-Modified: 2025-09-17T18:17:49Z
+Added: 2025-12-22T18:29:08Z
+Format: 48000:16:2
+Artist: Thom Yorke
+Title: Not the News
+Album: ANIMA
+Track: 6
+Genre: Electronica
+Time: 237
+duration: 237.053
+file: Thom Yorke/ANIMA/007 The Axe.mp3
+Last-Modified: 2025-09-17T18:17:49Z
+Added: 2025-12-22T18:29:09Z
+Format: 48000:16:2
+Artist: Thom Yorke
+Title: The Axe
+Album: ANIMA
+Track: 7
+Genre: Electronica
+Time: 419
+duration: 419.413
+file: Thom Yorke/ANIMA/008 Impossible Knots.mp3
+Last-Modified: 2025-09-17T18:17:49Z
+Added: 2025-12-22T18:29:08Z
+Format: 48000:16:2
+Artist: Thom Yorke
+Title: Impossible Knots
+Album: ANIMA
+Track: 8
+Genre: Electronica
+Time: 260
+duration: 259.933
+file: Thom Yorke/ANIMA/009 Runwayaway.mp3
+Last-Modified: 2025-09-17T18:17:50Z
+Added: 2025-12-22T18:29:09Z
+Format: 48000:16:2
+Artist: Thom Yorke
+Title: Runwayaway
+Album: ANIMA
+Track: 9
+Genre: Electronica
+Time: 357
+duration: 356.773
+OK

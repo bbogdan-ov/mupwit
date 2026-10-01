@@ -52,6 +52,11 @@ libs:
 check:
 	@odin check src $(FLAGS)
 
+test:
+	@odin test src -out:build/test -debug $(FLAGS) \
+		-define:ODIN_TEST_SHORT_LOGS=true \
+		-define:ODIN_TEST_LOG_LEVEL="info"
+
 fmt:
 	@odinfmt src/ -w > /dev/null
 	@odinfmt prebuild/ -w > /dev/null

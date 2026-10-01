@@ -39,7 +39,7 @@ albums_ui_update :: proc(state: ^State, dt: Seconds) {
 	if has_hovering && ui.is_double_clicked(.Left) {
 		item := &self.list.items[hovering]
 		album := state.player.albums[item.album_index]
-		player_play_album(&state.player, mpd.album_name(album))
+		player_play_album(state.player, mpd.album_name(album))
 	}
 }
 
@@ -107,15 +107,7 @@ album_ui_list_item_update :: proc(
 	album := state.player.albums[item.album_index]
 	song := mpd.album_first_song(album)
 
-	cover_loader_update(
-		&state.player,
-		&item.loader,
-		song.file,
-		song.album,
-		.Medium,
-		is_in_view,
-		dt,
-	)
+	cover_loader_update(state.player, &item.loader, song.file, song.album, .Medium, is_in_view, dt)
 }
 
 album_item_destroy :: proc(item: ^Album_Item) {

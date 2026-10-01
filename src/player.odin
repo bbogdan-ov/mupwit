@@ -43,15 +43,18 @@ Switch_Direction :: enum {
 	Previous,
 }
 
-// Player state shared between threads. All fields are thread-safe.
-Player_Shared :: struct {
-	commands:           Commands_Chan,
-	responses:          Responses_Chan,
-	covers_thread_pool: Mutex(thread.Pool),
-	allocator:          runtime.Allocator,
+Source_Loc :: runtime.Source_Code_Location
+
+// Using `any` so it is a bit more type-safe than `rawptr`.
+Player_VTable :: struct #all_or_none {
+	create:        proc(allocator: runtime.Allocator, loc: Source_Loc) -> ^Base_Player,
+	connect:       proc(p: rawptr, loc: Source_Loc),
+	destroy:       proc(p: rawptr, loc: Source_Loc),
+	send_command:  proc(p: rawptr, cmd: Player_Command, loc: Source_Loc),
+	recv_response: proc(p: rawptr, loc: Source_Loc) -> (res: Player_Response, ok: bool),
 }
 
-Player :: struct {
+Base_Player :: struct {
 	// Playback state.
 	playstate:            mpd.Play_State,
 	elapsed, duration:    Seconds,
@@ -75,6 +78,7 @@ Player :: struct {
 	// In which direction current song was skipped.
 	switch_direction:     Switch_Direction,
 	history:              History,
+	_status_req_timer:    Seconds,
 
 	// Cache.
 	_covers_cache:        Covers_Cache,
@@ -87,26 +91,88 @@ Player :: struct {
 		history_dont_push_next:   bool | 1,
 	},
 
-	// Client state.
-	_shared:              Player_Shared,
-	_client_thread:       ^thread.Thread,
-	_status_req_timer:    Seconds,
-
 	//
+	vtable:               ^Player_VTable,
 	allocator:            runtime.Allocator,
 }
 
-player_init :: proc(player: ^Player, allocator := context.allocator) {
-	player.allocator = allocator
-	player._shared.allocator = allocator
+// Player state shared between threads. All fields are thread-safe.
+Player_Shared :: struct {
+	commands:           Commands_Chan,
+	responses:          Responses_Chan,
+	covers_thread_pool: Mutex(thread.Pool),
+	allocator:          runtime.Allocator,
+}
 
-	player._client_thread = thread.create(_do_connect)
-	player._client_thread.data = &player._shared
+Player :: struct {
+	using base:     Base_Player,
+
+	// Client state.
+	_shared:        Player_Shared,
+	_client_thread: ^thread.Thread,
+}
+
+@(rodata)
+PLAYER_DEFAULT_VTABLE := Player_VTable {
+	create        = _player_default_create,
+	connect       = _player_default_connect,
+	destroy       = _player_default_destroy,
+	send_command  = _player_default_send_command,
+	recv_response = _player_default_recv_response,
+}
+
+player_create :: proc(allocator := context.allocator, loc := #caller_location) -> ^Base_Player {
+	return player_create_with(&PLAYER_DEFAULT_VTABLE, allocator, loc)
+}
+
+player_create_with :: proc(
+	vtable: ^Player_VTable,
+	allocator := context.allocator,
+	loc := #caller_location,
+) -> ^Base_Player {
+	player := vtable.create(allocator, loc)
 
 	covers_cache_init(&player._covers_cache, player.allocator)
 	history_init(&player.history, allocator)
 
 	player._album_pool = make([dynamic]mpd.Album_Index, allocator)
+
+	return player
+}
+
+player_connect :: proc(player: ^Base_Player, loc := #caller_location) {
+	player.vtable.connect(player, loc)
+
+	player_request_status(player)
+	player_request_queue(player)
+	player_request_albums(player)
+}
+
+player_destroy :: proc(player: ^Base_Player, loc := #caller_location) {
+	_player_send(player, Command_Disconnect{})
+
+	player.vtable.destroy(player, loc)
+
+	covers_cache_destroy(&player._covers_cache)
+	history_destroy(&player.history)
+
+	mpd.song_list_destroy(&player.queue)
+	mpd.album_list_destroy(player.albums)
+	_player_set_last_played_song(player, nil)
+	delete(player._album_pool)
+
+	free(player, player.allocator)
+}
+
+_player_default_create :: proc(allocator: runtime.Allocator, loc: Source_Loc) -> ^Base_Player {
+	player := new(Player, allocator, loc)
+
+	player.vtable = &PLAYER_DEFAULT_VTABLE
+	player.allocator = allocator
+
+	player._shared.allocator = player.allocator
+	player._client_thread = thread.create(_do_connect)
+	player._client_thread.data = &player._shared
 
 	{
 		mutex := &player._shared.covers_thread_pool
@@ -127,20 +193,19 @@ player_init :: proc(player: ^Player, allocator := context.allocator) {
 		assert(err == nil) // TODO: handle error.
 		player._shared.responses = Responses_Chan(ch)
 	}
+
+	return player
 }
 
-player_connect :: proc(player: ^Player) {
+_player_default_connect :: proc(player: rawptr, loc: Source_Loc) {
+	player := cast(^Player)player
 	assert(player._client_thread != nil)
 
 	thread.start(player._client_thread)
-
-	player_request_status(player)
-	player_request_queue(player)
-	player_request_albums(player)
 }
 
-player_destroy :: proc(player: ^Player) {
-	_player_send(player, Command_Disconnect{})
+_player_default_destroy :: proc(player: rawptr, loc: Source_Loc) {
+	player := cast(^Player)player
 
 	thread.join(player._client_thread)
 	thread.destroy(player._client_thread)
@@ -160,19 +225,27 @@ player_destroy :: proc(player: ^Player) {
 		thread.pool_destroy(pool)
 	}
 
-	covers_cache_destroy(&player._covers_cache)
-	history_destroy(&player.history)
-
-	mpd.song_list_destroy(&player.queue)
-	mpd.album_list_destroy(player.albums)
-	_player_set_last_played_song(player, nil)
-	delete(player._album_pool)
-
 	chan.destroy(&player._shared.commands)
 	chan.destroy(&player._shared.responses)
 }
 
-player_update :: proc(player: ^Player, dt: Seconds) {
+_player_default_send_command :: proc(player: rawptr, cmd: Player_Command, loc: Source_Loc) {
+	player := cast(^Player)player
+	chan.send(player._shared.commands, cmd)
+}
+
+_player_default_recv_response :: proc(
+	player: rawptr,
+	loc: Source_Loc,
+) -> (
+	res: Player_Response,
+	ok: bool,
+) {
+	player := cast(^Player)player
+	return chan.try_recv(player._shared.responses)
+}
+
+player_update :: proc(player: ^Base_Player, dt: Seconds) {
 	if player._queue_history_timer > 0 {
 		player._queue_history_timer -= dt
 	}
@@ -183,13 +256,11 @@ player_update :: proc(player: ^Player, dt: Seconds) {
 		player._status_req_timer = STATUS_REQUEST_INVERVAL
 	}
 
-	for response in chan.try_recv(player._shared.responses) {
-		_player_handle_response(player, response)
-	}
+	_player_handle_responses(player)
 }
 
 // TODO!: save previous player state in the history whenever it changes outside of the app.
-_player_set_status :: proc(player: ^Player, status: mpd.Status) {
+_player_set_status :: proc(player: ^Base_Player, status: mpd.Status) {
 	player.playstate = status.playstate
 	player.elapsed = Seconds(status.elapsed)
 	player.duration = Seconds(status.duration)
@@ -233,7 +304,9 @@ _player_set_status :: proc(player: ^Player, status: mpd.Status) {
 			player.switch_direction = .Previous
 		}
 
-		on_cur_song_updated(prev_index, prev_id)
+		// TODO!!: make a proper "event system" for changes, so this code becomes more testable.
+		// `when !ODIN_TEST` is a crutch for now.
+		when !ODIN_TEST do on_cur_song_updated(prev_index, prev_id)
 	}
 
 	if queue_chagned {
@@ -242,10 +315,10 @@ _player_set_status :: proc(player: ^Player, status: mpd.Status) {
 		_player_queue_calc_elapsed(player)
 	}
 
-	on_status_updated()
+	when !ODIN_TEST do on_status_updated()
 }
 
-_player_set_last_played_song :: proc(player: ^Player, song: Maybe(mpd.Song)) {
+_player_set_last_played_song :: proc(player: ^Base_Player, song: Maybe(mpd.Song)) {
 	if last, ok := player.last_played_song.?; ok {
 		mpd.song_destroy(last)
 	}
@@ -256,7 +329,7 @@ _player_set_last_played_song :: proc(player: ^Player, song: Maybe(mpd.Song)) {
 	}
 }
 
-_player_set_queue :: proc(player: ^Player, queue: mpd.Song_List) {
+_player_set_queue :: proc(player: ^Base_Player, queue: mpd.Song_List) {
 	queue := queue
 
 	if player._req_flags.ignore_next_queue_update {
@@ -291,10 +364,10 @@ _player_set_queue :: proc(player: ^Player, queue: mpd.Song_List) {
 		player.cur_song = nil
 	}
 
-	on_queue_updated_by_external()
+	when !ODIN_TEST do on_queue_updated_by_external()
 }
 
-_player_set_albums :: proc(player: ^Player, albums: mpd.Album_List) {
+_player_set_albums :: proc(player: ^Base_Player, albums: mpd.Album_List) {
 	// TODO!: auto update albums when MPD database changes.
 	mpd.album_list_destroy(player.albums)
 
@@ -314,10 +387,10 @@ _player_set_albums :: proc(player: ^Player, albums: mpd.Album_List) {
 	}
 	player._album_pool_drained = 0
 
-	on_album_list_updated()
+	when !ODIN_TEST do on_album_list_updated()
 }
 
-_player_queue_calc_duration_and_elapsed :: proc(player: ^Player) {
+_player_queue_calc_duration_and_elapsed :: proc(player: ^Base_Player) {
 	player.queue_elapsed = 0
 
 	cur := player.cur_song.? or_else 0
@@ -331,7 +404,7 @@ _player_queue_calc_duration_and_elapsed :: proc(player: ^Player) {
 	}
 }
 
-_player_queue_calc_elapsed :: proc(player: ^Player) {
+_player_queue_calc_elapsed :: proc(player: ^Base_Player) {
 	player.queue_elapsed = 0
 
 	cur, ok := player.cur_song.?
@@ -399,12 +472,12 @@ _player_handle_changes :: proc(
 	return nil
 }
 
-player_progress :: proc(player: ^Player) -> f32 {
+player_progress :: proc(player: ^Base_Player) -> f32 {
 	if player.duration <= 0 do return 0.0
 	return f32(player.elapsed / player.duration)
 }
 
-player_cur_song :: proc(player: ^Player) -> (song: ^mpd.Song, ok: bool) {
+player_cur_song :: proc(player: ^Base_Player) -> (song: ^mpd.Song, ok: bool) {
 	if len(player.queue) > 0 {
 		index := player.cur_song.? or_return
 		song = &player.queue[index]
@@ -412,7 +485,7 @@ player_cur_song :: proc(player: ^Player) -> (song: ^mpd.Song, ok: bool) {
 	}
 	return
 }
-player_cur_or_last_song :: proc(player: ^Player) -> (song: ^mpd.Song, ok: bool) {
+player_cur_or_last_song :: proc(player: ^Base_Player) -> (song: ^mpd.Song, ok: bool) {
 	song, ok = player_cur_song(player)
 	if ok do return
 	return &player.last_played_song.?

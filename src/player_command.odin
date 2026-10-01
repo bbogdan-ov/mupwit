@@ -105,7 +105,7 @@ _command_destroy :: proc(command: Player_Command, loc := #caller_location) {
 	}
 }
 
-_player_send :: proc(player: ^Player, command: Player_Command) {
+_player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #caller_location) {
 	#partial switch cmd in command {
 	case Command_Play:
 		player.playstate = .Play
@@ -137,7 +137,7 @@ _player_send :: proc(player: ^Player, command: Player_Command) {
 		player._req_flags.ignore_next_queue_update = true
 		// Duration shouldn't change, but just in case.
 		_player_queue_calc_duration_and_elapsed(player)
-		on_song_reordered(cmd.from, cmd.to)
+		when !ODIN_TEST do on_song_reordered(cmd.from, cmd.to)
 
 	case Command_Remove_Song:
 		{
@@ -162,7 +162,7 @@ _player_send :: proc(player: ^Player, command: Player_Command) {
 
 		player._req_flags.ignore_next_queue_update = true
 		_player_queue_calc_duration_and_elapsed(player)
-		on_song_removed(cmd.index)
+		when !ODIN_TEST do on_song_removed(cmd.index)
 
 	case Command_Add_Song:
 		_player_history_push(player, Command_Remove_Song{cmd.index})
@@ -174,7 +174,7 @@ _player_send :: proc(player: ^Player, command: Player_Command) {
 		_player_history_push(player, c)
 	}
 
-	chan.send(player._shared.commands, command)
+	player.vtable.send_command(player, command, loc)
 }
 
 // ------------------------------
@@ -182,7 +182,7 @@ _player_send :: proc(player: ^Player, command: Player_Command) {
 // Functions to use outside of `player_*` files.
 // ------------------------------
 
-player_play_or_resume :: proc(player: ^Player) {
+player_play_or_resume :: proc(player: ^Base_Player) {
 	switch player.playstate {
 	case .Play:
 	case .Pause:
@@ -191,33 +191,33 @@ player_play_or_resume :: proc(player: ^Player) {
 		_player_send(player, Command_Play{})
 	}
 }
-player_pause :: proc(player: ^Player) {
+player_pause :: proc(player: ^Base_Player) {
 	if player.playstate == .Play {
 		_player_send(player, Command_Pause{})
 	}
 }
-player_toggle_play :: proc(player: ^Player) {
+player_toggle_play :: proc(player: ^Base_Player) {
 	if player.playstate == .Play {
 		player_pause(player)
 	} else {
 		player_play_or_resume(player)
 	}
 }
-player_next :: proc(player: ^Player) {
+player_next :: proc(player: ^Base_Player) {
 	if player.cur_song == nil do return
 	_player_send(player, Command_Next{})
 }
-player_previous :: proc(player: ^Player) {
+player_previous :: proc(player: ^Base_Player) {
 	if player.cur_song == nil do return
 	_player_send(player, Command_Previous{})
 }
 
-player_play_song :: proc(player: ^Player, index: mpd.Song_Index, force := false) {
+player_play_song :: proc(player: ^Base_Player, index: mpd.Song_Index, force := false) {
 	if !force && player.cur_song == index do return
 	_player_send(player, Command_Play_Song{index, 0})
 }
 
-player_seek :: proc(player: ^Player, seconds: Seconds) {
+player_seek :: proc(player: ^Base_Player, seconds: Seconds) {
 	if player.cur_song == nil do return
 
 	// Update local elapsed time so the slider doesn't jump untill player
@@ -241,41 +241,44 @@ player_seek :: proc(player: ^Player, seconds: Seconds) {
 	}
 }
 
-player_seek_percent :: proc(player: ^Player, percent: f32) {
+player_seek_percent :: proc(player: ^Base_Player, percent: f32) {
 	secs := Seconds(percent) * player.duration
 	player_seek(player, secs)
 }
 
-player_reorder_song :: proc(player: ^Player, from, to: mpd.Song_Index) {
+player_reorder_song :: proc(player: ^Base_Player, from, to: mpd.Song_Index) {
 	if from == to do return
 	_player_send(player, Command_Reorder_Song{from, to})
 }
 
-player_remove_song :: proc(player: ^Player, index: mpd.Song_Index) {
+player_remove_song :: proc(player: ^Base_Player, index: mpd.Song_Index) {
 	assert(0 <= index && int(index) < len(player.queue))
 	_player_send(player, Command_Remove_Song{index})
 }
 
-player_shuffle_queue :: proc(player: ^Player) {
+player_shuffle_queue :: proc(player: ^Base_Player) {
 	if len(player.queue) <= 1 do return
 	_player_send(player, Command_Shuffle_Queue{})
 }
-player_clear_queue :: proc(player: ^Player) {
+player_clear_queue :: proc(player: ^Base_Player) {
 	if len(player.queue) == 0 do return
 	_player_send(player, Command_Clear_Queue{})
 }
 
-player_make_cmd_play_album :: proc(player: ^Player, name: mpd.Album_Name) -> Command_Play_Album {
+player_make_cmd_play_album :: proc(
+	player: ^Base_Player,
+	name: mpd.Album_Name,
+) -> Command_Play_Album {
 	return Command_Play_Album {
 		name = strings.clone(name, player.allocator),
 		allocator = player.allocator,
 	}
 }
-player_play_album :: proc(player: ^Player, name: mpd.Album_Name) {
+player_play_album :: proc(player: ^Base_Player, name: mpd.Album_Name) {
 	_player_send(player, player_make_cmd_play_album(player, name))
 }
 
-player_play_random_album :: proc(player: ^Player) {
+player_play_random_album :: proc(player: ^Base_Player) {
 	drained := player._album_pool_drained
 	if drained == 0 || drained >= len(player._album_pool) {
 		rand.shuffle(player._album_pool[:])
@@ -290,7 +293,7 @@ player_play_random_album :: proc(player: ^Player) {
 }
 
 player_make_cmd_add_song :: proc(
-	player: ^Player,
+	player: ^Base_Player,
 	file: mpd.Song_File,
 	index: mpd.Song_Index,
 	play := false,
@@ -298,12 +301,12 @@ player_make_cmd_add_song :: proc(
 	file := strings.clone(string(file), player.allocator)
 	return Command_Add_Song{mpd.Song_File(file), index, play, player.allocator}
 }
-player_add_song :: proc(player: ^Player, file: mpd.Song_File, index: mpd.Song_Index) {
+player_add_song :: proc(player: ^Base_Player, file: mpd.Song_File, index: mpd.Song_Index) {
 	_player_send(player, player_make_cmd_add_song(player, file, index))
 }
 
 player_make_cmd_set_queue_from_songs :: proc(
-	player: ^Player,
+	player: ^Base_Player,
 	songs: []mpd.Song,
 ) -> Command_Set_Queue {
 	files := make([]mpd.Song_File, len(songs), player.allocator)
@@ -314,18 +317,18 @@ player_make_cmd_set_queue_from_songs :: proc(
 	return Command_Set_Queue{files = files, allocator = player.allocator}
 }
 
-player_request_status :: proc(player: ^Player) {
+player_request_status :: proc(player: ^Base_Player) {
 	_player_send(player, Command_Request_Status{})
 }
-player_request_queue :: proc(player: ^Player) {
+player_request_queue :: proc(player: ^Base_Player) {
 	_player_send(player, Command_Request_Queue{})
 }
-player_request_albums :: proc(player: ^Player) {
+player_request_albums :: proc(player: ^Base_Player) {
 	_player_send(player, Command_Request_Albums{})
 }
 
 player_request_cover :: proc(
-	player: ^Player,
+	player: ^Base_Player,
 	file: mpd.Song_File,
 	album: mpd.Album_Name,
 	size: Cover_Size,

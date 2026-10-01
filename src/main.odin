@@ -1,3 +1,5 @@
+#+vet explicit-allocators
+
 package mupwit
 
 import "core:log"
@@ -27,7 +29,7 @@ Theme :: struct {
 
 State :: struct {
 	window:       ^win.Window,
-	player:       Player,
+	player:       ^Base_Player,
 	commands:     Commands,
 	screen:       Screen,
 	prev_screen:  Screen,
@@ -74,9 +76,9 @@ main :: proc() {
 	assets_load(&state)
 	defer assets_destroy(&state)
 
-	player_init(&state.player)
-	player_connect(&state.player)
-	defer player_destroy(&state.player)
+	state.player = player_create(context.allocator)
+	player_connect(state.player)
+	defer player_destroy(state.player)
 
 	commands_init(&state.commands)
 	defer commands_destroy(&state.commands)
@@ -101,7 +103,7 @@ update :: proc(dt: Seconds) {
 
 	update_theme(dt)
 
-	player_update(&state.player, dt)
+	player_update(state.player, dt)
 
 	status_ui_update(&state, dt)
 	queue_ui_update(&state, dt)
@@ -234,7 +236,7 @@ is_ctrl_shift_key :: win.is_ctrl_shift_key
 on_keyboard_key :: proc(ev: Key_Event) -> bool {
 	if ev.state != .Pressed && ev.state != .Repeated do return true
 
-	player := &state.player
+	player := state.player
 	press := ev.state == .Pressed
 
 	// All `*_on_keyboard_key` listeners should return `true` whenever they
@@ -270,7 +272,7 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 		player_redo(player)
 
 	case is_key(ev, .F1):
-		player_play_random_album(&state.player)
+		player_play_random_album(state.player)
 	}
 
 	return true

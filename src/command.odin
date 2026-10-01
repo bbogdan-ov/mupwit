@@ -113,7 +113,7 @@ command_execute_from_name :: proc(state: ^State, name: string) -> (ok: bool) {
 }
 
 command_execute :: proc(state: ^State, cmd: Command) {
-	player := &state.player
+	player := state.player
 
 	switch cmd {
 	case .None: // Do nothing.

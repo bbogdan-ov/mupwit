@@ -2,7 +2,6 @@
 
 package mpd
 
-import "core:fmt"
 import "core:log"
 import "core:strings"
 import "core:time"
@@ -107,14 +106,11 @@ request_queue :: proc(
 
 	send_const(client, "playlistid", loc) or_return
 	parser := recv_and_parse(client, allocator, loc) or_return
-	defer parser_destroy(parser, allocator)
+	defer parser_destroy(parser, allocator, loc)
 
 	// TODO!: do not rebuild the whole queue but only songs that changed.
 	parse_start := time.now()
-	queue = make(Song_List, len = 0, cap = 64, allocator = allocator)
-	for song in parser_next_song(&parser, allocator) {
-		append(&queue, song)
-	}
+	queue = parser_next_song_list(&parser, allocator, loc)
 
 	log.debugf(
 		"MPD: Received queue of %v songs in %v, parsed in %v",
@@ -211,52 +207,7 @@ request_albums :: proc(
 	parser := recv_and_parse(client, context.allocator, loc) or_return
 	defer parser_destroy(parser, context.allocator)
 
-	albums = make(Album_List, allocator)
-
-	cur_album: string
-	cur_artist: string
-	album: Album
-
-	@(static) first := true
-
-	// TODO: `parser_next_song` should not probably allocate song right away,
-	// instead it should return song with strings sliced from the parser's
-	// string and then the user of this function can decide when to clone this
-	// song into the heap.
-	for song in parser_next_song(&parser, allocator, loc) {
-		if first && len(song.file) == 0 {
-			fmt.println("-----")
-			fmt.printfln("offset: %v, %v", parser.offset, len(parser.s))
-			fmt.println("-----")
-			fmt.println(parser.s[parser.offset:])
-			fmt.println("-----")
-			fmt.println(parser.s)
-			fmt.println("-----")
-			first = false
-		}
-
-		if len(song.album) == 0 {
-			song_destroy(song)
-			continue
-		}
-
-		if song.album != cur_album || song.artist != cur_artist {
-			if album.songs != nil && len(album.songs) > 0 {
-				append(&albums, album)
-			}
-
-			album = {}
-			album.songs = make(Song_List, allocator)
-			cur_album = song.album
-			cur_artist = song.artist
-		}
-
-		append(&album.songs, song)
-	}
-
-	if album.songs != nil && len(album.songs) > 0 {
-		append(&albums, album)
-	}
+	albums = parser_next_album_list(&parser, allocator, loc)
 
 	log.debugf(
 		"MPD: Received album list of %v albums in %v",

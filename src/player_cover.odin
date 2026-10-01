@@ -126,7 +126,7 @@ covers_cache_destroy :: proc(cache: ^Covers_Cache) {
 }
 
 cover_get :: proc(
-	player: ^Player,
+	player: ^Base_Player,
 	file: mpd.Song_File,
 	album: mpd.Album_Name,
 	size: Cover_Size,
@@ -146,7 +146,7 @@ cover_get :: proc(
 // If the cover is not cached, requests it, creates, caches and returns an
 // empty one which will be updated upon receiving cover surface.
 cover_get_or_request :: proc(
-	player: ^Player,
+	player: ^Base_Player,
 	file: mpd.Song_File,
 	album: mpd.Album_Name,
 	size: Cover_Size,
@@ -180,7 +180,7 @@ cover_get_or_request :: proc(
 	return cover
 }
 
-_player_handle_cover_response :: proc(player: ^Player, res: Response_Cover) {
+_player_handle_cover_response :: proc(player: ^Base_Player, res: Response_Cover) {
 	has_entry, loading: bool
 	block: {
 		entry: ^Cover_Cache_Entry
@@ -242,7 +242,7 @@ Cover_Loader :: struct {
 }
 
 cover_loader_update :: proc(
-	player: ^Player,
+	player: ^Base_Player,
 	loader: ^Cover_Loader,
 	file: mpd.Song_File,
 	album: mpd.Album_Name,

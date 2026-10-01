@@ -117,29 +117,41 @@ Song :: struct {
 
 Song_List :: distinct [dynamic]Song
 
-song_clone :: proc(song: Song, allocator := context.allocator) -> Song {
+song_clone :: proc(song: Song, allocator := context.allocator, loc := #caller_location) -> Song {
 	sclone :: strings.clone
 
 	s := song
 	s.allocator = allocator
-	s.file = Song_File(sclone(string(song.file), s.allocator))
-	s.artist = sclone(song.artist, s.allocator)
-	s.title = sclone(song.title, s.allocator)
-	s.album = sclone(song.album, s.allocator)
-	s.date = sclone(song.date, s.allocator)
-	s.genre = sclone(song.genre, s.allocator)
-	s.duration_str = sclone(song.duration_str, s.allocator)
+	s.file = Song_File(sclone(string(song.file), s.allocator, loc))
+	s.artist = sclone(song.artist, s.allocator, loc)
+	s.title = sclone(song.title, s.allocator, loc)
+	s.album = sclone(song.album, s.allocator, loc)
+	s.date = sclone(song.date, s.allocator, loc)
+	s.genre = sclone(song.genre, s.allocator, loc)
+	s.duration_str = sclone(song.duration_str, s.allocator, loc)
 	return s
 }
 
-song_destroy :: proc(song: Song) {
-	delete(string(song.file), song.allocator)
-	delete(song.artist, song.allocator)
-	delete(song.title, song.allocator)
-	delete(song.album, song.allocator)
-	delete(song.date, song.allocator)
-	delete(song.genre, song.allocator)
-	delete(song.duration_str, song.allocator)
+song_destroy :: proc(song: Song, loc := #caller_location) {
+	delete(string(song.file), song.allocator, loc)
+	delete(song.artist, song.allocator, loc)
+	delete(song.title, song.allocator, loc)
+	delete(song.album, song.allocator, loc)
+	delete(song.date, song.allocator, loc)
+	delete(song.genre, song.allocator, loc)
+	delete(song.duration_str, song.allocator, loc)
+}
+
+song_list_clone :: proc(
+	list: []Song,
+	allocator := context.allocator,
+	loc := #caller_location,
+) -> Song_List {
+	cloned := make(Song_List, len(list), allocator, loc)
+	for song, i in list {
+		cloned[i] = song_clone(song, song.allocator, loc)
+	}
+	return cloned
 }
 
 // Destroy all songs inside a list and `clear()` it.
@@ -186,9 +198,29 @@ album_first_song :: proc(album: Album) -> ^Song #no_bounds_check {
 	return &album.songs[0]
 }
 
+album_clone :: proc(
+	album: Album,
+	allocator := context.allocator,
+	loc := #caller_location,
+) -> Album {
+	return {songs = song_list_clone(album.songs[:], allocator, loc)}
+}
+
 album_destroy :: proc(album: ^Album) {
 	song_list_destroy(&album.songs)
 	album.songs = nil
+}
+
+album_list_clone :: proc(
+	list: []Album,
+	allocator := context.allocator,
+	loc := #caller_location,
+) -> Album_List {
+	cloned := make(Album_List, len(list), allocator, loc)
+	for album, i in list {
+		cloned[i] = album_clone(album, album.songs.allocator, loc)
+	}
+	return cloned
 }
 
 album_list_destroy :: proc(list: Album_List) {
