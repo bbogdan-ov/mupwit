@@ -8,7 +8,9 @@
 //
 // `Player` is also responsible for managing the cache of song covers.
 //
-// Any `player_*`, `cover_*` function is safe to use inside the main thread.
+// Any `player_*`, `cover_*` functions are safe to use inside the main thread.
+// Functions that accept the `Player_Shared` struct (not the whole player
+// struct), are being ran on a separate thread.
 //
 
 // FIXME!!!: MUPWIT may freeze if queue changes too quickly.
@@ -17,8 +19,6 @@
 // thread freezes. Net-programming is fucking hard...
 // May be i should implement some kind of debounce to not request the queue
 // info right after it being changed?
-
-// TODO: undo histroy.
 
 package mupwit
 
@@ -248,12 +248,8 @@ player_update :: proc(player: ^Base_Player, dt: Seconds) {
 
 // TODO!: save previous player state in the history whenever it changes outside of the app.
 _player_set_status :: proc(player: ^Base_Player, status: mpd.Status) {
-	player.playstate = status.playstate
-	player.elapsed = Seconds(status.elapsed)
-	player.duration = Seconds(status.duration)
-
-	prev_index := player.cur_song
-	prev_id := player.cur_song_id
+	prev_song := player.cur_song
+	prev_song_id := player.cur_song_id
 	if status.cur_song_id > 0 && len(player.queue) > 0 {
 		player.cur_song = status.cur_song_index
 		player.cur_song_id = status.cur_song_id
@@ -262,28 +258,22 @@ _player_set_status :: proc(player: ^Base_Player, status: mpd.Status) {
 		player.cur_song_id = nil
 	}
 
-	queue_chagned := false
-	if player._queue_version != status.queue_version {
-		queue_chagned = true
-		player._queue_version = status.queue_version
-	}
-
-	prev, has_prev := prev_index.?
-	cur, has_cur := player.cur_song.?
-
-	song_changed := player.cur_song_id != prev_id
+	song_changed := player.cur_song_id != prev_song_id
+	queue_changed := player._queue_version != status.queue_version
 
 	if song_changed {
+		prev, has_prev := prev_song.?
+		cur, has_cur := player.cur_song.?
+
 		if has_cur && !has_prev {
 			player.switch_direction = .From_None
 		} else if !has_cur && has_prev {
 			player.switch_direction = .To_None
 
 			if len(player.queue) > 0 {
-				prev_song := player.queue[prev]
-				_player_set_last_played_song(player, prev_song)
+				_player_set_last_played_song(player, player.queue[prev])
 			}
-		} else if queue_chagned {
+		} else if queue_changed {
 			player.switch_direction = .Next
 		} else if cur > prev {
 			player.switch_direction = .Next
@@ -291,12 +281,21 @@ _player_set_status :: proc(player: ^Base_Player, status: mpd.Status) {
 			player.switch_direction = .Previous
 		}
 
-		// TODO!!: make a proper "event system" for changes, so this code becomes more testable.
-		// `when !ODIN_TEST` is a crutch for now.
-		when !ODIN_TEST do on_cur_song_updated(prev_index, prev_id)
+		log.debugf("PLAYER: Current song changed: %v -> %v", prev_song, player.cur_song)
 	}
 
-	if queue_chagned {
+	player._queue_version = status.queue_version
+	player.playstate = status.playstate
+	player.elapsed = Seconds(status.elapsed)
+	player.duration = Seconds(status.duration)
+
+	if song_changed {
+		// TODO!!: make a proper "event system" for changes, so this code becomes more testable.
+		// `when !ODIN_TEST` is a crutch for now.
+		when !ODIN_TEST do on_cur_song_updated(prev_song, prev_song_id)
+	}
+
+	if queue_changed {
 		_player_queue_calc_duration_and_elapsed(player)
 	} else if song_changed {
 		_player_queue_calc_elapsed(player)
@@ -331,11 +330,8 @@ _player_set_queue :: proc(player: ^Base_Player, queue: mpd.Song_List) {
 	mpd.song_list_destroy(&player.queue)
 	player.queue = queue
 
-	// TODO!!: refactor update of the current song index into a function.
-	cur, has_cur := player.cur_song.?
-	if has_cur && int(cur) >= len(player.queue) {
-		player.cur_song = nil
-	}
+	_player_clamp_cur_song(player)
+	_player_queue_calc_duration_and_elapsed(player)
 
 	when !ODIN_TEST do on_queue_updated()
 }
@@ -386,6 +382,13 @@ _player_queue_calc_elapsed :: proc(player: ^Base_Player) {
 	for song, i in player.queue {
 		if i >= int(cur) do break
 		player.queue_elapsed += Seconds(song.duration)
+	}
+}
+
+_player_clamp_cur_song :: proc(player: ^Base_Player) {
+	cur, ok := player.cur_song.?
+	if ok && !within(int(cur), 0, len(player.queue)) {
+		player.cur_song = nil
 	}
 }
 

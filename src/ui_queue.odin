@@ -226,7 +226,7 @@ queue_ui_on_cur_song_updated :: proc(state: ^State, prev_index: Maybe(mpd.Song_I
 queue_ui_on_song_reordered :: proc(state: ^State, from, to: mpd.Song_Index) {
 	from, to := ui.Item_Index(from), ui.Item_Index(to)
 
-	log.debugf("QUEUE UI: Song reordered: %v -> %v", from, to)
+	log.debugf("UI QUEUE: Song reordered: %v -> %v", from, to)
 
 	start, end := ui.range_sort(from, to)
 	if self.list_just_reordered {
@@ -255,7 +255,7 @@ queue_ui_on_song_reordered :: proc(state: ^State, from, to: mpd.Song_Index) {
 		}
 
 		item.song_index = mpd.Song_Index(index)
-		// NOTE: reset cover so it can be requested for the updated song on the next frame.
+		// NOTE: reset the cover so it can be requested on the next frame.
 		cover_maybe_unref(item.loader.cover)
 		item.loader.cover = nil
 	}

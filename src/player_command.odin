@@ -46,8 +46,6 @@ Command_Remove_Song :: struct {
 }
 Command_Shuffle_Queue :: struct {}
 Command_Clear_Queue :: struct {}
-// TODO!: should save only the previous album name in the history intead of the
-// whole queue.
 Command_Play_Album :: struct {
 	name:      mpd.Album_Name,
 	allocator: runtime.Allocator `fmt:"-"`,
@@ -151,12 +149,12 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 
 		cur_song, has_cur_song := player.cur_song.?
 		if has_cur_song {
-			if cur_song == cmd.index && int(cur_song) >= len(player.queue) - 1 {
-				// TODO!!: refactor update of the current song index into a function.
+			if cur_song == cmd.index {
 				player.cur_song = nil
 			} else if cur_song > cmd.index {
 				player.cur_song = cur_song - 1
 			}
+			_player_clamp_cur_song(player)
 		}
 
 		_player_queue_calc_duration_and_elapsed(player)
@@ -166,6 +164,8 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 		_player_history_push(player, Command_Remove_Song{cmd.index})
 
 	case Command_Set_Queue, Command_Play_Album:
+		// TODO!: should save only the previous album name (when sending
+		// `Command_Play_Album`) in the history intead of the whole queue.
 		c := player_make_cmd_set_queue_from_songs(player, player.queue[:])
 		c.play = player.cur_song
 		c.seek = player.elapsed
