@@ -39,7 +39,7 @@ albums_ui_update :: proc(state: ^State, dt: Seconds) {
 	if has_hovering && ui.is_double_clicked(.Left) {
 		item := &self.list.items[hovering]
 		album := state.player.albums[item.album_index]
-		player_play_album(state.player, mpd.album_name(album))
+		player_load_album(state.player, mpd.album_name(album))
 	}
 }
 

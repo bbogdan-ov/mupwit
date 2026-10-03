@@ -14,6 +14,8 @@ import "lib:ui"
 // Command.
 // ------------------------------
 
+// Request commands.
+
 Command_Request_Status :: struct {}
 Command_Request_Queue :: struct {}
 Command_Request_Albums :: struct {}
@@ -25,66 +27,80 @@ Command_Request_Cover :: struct {
 	allocator: runtime.Allocator `fmt:"-"`,
 }
 
+// Playback commands.
+
 Command_Play :: struct {}
 Command_Next :: struct {}
 Command_Previous :: struct {}
 Command_Resume :: struct {}
 Command_Pause :: struct {}
 Command_Stop :: struct {}
-Command_Play_Song :: struct {
-	index: mpd.Song_Index,
-	seek:  Seconds,
-}
-Command_Seek_Current :: struct {
+Command_Seek :: struct {
 	seconds: Seconds,
 }
-Command_Reorder_Song :: struct {
-	from, to: mpd.Song_Index,
-}
-Command_Remove_Song :: struct {
-	index: mpd.Song_Index,
-}
-Command_Shuffle_Queue :: struct {}
-Command_Clear_Queue :: struct {}
-Command_Play_Album :: struct {
-	name:      mpd.Album_Name,
-	allocator: runtime.Allocator `fmt:"-"`,
-}
-Command_Add_Song :: struct {
-	file:      mpd.Song_File,
-	index:     mpd.Song_Index,
-	play:      bool,
-	allocator: runtime.Allocator `fmt:"-"`,
-}
-Command_Set_Queue :: struct {
+
+// Queue commands.
+
+Command_Load :: struct {
 	files:     []mpd.Song_File `fmt:"-"`,
 	play:      Maybe(mpd.Song_Index),
 	seek:      Seconds,
 	allocator: runtime.Allocator `fmt:"-"`,
 }
+Command_Load_Album :: struct {
+	name:      mpd.Album_Name,
+	allocator: runtime.Allocator `fmt:"-"`,
+}
+Command_Queue_Play :: struct {
+	index: mpd.Song_Index,
+	seek:  Seconds,
+}
+Command_Queue_Add :: struct {
+	file:      mpd.Song_File,
+	index:     mpd.Song_Index,
+	play:      bool,
+	allocator: runtime.Allocator `fmt:"-"`,
+}
+Command_Queue_Remove :: struct {
+	index: mpd.Song_Index,
+}
+Command_Queue_Reorder :: struct {
+	from, to: mpd.Song_Index,
+}
+Command_Queue_Shuffle :: struct {}
+Command_Queue_Clear :: struct {}
+
+// Misc commands.
 
 Command_Disconnect :: struct {}
 
 Player_Command :: union #no_nil {
+	// Request commands.
 	Command_Request_Status,
 	Command_Request_Queue,
 	Command_Request_Albums,
 	Command_Request_Cover,
+
+	// Playback commands.
 	Command_Play,
 	Command_Next,
 	Command_Previous,
 	Command_Resume,
 	Command_Pause,
 	Command_Stop,
-	Command_Play_Song,
-	Command_Seek_Current,
-	Command_Reorder_Song,
-	Command_Remove_Song,
-	Command_Shuffle_Queue,
-	Command_Clear_Queue,
-	Command_Play_Album,
-	Command_Add_Song,
-	Command_Set_Queue,
+	Command_Seek,
+
+	// Queue commands.
+	Command_Load,
+	Command_Load_Album,
+	Command_Queue_Play,
+	Command_Queue_Add,
+	Command_Queue_Remove,
+	Command_Queue_Reorder,
+	Command_Queue_Shuffle,
+	Command_Queue_Clear,
+
+	// Misc commands.
 	Command_Disconnect,
 }
 
@@ -93,11 +109,11 @@ _command_destroy :: proc(command: Player_Command, loc := #caller_location) {
 	case Command_Request_Cover:
 		delete(string(cmd.file), cmd.allocator, loc)
 		cover_key_delete(cmd.key, cmd.allocator, loc)
-	case Command_Play_Album:
+	case Command_Load_Album:
 		delete(cmd.name, cmd.allocator, loc)
-	case Command_Add_Song:
+	case Command_Queue_Add:
 		delete(string(cmd.file), cmd.allocator, loc)
-	case Command_Set_Queue:
+	case Command_Load:
 		for file in cmd.files do delete(string(file), cmd.allocator, loc)
 		delete(cmd.files, cmd.allocator, loc)
 	}
@@ -114,16 +130,16 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 	case Command_Stop:
 		player.playstate = .Stop
 
-	case Command_Play_Song, Command_Next, Command_Previous:
+	case Command_Queue_Play, Command_Next, Command_Previous:
 		cur := player.cur_song.? or_break
-		_player_history_push(player, Command_Play_Song{cur, player.elapsed})
+		_player_history_push(player, Command_Queue_Play{cur, player.elapsed})
 
-	case Command_Seek_Current:
-		_player_history_push(player, Command_Seek_Current{player.elapsed})
+	case Command_Seek:
+		_player_history_push(player, Command_Seek{player.elapsed})
 		player.elapsed = cmd.seconds
 
-	case Command_Reorder_Song:
-		_player_history_push(player, Command_Reorder_Song{cmd.to, cmd.from})
+	case Command_Queue_Reorder:
+		_player_history_push(player, Command_Queue_Reorder{cmd.to, cmd.from})
 
 		ui.slice_reorder(player.queue[:], int(cmd.from), int(cmd.to))
 
@@ -136,11 +152,14 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 		_player_queue_calc_duration_and_elapsed(player)
 		when !ODIN_TEST do on_song_reordered(cmd.from, cmd.to)
 
-	case Command_Remove_Song:
+	case Command_Queue_Add:
+		_player_history_push(player, Command_Queue_Remove{cmd.index})
+
+	case Command_Queue_Remove:
 		{
 			song := &player.queue[cmd.index]
 			play := player.cur_song == cmd.index
-			c := player_make_cmd_add_song(player, song.file, cmd.index, play)
+			c := cmd_make_queue_add(player, song.file, cmd.index, play)
 			_player_history_push(player, c)
 		}
 
@@ -160,16 +179,10 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 		_player_queue_calc_duration_and_elapsed(player)
 		when !ODIN_TEST do on_song_removed(cmd.index)
 
-	case Command_Add_Song:
-		_player_history_push(player, Command_Remove_Song{cmd.index})
-
-	case Command_Set_Queue, Command_Play_Album:
+	case Command_Load, Command_Load_Album, Command_Queue_Shuffle, Command_Queue_Clear:
 		// TODO!: should save only the previous album name (when sending
 		// `Command_Play_Album`) in the history intead of the whole queue.
-		c := player_make_cmd_set_queue_from_songs(player, player.queue[:])
-		c.play = player.cur_song
-		c.seek = player.elapsed
-		_player_history_push(player, c)
+		_player_history_push_queue(player)
 	}
 
 	player.vtable.send_command(player, command, loc)
@@ -179,6 +192,36 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 // Commands.
 // Functions to use outside of `player_*` files.
 // ------------------------------
+
+// Request commands.
+
+player_request_status :: proc(player: ^Base_Player) {
+	_player_send(player, Command_Request_Status{})
+}
+player_request_queue :: proc(player: ^Base_Player) {
+	_player_send(player, Command_Request_Queue{})
+}
+player_request_albums :: proc(player: ^Base_Player) {
+	_player_send(player, Command_Request_Albums{})
+}
+
+player_request_cover :: proc(
+	player: ^Base_Player,
+	file: mpd.Song_File,
+	album: mpd.Album_Name,
+	size: Cover_Size,
+) {
+	alloc := player.allocator
+
+	// TODO!: add a delay between cover requests after some number of requests
+	// to not overload user's device too much when reqeuesting lots of covers.
+	file := mpd.Song_File(strings.clone(string(file), alloc))
+	key := cover_key_make_cloned(file, album, size, alloc)
+	cmd := Command_Request_Cover{key, file, size, alloc}
+	_player_send(player, cmd)
+}
+
+// Playback commands.
 
 player_play_or_resume :: proc(player: ^Base_Player) {
 	switch player.playstate {
@@ -210,11 +253,6 @@ player_previous :: proc(player: ^Base_Player) {
 	_player_send(player, Command_Previous{})
 }
 
-player_play_song :: proc(player: ^Base_Player, index: mpd.Song_Index, force := false) {
-	if !force && player.cur_song == index do return
-	_player_send(player, Command_Play_Song{index, 0})
-}
-
 player_seek :: proc(player: ^Base_Player, seconds: Seconds) {
 	if player.cur_song == nil do return
 
@@ -230,12 +268,12 @@ player_seek :: proc(player: ^Base_Player, seconds: Seconds) {
 
 	if player.playstate == .Stop {
 		_player_send(player, Command_Play{})
-		_player_send(player, Command_Seek_Current{seconds})
+		_player_send(player, Command_Seek{seconds})
 		// FIXME!: `seek <index> <time>` doesn't seem to do anything?? Well done MPD.
 		// `play` and `seekcur <time>` sequence also doesn't seem to work.
 		// _command_send(player, Command_Seek_Song{index, seconds})
 	} else {
-		_player_send(player, Command_Seek_Current{seconds})
+		_player_send(player, Command_Seek{seconds})
 	}
 }
 
@@ -244,39 +282,16 @@ player_seek_percent :: proc(player: ^Base_Player, percent: f32) {
 	player_seek(player, secs)
 }
 
-player_reorder_song :: proc(player: ^Base_Player, from, to: mpd.Song_Index) {
-	if from == to do return
-	_player_send(player, Command_Reorder_Song{from, to})
+// Queue commands
+
+cmd_make_load_album :: proc(player: ^Base_Player, name: mpd.Album_Name) -> Command_Load_Album {
+	return {name = strings.clone(name, player.allocator), allocator = player.allocator}
+}
+player_load_album :: proc(player: ^Base_Player, name: mpd.Album_Name) {
+	_player_send(player, cmd_make_load_album(player, name))
 }
 
-player_remove_song :: proc(player: ^Base_Player, index: mpd.Song_Index) {
-	assert(0 <= index && int(index) < len(player.queue))
-	_player_send(player, Command_Remove_Song{index})
-}
-
-player_shuffle_queue :: proc(player: ^Base_Player) {
-	if len(player.queue) <= 1 do return
-	_player_send(player, Command_Shuffle_Queue{})
-}
-player_clear_queue :: proc(player: ^Base_Player) {
-	if len(player.queue) == 0 do return
-	_player_send(player, Command_Clear_Queue{})
-}
-
-player_make_cmd_play_album :: proc(
-	player: ^Base_Player,
-	name: mpd.Album_Name,
-) -> Command_Play_Album {
-	return Command_Play_Album {
-		name = strings.clone(name, player.allocator),
-		allocator = player.allocator,
-	}
-}
-player_play_album :: proc(player: ^Base_Player, name: mpd.Album_Name) {
-	_player_send(player, player_make_cmd_play_album(player, name))
-}
-
-player_play_random_album :: proc(player: ^Base_Player) {
+player_load_random_album :: proc(player: ^Base_Player) {
 	drained := player._album_pool_drained
 	if drained == 0 || drained >= len(player._album_pool) {
 		rand.shuffle(player._album_pool[:])
@@ -285,60 +300,56 @@ player_play_random_album :: proc(player: ^Base_Player) {
 
 	index := player._album_pool[player._album_pool_drained]
 	album := player.albums[index]
-	player_play_album(player, mpd.album_name(album))
+	player_load_album(player, mpd.album_name(album))
 
 	player._album_pool_drained += 1
 }
 
-player_make_cmd_add_song :: proc(
-	player: ^Base_Player,
-	file: mpd.Song_File,
-	index: mpd.Song_Index,
-	play := false,
-) -> Command_Add_Song {
-	file := strings.clone(string(file), player.allocator)
-	return Command_Add_Song{mpd.Song_File(file), index, play, player.allocator}
-}
-player_add_song :: proc(player: ^Base_Player, file: mpd.Song_File, index: mpd.Song_Index) {
-	_player_send(player, player_make_cmd_add_song(player, file, index))
-}
-
-player_make_cmd_set_queue_from_songs :: proc(
-	player: ^Base_Player,
-	songs: []mpd.Song,
-) -> Command_Set_Queue {
+cmd_make_load_from_songs :: proc(player: ^Base_Player, songs: []mpd.Song) -> Command_Load {
 	files := make([]mpd.Song_File, len(songs), player.allocator)
 	for song, i in songs {
 		file := strings.clone(string(song.file), player.allocator)
 		files[i] = mpd.Song_File(file)
 	}
-	return Command_Set_Queue{files = files, allocator = player.allocator}
+	return Command_Load{files = files, allocator = player.allocator}
 }
 
-player_request_status :: proc(player: ^Base_Player) {
-	_player_send(player, Command_Request_Status{})
-}
-player_request_queue :: proc(player: ^Base_Player) {
-	_player_send(player, Command_Request_Queue{})
-}
-player_request_albums :: proc(player: ^Base_Player) {
-	_player_send(player, Command_Request_Albums{})
+player_queue_play :: proc(player: ^Base_Player, index: mpd.Song_Index, force := false) {
+	if !force && player.cur_song == index do return
+	_player_send(player, Command_Queue_Play{index, 0})
 }
 
-player_request_cover :: proc(
+cmd_make_queue_add :: proc(
 	player: ^Base_Player,
 	file: mpd.Song_File,
-	album: mpd.Album_Name,
-	size: Cover_Size,
-) {
-	alloc := player.allocator
+	index: mpd.Song_Index,
+	play := false,
+) -> Command_Queue_Add {
+	file := strings.clone(string(file), player.allocator)
+	return {mpd.Song_File(file), index, play, player.allocator}
+}
+player_queue_add :: proc(player: ^Base_Player, file: mpd.Song_File, index: mpd.Song_Index) {
+	_player_send(player, cmd_make_queue_add(player, file, index))
+}
 
-	// TODO!: add a delay between cover requests after some number of requests
-	// to not overload user's device too much when reqeuesting lots of covers.
-	file := mpd.Song_File(strings.clone(string(file), alloc))
-	key := cover_key_make_cloned(file, album, size, alloc)
-	cmd := Command_Request_Cover{key, file, size, alloc}
-	_player_send(player, cmd)
+player_queue_remove :: proc(player: ^Base_Player, index: mpd.Song_Index) {
+	assert(0 <= index && int(index) < len(player.queue))
+	_player_send(player, Command_Queue_Remove{index})
+}
+
+player_queue_reorder :: proc(player: ^Base_Player, from, to: mpd.Song_Index) {
+	if from == to do return
+	_player_send(player, Command_Queue_Reorder{from, to})
+}
+
+player_queue_shuffle :: proc(player: ^Base_Player) {
+	if len(player.queue) <= 1 do return
+	_player_send(player, Command_Queue_Shuffle{})
+}
+
+player_queue_clear :: proc(player: ^Base_Player) {
+	if len(player.queue) == 0 do return
+	_player_send(player, Command_Queue_Clear{})
 }
 
 // ------------------------------
@@ -405,30 +416,30 @@ _player_handle_command :: proc(
 		return mpd.send_and_forget(client, "pause 1")
 	case Command_Stop:
 		return mpd.send_and_forget(client, "stop")
-	case Command_Play_Song:
+	case Command_Queue_Play:
 		mpd.send_and_forget(client, "play", cmd.index) or_return
 		if cmd.seek > 0 {
 			mpd.send_and_forget(client, "seekcur", cmd.seek) or_return
 		}
 		return nil
-	case Command_Seek_Current:
+	case Command_Seek:
 		return mpd.send_and_forget(client, "seekcur", cmd.seconds)
-	case Command_Reorder_Song:
+	case Command_Queue_Reorder:
 		mpd.send_and_forget(client, "move", cmd.from, cmd.to) or_return
 		status := mpd.request_status(client) or_return
 		_response_send(shared.responses, status)
 		return nil
-	case Command_Remove_Song:
+	case Command_Queue_Remove:
 		mpd.send_and_forget(client, "delete", cmd.index) or_return
 		status := mpd.request_status(client) or_return
 		_response_send(shared.responses, status)
 		return nil
-	case Command_Shuffle_Queue:
+	case Command_Queue_Shuffle:
 		return mpd.send_and_forget(client, "shuffle")
-	case Command_Clear_Queue:
+	case Command_Queue_Clear:
 		return mpd.send_and_forget(client, "clear")
 
-	case Command_Play_Album:
+	case Command_Load_Album:
 		mpd.send_and_forget(client, "clear") or_return
 
 		// Search for album songs and add them to the queue.
@@ -440,7 +451,7 @@ _player_handle_command :: proc(
 		// Play the first song.
 		return mpd.send_and_forget(client, "play")
 
-	case Command_Add_Song:
+	case Command_Queue_Add:
 		c := mpd.cmd_begin("add", context.allocator)
 		mpd.cmd_push_quoted(&c, string(cmd.file))
 		mpd.cmd_push_int(&c, int(cmd.index))
@@ -452,7 +463,7 @@ _player_handle_command :: proc(
 		}
 		return nil
 
-	case Command_Set_Queue:
+	case Command_Load:
 		sb := strings.builder_make(context.allocator)
 		defer strings.builder_destroy(&sb)
 

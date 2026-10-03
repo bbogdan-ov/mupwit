@@ -84,6 +84,13 @@ _player_history_push :: proc(player: ^Base_Player, cmd: Player_Command, loc := #
 	if queue.len(redo^) > HISTORY_LIMIT do queue.pop_front(redo)
 }
 
+_player_history_push_queue :: proc(player: ^Base_Player, loc := #caller_location) {
+	cmd := cmd_make_load_from_songs(player, player.queue[:])
+	cmd.play = player.cur_song
+	cmd.seek = player.elapsed
+	_player_history_push(player, cmd, loc)
+}
+
 _history_list_clear :: proc(list: ^queue.Queue(Player_Command), loc := #caller_location) {
 	for i in 0 ..< queue.len(list^) {
 		cmd := queue.get(list, i)

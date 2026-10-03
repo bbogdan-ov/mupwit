@@ -54,7 +54,7 @@ queue_ui_update :: proc(state: ^State, dt: Seconds) {
 _queue_ui_play_hovered_song :: proc(state: ^State) -> bool {
 	hovering := self.list.hovering.? or_return
 	item := &self.list.items[hovering]
-	player_play_song(state.player, item.song_index)
+	player_queue_play(state.player, item.song_index)
 	return true
 }
 
@@ -63,7 +63,7 @@ _queue_ui_remove_hovered_song :: proc(state: ^State) -> bool {
 
 	hovering := self.list.hovering.? or_return
 	item := &self.list.items[hovering]
-	player_remove_song(state.player, item.song_index)
+	player_queue_remove(state.player, item.song_index)
 	return true
 }
 
@@ -296,7 +296,7 @@ queue_ui_list_on_item_reordered :: proc(
 
 	from := mpd.Song_Index(reorder.from)
 	to := mpd.Song_Index(reorder.to)
-	player_reorder_song(state.player, from, to)
+	player_queue_reorder(state.player, from, to)
 }
 
 queue_ui_list_on_item_start_reordering :: proc(

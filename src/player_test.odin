@@ -55,25 +55,25 @@ test_commands :: proc(t: ^testing.T) -> bool {
 	expect_eq(t, len(player.albums), 90) or_return
 	check_undo_redo_count(t, player, 0, 0) or_return
 
-	_player_send(player, Command_Remove_Song{10})
-	expect_eq(t, len(player.queue), 11) or_return // `Command_Remove_Song` does an "optimistic update".
+	_player_send(player, Command_Queue_Remove{10})
+	expect_eq(t, len(player.queue), 11) or_return // `Command_Queue_Remove` does an "optimistic update".
 	_player_handle_responses(player)
 	// TODO: check that the queue was not touched here at all even after a "queue" response.
 	expect_eq(t, len(player.queue), 11) or_return
 
-	_player_send(player, player_make_cmd_add_song(player, "path/to/song.mp3", 9))
+	_player_send(player, cmd_make_queue_add(player, "path/to/song.mp3", 9))
 	expect_eq(t, len(player.queue), 11) or_return // No optimistic update.
 	_player_handle_responses(player)
 	expect_eq(t, len(player.queue), 12) or_return // Queue updates only after receiving an up-to-date queue from a server.
 
 	expect_eq(t, player.elapsed, 0)
-	_player_send(player, Command_Seek_Current{123.45})
+	_player_send(player, Command_Seek{123.45})
 	expect_eq(t, player.elapsed, 123.45) or_return // Optimistic update.
 	_player_handle_responses(player)
 	expect_eq(t, player.elapsed, 123) or_return
 
 	expect_eq(t, player.cur_song, nil)
-	_player_send(player, Command_Play_Song{4, 78.9}) // No optimistic update.
+	_player_send(player, Command_Queue_Play{4, 78.9}) // No optimistic update.
 	expect_eq(t, player.cur_song, nil) or_return
 	expect_eq(t, player.elapsed, 123) or_return
 	_player_handle_responses(player)
@@ -82,7 +82,7 @@ test_commands :: proc(t: ^testing.T) -> bool {
 
 	expect_eq(t, player.queue[2].title, "Fucked Up") or_return
 	expect_eq(t, player.queue[3].title, "Hummingbird") or_return
-	_player_send(player, Command_Reorder_Song{2, 6}) // Optimistic update.
+	_player_send(player, Command_Queue_Reorder{2, 6}) // Optimistic update.
 	expect_eq(t, len(player.queue), 12) or_return
 	expect_eq(t, player.queue[2].title, "Hummingbird") or_return
 	expect_eq(t, player.queue[6].title, "Fucked Up") or_return
@@ -98,7 +98,7 @@ test_commands :: proc(t: ^testing.T) -> bool {
 		expect_eq(t, mpd.album_name(album), "0") // Album "0" by Low Roar
 		expect_eq(t, len(album.songs), 13)
 
-		cmd := player_make_cmd_set_queue_from_songs(player, album.songs[:])
+		cmd := cmd_make_load_from_songs(player, album.songs[:])
 		cmd.play = 8
 		cmd.seek = 456.78
 		_player_send(player, cmd) // No optimistic update.
@@ -114,7 +114,7 @@ test_commands :: proc(t: ^testing.T) -> bool {
 	}
 
 	{
-		_player_send(player, player_make_cmd_play_album(player, "Some album")) // No optimistic update.
+		_player_send(player, cmd_make_load_album(player, "Some album")) // No optimistic update.
 		expect_eq(t, len(player.queue), 13) or_return
 		_player_handle_responses(player)
 		expect_eq(t, len(player.queue), 9) or_return
@@ -128,7 +128,7 @@ test_commands :: proc(t: ^testing.T) -> bool {
 		expect_eq(t, last_song.title, "Runwayaway")
 	}
 
-	_player_send(player, Command_Clear_Queue{}) // No optimistic update.
+	_player_send(player, Command_Queue_Clear{}) // No optimistic update.
 	expect_eq(t, len(player.queue), 9) or_return
 	_player_handle_responses(player)
 	expect_eq(t, len(player.queue), 0) or_return
@@ -156,13 +156,13 @@ test_history :: proc(t: ^testing.T) -> bool {
 
 	// Remove first two songs.
 	{
-		_test_send_and_handle(player, Command_Remove_Song{0})
-		_test_send_and_handle(player, Command_Remove_Song{1})
+		_test_send_and_handle(player, Command_Queue_Remove{0})
+		_test_send_and_handle(player, Command_Queue_Remove{1})
 		expect_eq(t, len(player.queue), 10) or_return
 
 		check_undo_redo_count(t, player, 2, 0) or_return
-		check_undo(player, 0, Command_Add_Song) or_return
-		check_undo(player, 1, Command_Add_Song) or_return
+		check_undo(player, 0, Command_Queue_Add) or_return
+		check_undo(player, 1, Command_Queue_Add) or_return
 	}
 
 	// Undo the latest remove, one of them is still in the history.
@@ -171,8 +171,8 @@ test_history :: proc(t: ^testing.T) -> bool {
 		expect_eq(t, len(player.queue), 11) or_return
 
 		check_undo_redo_count(t, player, 1, 1) or_return
-		check_undo(player, 0, Command_Add_Song) or_return
-		if cmd, ok := check_redo(player, 0, Command_Remove_Song); ok {
+		check_undo(player, 0, Command_Queue_Add) or_return
+		if cmd, ok := check_redo(player, 0, Command_Queue_Remove); ok {
 			expect_eq(t, cmd.index, 1)
 		}
 	}
@@ -180,18 +180,18 @@ test_history :: proc(t: ^testing.T) -> bool {
 	// Play a song, but nothing will be saved into the history (it stays the
 	// same), because there is no current song yet.
 	{
-		_test_send_and_handle(player, Command_Play_Song{5, Seconds(123)})
+		_test_send_and_handle(player, Command_Queue_Play{5, Seconds(123)})
 		check_undo_redo_count(t, player, 1, 1) or_return
 	}
 
 	// Now we have a current song and this "play" command invoking will change
 	// the history.
 	{
-		_test_send_and_handle(player, Command_Play_Song{8, 0})
+		_test_send_and_handle(player, Command_Queue_Play{8, 0})
 
 		check_undo_redo_count(t, player, 2, 0) or_return
-		check_undo(player, 0, Command_Add_Song) or_return
-		if cmd, ok := check_undo(player, 1, Command_Play_Song); ok {
+		check_undo(player, 0, Command_Queue_Add) or_return
+		if cmd, ok := check_undo(player, 1, Command_Queue_Play); ok {
 			expect_eq(t, cmd.index, 5)
 			expect_eq(t, cmd.seek, 123)
 		}
@@ -202,24 +202,24 @@ test_history :: proc(t: ^testing.T) -> bool {
 		_test_undo_and_handle(player)
 
 		check_undo_redo_count(t, player, 0, 2) or_return
-		check_redo(player, 0, Command_Play_Song) or_return
-		check_redo(player, 1, Command_Remove_Song) or_return
+		check_redo(player, 0, Command_Queue_Play) or_return
+		check_redo(player, 1, Command_Queue_Remove) or_return
 	}
 
 	{
 		_test_redo_and_handle(player)
 
 		check_undo_redo_count(t, player, 1, 1) or_return
-		check_undo(player, 0, Command_Add_Song) or_return
-		check_redo(player, 0, Command_Play_Song) or_return
+		check_undo(player, 0, Command_Queue_Add) or_return
+		check_redo(player, 0, Command_Queue_Play) or_return
 	}
 
 	{
-		_test_send_and_handle(player, Command_Seek_Current{89})
+		_test_send_and_handle(player, Command_Seek{89})
 
 		check_undo_redo_count(t, player, 2, 0) or_return
-		check_undo(player, 0, Command_Add_Song)
-		if cmd, ok := check_undo(player, 1, Command_Seek_Current); ok {
+		check_undo(player, 0, Command_Queue_Add)
+		if cmd, ok := check_undo(player, 1, Command_Seek); ok {
 			expect_eq(t, cmd.seconds, 123)
 		}
 	}
@@ -247,17 +247,17 @@ test_history :: proc(t: ^testing.T) -> bool {
 		song_index := mpd.Song_Index(i)
 
 		removed_song := mpd.song_clone(player.queue[song_index], context.temp_allocator)
-		_test_send_and_handle(player, Command_Remove_Song{song_index})
+		_test_send_and_handle(player, Command_Queue_Remove{song_index})
 		expect_eq(t, len(player.queue), 11) or_return
 
 		from, to := max(song_index - 1, 0), mpd.Song_Index(0)
-		_test_send_and_handle(player, Command_Reorder_Song{from, to})
+		_test_send_and_handle(player, Command_Queue_Reorder{from, to})
 
 		check_undo_redo_count(t, player, 2, 0) or_return
-		if cmd, ok := check_undo(player, 0, Command_Add_Song); ok {
+		if cmd, ok := check_undo(player, 0, Command_Queue_Add); ok {
 			expect_eq(t, cmd.file, removed_song.file) or_return
 		}
-		if cmd, ok := check_undo(player, 1, Command_Reorder_Song); ok {
+		if cmd, ok := check_undo(player, 1, Command_Queue_Reorder); ok {
 			expect_eq(t, cmd.from, to) or_return
 			expect_eq(t, cmd.to, from) or_return
 		}
@@ -267,11 +267,11 @@ test_history :: proc(t: ^testing.T) -> bool {
 		expect_eq(t, len(player.queue), 12) or_return
 
 		check_undo_redo_count(t, player, 0, 2) or_return
-		if cmd, ok := check_redo(player, 0, Command_Reorder_Song); ok {
+		if cmd, ok := check_redo(player, 0, Command_Queue_Reorder); ok {
 			expect_eq(t, cmd.from, from) or_return
 			expect_eq(t, cmd.to, to) or_return
 		}
-		if cmd, ok := check_redo(player, 1, Command_Remove_Song); ok {
+		if cmd, ok := check_redo(player, 1, Command_Queue_Remove); ok {
 			expect_eq(t, cmd.index, song_index) or_return
 		}
 	}
@@ -453,7 +453,7 @@ _test_player_send_command :: proc(player: rawptr, command: Player_Command, loc: 
 		albums := mpd.album_list_clone(player._fake_albums[:], player._fake_albums.allocator)
 		_test_send_response(player, albums)
 
-	case Command_Add_Song:
+	case Command_Queue_Add:
 		// NOTE: for now only song files are known.
 		song: mpd.Song
 		song.file = cmd.file
@@ -462,24 +462,24 @@ _test_player_send_command :: proc(player: rawptr, command: Player_Command, loc: 
 
 		_test_send_queue(player)
 
-	case Command_Remove_Song:
+	case Command_Queue_Remove:
 		mpd.song_destroy(player._fake_queue[cmd.index])
 		ordered_remove(&player._fake_queue, cmd.index)
 
 		_test_send_queue(player)
 
-	case Command_Play_Song:
+	case Command_Queue_Play:
 		player._fake_status.playstate = .Play
 		_fake_status_set_cur_song(player, cmd.index)
 		player._fake_status.elapsed = mpd.Seconds(math.floor(cmd.seek)) // `floor` to simulate float error.
 		player._fake_status.duration = 300
 		_test_send_response(player, player._fake_status)
 
-	case Command_Seek_Current:
+	case Command_Seek:
 		player._fake_status.elapsed = mpd.Seconds(math.floor(cmd.seconds))
 		_test_send_response(player, player._fake_status)
 
-	case Command_Reorder_Song:
+	case Command_Queue_Reorder:
 		ui.slice_reorder(player._fake_queue[:], int(cmd.from), int(cmd.to))
 
 		index := ui.shifted_index(player._fake_status.cur_song_index, cmd.from, cmd.to)
@@ -488,11 +488,11 @@ _test_player_send_command :: proc(player: rawptr, command: Player_Command, loc: 
 		_test_send_queue(player)
 		_test_send_response(player, player._fake_status)
 
-	case Command_Clear_Queue:
+	case Command_Queue_Clear:
 		mpd.song_list_clear(&player._fake_queue)
 		_test_send_queue(player)
 
-	case Command_Play_Album:
+	case Command_Load_Album:
 		parser := mpd.parser_make(#load("test/album.txt"))
 		mpd.song_list_destroy(&player._fake_queue)
 		player._fake_queue = mpd.parser_next_song_list(&parser, player.allocator, loc)
@@ -506,7 +506,7 @@ _test_player_send_command :: proc(player: rawptr, command: Player_Command, loc: 
 		// Ignore the `cmd.name`.
 		_command_destroy(command)
 
-	case Command_Set_Queue:
+	case Command_Load:
 		mpd.song_list_destroy(&player._fake_queue)
 		player._fake_queue = make(mpd.Song_List, len(cmd.files), player.allocator)
 

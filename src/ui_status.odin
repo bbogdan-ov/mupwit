@@ -165,10 +165,10 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 
 _queue_status_ui_update :: proc(state: ^State) {
 	if ui.button_update(&self.button_clear) {
-		player_clear_queue(state.player)
+		player_queue_clear(state.player)
 	}
 	if ui.button_update(&self.button_shuffle) {
-		player_shuffle_queue(state.player)
+		player_queue_shuffle(state.player)
 	}
 
 	if ui.is_pointer_inside(self.time_rect) {

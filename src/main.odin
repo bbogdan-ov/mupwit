@@ -272,7 +272,7 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 		player_redo(player)
 
 	case is_key(ev, .F1):
-		player_play_random_album(state.player)
+		player_load_random_album(state.player)
 	}
 
 	return true
