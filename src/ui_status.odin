@@ -25,6 +25,7 @@ self: struct {
 	slider:           ui.Slider,
 	tween:            ui.Tween(f32),
 	queue_tween:      ui.Tween(f32),
+	text_rect:        Rect,
 	time_rect:        Rect,
 	time_mode:        Status_Time_Mode,
 	offset:           f32,
@@ -75,6 +76,12 @@ status_ui_update :: proc(state: ^State, dt: Seconds) {
 		if ui.slider_update(&self.slider) {
 			player_seek_percent(player, self.slider.progress)
 		}
+
+		// TODO: clicking either on a song title or a song artist should
+		// navigate to the song in the album and to the artist respectively.
+		if ui.is_clicked_inside(.Left, self.text_rect) {
+			set_screen(state, .Player)
+		}
 	}
 
 	if self.cur_queue_offset == 0 {
@@ -117,6 +124,9 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		offset: Vec2
 		offset.y = ctx.box.height / 2
 		offset.y += -(ctx.font_height * 2 + ui.SLIDER_THICKNESS) / 2 + ctx.font_height
+
+		self.text_rect = ctx.box.rect
+		self.text_rect.height -= ui.SLIDER_CLICK_THICKNESS
 
 		// Draw song title and artist.
 		song, has_song := player_cur_or_last_song(state.player)
