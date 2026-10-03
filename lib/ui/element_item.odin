@@ -66,8 +66,6 @@ item_list_destroy :: proc(list: ^Item_List($T)) {
 }
 
 item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: Seconds) {
-	UPDATE_SCROLLOFF :: 8
-
 	assert(list.item_height > 0)
 
 	if controls() != .Keyboard {
@@ -83,9 +81,11 @@ item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: S
 	_item_list_update_hovering(box^, list)
 	_item_list_update_reordering(box^, list)
 
+	update_scrolloff := max(256 / list.item_height, 1)
+
 	from, to := item_list_visible_range(box^, list)
-	from = max(from - UPDATE_SCROLLOFF, 0)
-	to = min(to + UPDATE_SCROLLOFF, items_count(list))
+	from = max(from - update_scrolloff, 0)
+	to = min(to + update_scrolloff, items_count(list))
 
 	for i in from ..< to {
 		index := Item_Index(i)

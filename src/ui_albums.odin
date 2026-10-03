@@ -102,12 +102,21 @@ album_ui_list_item_update :: proc(
 	pos := _album_item_pos(index)
 	pos.y += -self.box.y - i32(self.box.scroll)
 
-	is_in_view := -ALBUM_HEIGHT < pos.y && pos.y < self.box.height
-
 	album := state.player.albums[item.album_index]
 	song := mpd.album_first_song(album)
 
-	cover_loader_update(state.player, &item.loader, song.file, song.album, .Medium, is_in_view, dt)
+	// NOTE: always allow to request a cover because albums are only being
+	// updated when they are in the view (with a little offset from top and bottom).
+	can_request := true
+	cover_loader_update(
+		state.player,
+		&item.loader,
+		song.file,
+		song.album,
+		.Medium,
+		can_request,
+		dt,
+	)
 }
 
 album_item_destroy :: proc(item: ^Album_Item) {

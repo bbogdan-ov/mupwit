@@ -333,6 +333,8 @@ player_request_cover :: proc(
 ) {
 	alloc := player.allocator
 
+	// TODO!: add a delay between cover requests after some number of requests
+	// to not overload user's device too much when reqeuesting lots of covers.
 	file := mpd.Song_File(strings.clone(string(file), alloc))
 	key := cover_key_make_cloned(file, album, size, alloc)
 	cmd := Command_Request_Cover{key, file, size, alloc}
