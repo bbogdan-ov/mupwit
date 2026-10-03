@@ -1,7 +1,6 @@
 package ui
 
 import "base:runtime"
-import "core:strings"
 import "lib:cairo"
 
 Box :: struct {
@@ -80,18 +79,25 @@ draw_glyphs :: proc(
 
 	max_advance := ctx.box.width - (pos.x - ctx.box.x) + 1
 
+	ellipsis_index := len(glyphs) - 1
+
 	count: i32
 	text_ext: cairo.text_extents_t
-	for &glyph in glyphs {
+	for &glyph in glyphs[:ellipsis_index] {
 		ext: cairo.text_extents_t
 		cairo.glyph_extents(ctx, &glyph, 1, &ext)
 
 		glyph.x += x
 		glyph.y += y
 
-		// TODO!: should replace the last char with ellipsis (...) when
-		// the text is being cropped.
 		if ctx.crop_text && i32(text_ext.x_advance + ext.x_advance) > max_advance {
+			if count <= 1 {
+				count = 0
+				break
+			}
+
+			// Break the loop and backpatch the last glyph to be the ellipsis char.
+			glyphs[count - 1].index = glyphs[ellipsis_index].index
 			break
 		}
 
@@ -151,11 +157,23 @@ measure_glyphs :: proc(
 ) -> (
 	ext: cairo.text_extents_t,
 ) {
-	cairo.glyph_extents(cr, raw_data(glyphs), i32(len(glyphs)), &ext)
+	// Trim the last glyph that is an ellipsis ("...") char to ignore it.
+	count := i32(len(glyphs)) - 1
+	cairo.glyph_extents(cr, raw_data(glyphs), count, &ext)
 	return
 }
 
 text_glyphs :: proc(cr: ^cairo.cairo_t, str: string) -> []cairo.glyph_t {
+	runtime.DEFAULT_TEMP_ALLOCATOR_TEMP_GUARD()
+
+	@(static, rodata)
+	ELLIPSIS := "…"
+
+	// Append "ELLIPSIS" char at the end of the string.
+	buf := make([]u8, len(str) + len(ELLIPSIS), context.temp_allocator)
+	copy(buf[:len(str)], transmute([]u8)str)
+	copy(buf[len(str):], transmute([]u8)ELLIPSIS)
+
 	scaled_font := cairo.get_scaled_font(cr)
 
 	glyphs: [^]cairo.glyph_t
@@ -164,8 +182,8 @@ text_glyphs :: proc(cr: ^cairo.cairo_t, str: string) -> []cairo.glyph_t {
 		scaled_font = scaled_font,
 		x = 0,
 		y = 0,
-		utf8 = strings.unsafe_string_to_cstring(str),
-		utf8_len = i32(len(str)),
+		utf8 = cast(cstring)raw_data(buf),
+		utf8_len = i32(len(buf)),
 		glyphs = &glyphs,
 		num_glyphs = &num_glyphs,
 		clusters = nil,
