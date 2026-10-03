@@ -319,13 +319,13 @@ check_undo :: proc(
 	cmd: T,
 	ok: bool,
 ) {
-	command := queue.get(&player.history.undo, nth)
-	#partial switch c in command {
+	undo := queue.get(&player.history.undo, nth)
+	#partial switch c in undo.command {
 	case T:
 		return c, true
 	case:
 		name := intrinsics.type_canonical_name(T)
-		var := reflect.union_variant_typeid(command)
+		var := reflect.union_variant_typeid(undo.command)
 		log.errorf("expected undo[%v] to be %v, but got %v", nth, name, var, location = loc)
 		return {}, false
 	}
@@ -340,13 +340,13 @@ check_redo :: proc(
 	cmd: T,
 	ok: bool,
 ) {
-	command := queue.get(&player.history.redo, nth)
-	#partial switch c in command {
+	undo := queue.get(&player.history.redo, nth)
+	#partial switch c in undo.command {
 	case T:
 		return c, true
 	case:
 		name := intrinsics.type_canonical_name(T)
-		var := reflect.union_variant_typeid(command)
+		var := reflect.union_variant_typeid(undo.command)
 		log.errorf("expected redo[%v] to be %v, but got %v", nth, name, var, location = loc)
 		return {}, false
 	}

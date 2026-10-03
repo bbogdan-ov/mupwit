@@ -132,14 +132,14 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 
 	case Command_Queue_Play, Command_Next, Command_Previous:
 		cur := player.cur_song.? or_break
-		_player_history_push(player, Command_Queue_Play{cur, player.elapsed})
+		_player_history_push(player, .Song_Switch, Command_Queue_Play{cur, player.elapsed})
 
 	case Command_Seek:
-		_player_history_push(player, Command_Seek{player.elapsed})
+		_player_history_push(player, .Seek, Command_Seek{player.elapsed})
 		player.elapsed = cmd.seconds
 
 	case Command_Queue_Reorder:
-		_player_history_push(player, Command_Queue_Reorder{cmd.to, cmd.from})
+		_player_history_push(player, .Queue_Reorder, Command_Queue_Reorder{cmd.to, cmd.from})
 
 		ui.slice_reorder(player.queue[:], int(cmd.from), int(cmd.to))
 
@@ -153,14 +153,14 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 		when !ODIN_TEST do on_song_reordered(cmd.from, cmd.to)
 
 	case Command_Queue_Add:
-		_player_history_push(player, Command_Queue_Remove{cmd.index})
+		_player_history_push(player, .Queue_Add, Command_Queue_Remove{cmd.index})
 
 	case Command_Queue_Remove:
 		{
 			song := &player.queue[cmd.index]
 			play := player.cur_song == cmd.index
 			c := cmd_make_queue_add(player, song.file, cmd.index, play)
-			_player_history_push(player, c)
+			_player_history_push(player, .Queue_Remove, c)
 		}
 
 		mpd.song_destroy(player.queue[cmd.index])
@@ -179,10 +179,16 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 		_player_queue_calc_duration_and_elapsed(player)
 		when !ODIN_TEST do on_song_removed(cmd.index)
 
-	case Command_Load, Command_Load_Album, Command_Queue_Shuffle, Command_Queue_Clear:
-		// TODO!: should save only the previous album name (when sending
-		// `Command_Play_Album`) in the history intead of the whole queue.
-		_player_history_push_queue(player)
+	case Command_Load:
+		_player_history_push_queue(player, .Load)
+	case Command_Load_Album:
+		// TODO!: should save only the previous album name in the history
+		// intead of the whole queue.
+		_player_history_push_queue(player, .Load_Album)
+	case Command_Queue_Shuffle:
+		_player_history_push_queue(player, .Queue_Shuffle)
+	case Command_Queue_Clear:
+		_player_history_push_queue(player, .Queue_Clear)
 	}
 
 	player.vtable.send_command(player, command, loc)
