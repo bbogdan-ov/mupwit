@@ -53,7 +53,7 @@ test_commands :: proc(t: ^testing.T) -> bool {
 
 	expect_eq(t, len(player.queue), 12) or_return
 	expect_eq(t, len(player.albums), 90) or_return
-	check_undo_redo_count(t, player, 1, 0) or_return
+	check_undo_redo_count(t, player, 0, 0) or_return
 
 	_player_send(player, Command_Remove_Song{10})
 	expect_eq(t, len(player.queue), 11) or_return // `Command_Remove_Song` does an "optimistic update".
@@ -152,8 +152,7 @@ test_history :: proc(t: ^testing.T) -> bool {
 	initial_queue := mpd.song_list_clone(player.queue[:], player.queue.allocator)
 	defer mpd.song_list_destroy(&initial_queue)
 
-	check_undo_redo_count(t, player, 1, 0) or_return
-	check_undo(player, 0, Command_Set_Queue) or_return
+	check_undo_redo_count(t, player, 0, 0) or_return
 
 	// Remove first two songs.
 	{
@@ -161,9 +160,9 @@ test_history :: proc(t: ^testing.T) -> bool {
 		_test_send_and_handle(player, Command_Remove_Song{1})
 		expect_eq(t, len(player.queue), 10) or_return
 
-		check_undo_redo_count(t, player, 3, 0) or_return
+		check_undo_redo_count(t, player, 2, 0) or_return
+		check_undo(player, 0, Command_Add_Song) or_return
 		check_undo(player, 1, Command_Add_Song) or_return
-		check_undo(player, 2, Command_Add_Song) or_return
 	}
 
 	// Undo the latest remove, one of them is still in the history.
@@ -171,8 +170,8 @@ test_history :: proc(t: ^testing.T) -> bool {
 		_test_undo_and_handle(player)
 		expect_eq(t, len(player.queue), 11) or_return
 
-		check_undo_redo_count(t, player, 2, 1) or_return
-		check_undo(player, 1, Command_Add_Song) or_return
+		check_undo_redo_count(t, player, 1, 1) or_return
+		check_undo(player, 0, Command_Add_Song) or_return
 		if cmd, ok := check_redo(player, 0, Command_Remove_Song); ok {
 			expect_eq(t, cmd.index, 1)
 		}
@@ -182,7 +181,7 @@ test_history :: proc(t: ^testing.T) -> bool {
 	// same), because there is no current song yet.
 	{
 		_test_send_and_handle(player, Command_Play_Song{5, Seconds(123)})
-		check_undo_redo_count(t, player, 2, 1) or_return
+		check_undo_redo_count(t, player, 1, 1) or_return
 	}
 
 	// Now we have a current song and this "play" command invoking will change
@@ -190,9 +189,9 @@ test_history :: proc(t: ^testing.T) -> bool {
 	{
 		_test_send_and_handle(player, Command_Play_Song{8, 0})
 
-		check_undo_redo_count(t, player, 3, 0) or_return
-		check_undo(player, 1, Command_Add_Song) or_return
-		if cmd, ok := check_undo(player, 2, Command_Play_Song); ok {
+		check_undo_redo_count(t, player, 2, 0) or_return
+		check_undo(player, 0, Command_Add_Song) or_return
+		if cmd, ok := check_undo(player, 1, Command_Play_Song); ok {
 			expect_eq(t, cmd.index, 5)
 			expect_eq(t, cmd.seek, 123)
 		}
@@ -202,7 +201,7 @@ test_history :: proc(t: ^testing.T) -> bool {
 		_test_undo_and_handle(player)
 		_test_undo_and_handle(player)
 
-		check_undo_redo_count(t, player, 1, 2) or_return
+		check_undo_redo_count(t, player, 0, 2) or_return
 		check_redo(player, 0, Command_Play_Song) or_return
 		check_redo(player, 1, Command_Remove_Song) or_return
 	}
@@ -210,22 +209,17 @@ test_history :: proc(t: ^testing.T) -> bool {
 	{
 		_test_redo_and_handle(player)
 
-		check_undo_redo_count(t, player, 2, 1) or_return
-		check_undo(player, 1, Command_Add_Song) or_return
+		check_undo_redo_count(t, player, 1, 1) or_return
+		check_undo(player, 0, Command_Add_Song) or_return
 		check_redo(player, 0, Command_Play_Song) or_return
 	}
 
 	{
 		_test_send_and_handle(player, Command_Seek_Current{89})
 
-		check_undo_redo_count(t, player, 3, 0) or_return
-		if cmd, ok := check_undo(player, 0, Command_Set_Queue); ok {
-			expect_eq(t, len(cmd.files), 0)
-			expect_eq(t, cmd.play, nil)
-			expect_eq(t, cmd.seek, 0)
-		}
-		check_undo(player, 1, Command_Add_Song)
-		if cmd, ok := check_undo(player, 2, Command_Seek_Current); ok {
+		check_undo_redo_count(t, player, 2, 0) or_return
+		check_undo(player, 0, Command_Add_Song)
+		if cmd, ok := check_undo(player, 1, Command_Seek_Current); ok {
 			expect_eq(t, cmd.seconds, 123)
 		}
 	}
@@ -235,13 +229,13 @@ test_history :: proc(t: ^testing.T) -> bool {
 			_test_undo_and_handle(player)
 			_test_redo_and_handle(player)
 		}
-		check_undo_redo_count(t, player, 3, 0) or_return
+		check_undo_redo_count(t, player, 2, 0) or_return
 	}
 
 	{
 		_test_undo_and_handle(player)
 		_test_undo_and_handle(player)
-		check_undo_redo_count(t, player, 1, 2) or_return
+		check_undo_redo_count(t, player, 0, 2) or_return
 		expect_eq(t, len(player.queue), len(initial_queue)) or_return
 	}
 
@@ -259,11 +253,11 @@ test_history :: proc(t: ^testing.T) -> bool {
 		from, to := max(song_index - 1, 0), mpd.Song_Index(0)
 		_test_send_and_handle(player, Command_Reorder_Song{from, to})
 
-		check_undo_redo_count(t, player, 3, 0) or_return
-		if cmd, ok := check_undo(player, 1, Command_Add_Song); ok {
+		check_undo_redo_count(t, player, 2, 0) or_return
+		if cmd, ok := check_undo(player, 0, Command_Add_Song); ok {
 			expect_eq(t, cmd.file, removed_song.file) or_return
 		}
-		if cmd, ok := check_undo(player, 2, Command_Reorder_Song); ok {
+		if cmd, ok := check_undo(player, 1, Command_Reorder_Song); ok {
 			expect_eq(t, cmd.from, to) or_return
 			expect_eq(t, cmd.to, from) or_return
 		}
@@ -272,7 +266,7 @@ test_history :: proc(t: ^testing.T) -> bool {
 		_test_undo_and_handle(player)
 		expect_eq(t, len(player.queue), 12) or_return
 
-		check_undo_redo_count(t, player, 1, 2) or_return
+		check_undo_redo_count(t, player, 0, 2) or_return
 		if cmd, ok := check_redo(player, 0, Command_Reorder_Song); ok {
 			expect_eq(t, cmd.from, from) or_return
 			expect_eq(t, cmd.to, to) or_return

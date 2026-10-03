@@ -167,7 +167,7 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 	case Command_Add_Song:
 		_player_history_push(player, Command_Remove_Song{cmd.index})
 
-	case Command_Set_Queue:
+	case Command_Set_Queue, Command_Play_Album:
 		c := player_make_cmd_set_queue_from_songs(player, player.queue[:])
 		c.play = player.cur_song
 		c.seek = player.elapsed

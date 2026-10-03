@@ -56,44 +56,42 @@ Player_VTable :: struct #all_or_none {
 
 Base_Player :: struct {
 	// Playback state.
-	playstate:            mpd.Play_State,
-	elapsed, duration:    Seconds,
-	cur_song:             Maybe(mpd.Song_Index),
-	cur_song_id:          Maybe(mpd.Song_Id),
+	playstate:           mpd.Play_State,
+	elapsed, duration:   Seconds,
+	cur_song:            Maybe(mpd.Song_Index),
+	cur_song_id:         Maybe(mpd.Song_Id),
 	// Copy of a the last played song (before `cur_song` set to `nil`).
 	// Mostly used for animation, so elements that display the current song
 	// don't just disappear, but smoothly fade out with data of the last played song.
-	last_played_song:     Maybe(mpd.Song),
-	queue:                mpd.Song_List,
-	_queue_history_timer: Seconds,
-	queue_duration:       Seconds,
-	_queue_version:       int,
+	last_played_song:    Maybe(mpd.Song),
+	queue:               mpd.Song_List,
+	queue_duration:      Seconds,
+	_queue_version:      int,
 	// Time elapsed within the queue (sum of durations of songs before the
 	// current one), does not account for the current song.
-	queue_elapsed:        Seconds,
-	albums:               mpd.Album_List,
+	queue_elapsed:       Seconds,
+	albums:              mpd.Album_List,
 	// Used for "play random album" so that albums don't repeat.
-	_album_pool:          [dynamic]mpd.Album_Index,
-	_album_pool_drained:  int,
+	_album_pool:         [dynamic]mpd.Album_Index,
+	_album_pool_drained: int,
 	// In which direction current song was skipped.
-	switch_direction:     Switch_Direction,
-	history:              History,
-	_status_req_timer:    Seconds,
+	switch_direction:    Switch_Direction,
+	history:             History,
+	_status_req_timer:   Seconds,
 
 	// Cache.
-	_covers_cache:        Covers_Cache,
+	_covers_cache:       Covers_Cache,
 
 	// Flags.
-	_req_flags:           bit_field u16 {
+	_req_flags:          bit_field u16 {
 		// Whether to ignore the next incoming "queue" response. Usually set after
 		// reordering items so it doesn't rebuild the items list.
 		ignore_next_queue_update: bool | 1,
-		history_dont_push_next:   bool | 1,
 	},
 
 	//
-	vtable:               ^Player_VTable,
-	allocator:            runtime.Allocator,
+	vtable:              ^Player_VTable,
+	allocator:           runtime.Allocator,
 }
 
 // Player state shared between threads. All fields are thread-safe.
@@ -246,10 +244,6 @@ _player_default_recv_response :: proc(
 }
 
 player_update :: proc(player: ^Base_Player, dt: Seconds) {
-	if player._queue_history_timer > 0 {
-		player._queue_history_timer -= dt
-	}
-
 	player._status_req_timer -= dt
 	if player._status_req_timer <= 0 {
 		player_request_status(player)
@@ -344,16 +338,6 @@ _player_set_queue :: proc(player: ^Base_Player, queue: mpd.Song_List) {
 
 		log.debugf("PLAYER: Received queue differs from the current queue, force update")
 	}
-
-	if !player._req_flags.history_dont_push_next && player._queue_history_timer <= 0 {
-		c := player_make_cmd_set_queue_from_songs(player, player.queue[:])
-		c.play = player.cur_song
-		c.seek = player.elapsed
-		_player_history_push(player, c)
-
-		player._queue_history_timer = PLAYER_QUEUE_HISTORY_DEBOUNCE
-	}
-	player._req_flags.history_dont_push_next = false
 
 	mpd.song_list_destroy(&player.queue)
 	player.queue = queue

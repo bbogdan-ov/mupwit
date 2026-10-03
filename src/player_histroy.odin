@@ -40,7 +40,6 @@ player_undo :: proc(player: ^Base_Player) -> bool {
 	count := queue.len(player.history.undo)
 	log.debugf("PLAYER: Undo, sending command %v, %v items left", cmd, count)
 
-	player._req_flags.history_dont_push_next = true
 	player.history._state = .Undoing
 	_player_send(player, cmd)
 	player.history._state = .Normal
@@ -53,7 +52,6 @@ player_redo :: proc(player: ^Base_Player) -> bool {
 	count := queue.len(player.history.redo)
 	log.debugf("PLAYER: Redo, sending command %v, %v items left", cmd, count)
 
-	player._req_flags.history_dont_push_next = true
 	player.history._state = .Redoing
 	_player_send(player, cmd)
 	player.history._state = .Normal
