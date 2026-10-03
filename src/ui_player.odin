@@ -17,6 +17,7 @@ self: struct {
 	prev_cover, cover: Maybe(^Cover),
 	loading_cover:     Maybe(^Cover),
 	req_cover_timer:   Seconds,
+	elapsed:           Seconds,
 }
 
 player_ui_destroy :: proc() {
@@ -37,6 +38,8 @@ player_ui_update :: proc(state: ^State, dt: Seconds) {
 
 	ui.tween_update(&self.cover_tween, dt)
 
+	self.elapsed = player.elapsed
+
 	if ui.button_update(&self.button_prev) {
 		player_previous(player)
 	}
@@ -52,7 +55,7 @@ player_ui_update :: proc(state: ^State, dt: Seconds) {
 	}
 	if ui.slider_is_dragging(&self.slider) {
 		secs := player.duration * Seconds(self.slider.progress)
-		player.elapsed = secs
+		self.elapsed = secs
 	}
 }
 
@@ -199,7 +202,7 @@ _player_ui_draw_cover :: proc(state: ^State, ctx: ^ui.Context, cover: Maybe(^Cov
 _player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context) -> (height: i32) {
 	player := state.player
 
-	elapsed_str := fmt.tprint(mpd.Seconds(player.elapsed))
+	elapsed_str := fmt.tprint(mpd.Seconds(self.elapsed))
 	duration_str := fmt.tprint(mpd.Seconds(player.duration))
 
 	rect := ctx.box.rect
