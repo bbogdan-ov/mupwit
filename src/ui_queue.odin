@@ -155,6 +155,9 @@ queue_ui_on_screen_updated :: proc(state: ^State) {
 	// The problem with this solution is that `self.box` may be empty (i.e.
 	// width and height are zeros) when calling `scroll_set` and the content
 	// length may be larger that it should be because of that.
+	if self.box.height <= 0 {
+		self.box.height = ui.state.view.height - GAP * 2 - STATUS_MAX_HEIGHT
+	}
 	contents := _queue_ui_contents_height()
 	ui.scroll_update_length(self.box, &self.scroll, contents)
 

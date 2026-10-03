@@ -32,7 +32,7 @@ scroll_update :: proc(box: ^Box, s: ^Scroll, dt: Seconds) {
 
 scroll_update_length :: proc(box: Box, s: ^Scroll, contents: i32) {
 	contents := max(contents, 1)
-	s.length = f32(contents - box.height)
+	s.length = max(f32(contents - box.height), 1)
 	dirty_set(&s.stop_offset, max(s.stop_offset, s.length))
 }
 
