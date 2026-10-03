@@ -134,7 +134,6 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 			player.cur_song = ui.shifted_index(cur_song, cmd.from, cmd.to)
 		}
 
-		player._req_flags.ignore_next_queue_update = true
 		// Duration shouldn't change, but just in case.
 		_player_queue_calc_duration_and_elapsed(player)
 		when !ODIN_TEST do on_song_reordered(cmd.from, cmd.to)
@@ -160,7 +159,6 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 			}
 		}
 
-		player._req_flags.ignore_next_queue_update = true
 		_player_queue_calc_duration_and_elapsed(player)
 		when !ODIN_TEST do on_song_removed(cmd.index)
 

@@ -190,7 +190,7 @@ queue_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bo
 	return propagate
 }
 
-queue_ui_on_queue_updated_by_external :: proc(state: ^State) {
+queue_ui_on_queue_updated :: proc(state: ^State) {
 	player := state.player
 
 	ui.item_list_cancel_reordering(&self.list)

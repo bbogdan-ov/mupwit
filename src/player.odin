@@ -82,13 +82,6 @@ Base_Player :: struct {
 	// Cache.
 	_covers_cache:       Covers_Cache,
 
-	// Flags.
-	_req_flags:          bit_field u16 {
-		// Whether to ignore the next incoming "queue" response. Usually set after
-		// reordering items so it doesn't rebuild the items list.
-		ignore_next_queue_update: bool | 1,
-	},
-
 	//
 	vtable:              ^Player_VTable,
 	allocator:           runtime.Allocator,
@@ -326,17 +319,13 @@ _player_set_last_played_song :: proc(player: ^Base_Player, song: Maybe(mpd.Song)
 _player_set_queue :: proc(player: ^Base_Player, queue: mpd.Song_List) {
 	queue := queue
 
-	if player._req_flags.ignore_next_queue_update {
-		player._req_flags.ignore_next_queue_update = false
-		// TODO: i should probably use the `playlist` version field of a
-		// MPD status instead of `mpd.song_lists_differ`.
-		if !mpd.song_lists_differ(player.queue, queue) {
-			mpd.song_list_destroy(&queue)
-			log.debugf("PLAYER: Queue received, but it was ignored due to the flag")
-			return
-		}
-
-		log.debugf("PLAYER: Received queue differs from the current queue, force update")
+	// NOTE: check whether the received queue differs from the current one, so
+	// the list in the queue UI doesn't get rebuilt. Because if it rebuilds it
+	// cancels all animations and resets the state of the list.
+	if !mpd.song_lists_differ(player.queue, queue) {
+		mpd.song_list_destroy(&queue)
+		log.debugf("PLAYER: Queue received, but it doesn't differ from the current one")
+		return
 	}
 
 	mpd.song_list_destroy(&player.queue)
@@ -348,7 +337,7 @@ _player_set_queue :: proc(player: ^Base_Player, queue: mpd.Song_List) {
 		player.cur_song = nil
 	}
 
-	when !ODIN_TEST do on_queue_updated_by_external()
+	when !ODIN_TEST do on_queue_updated()
 }
 
 _player_set_albums :: proc(player: ^Base_Player, albums: mpd.Album_List) {

@@ -169,9 +169,8 @@ song_lists_differ :: proc(a, b: Song_List) -> bool {
 	if len(a) != len(b) do return true
 
 	for i in 0 ..< len(a) {
-		if a[i].queue_id != b[i].queue_id {
-			return true
-		}
+		if a[i].queue_id != b[i].queue_id do return true
+		if a[i].file != b[i].file do return true
 	}
 
 	return false
