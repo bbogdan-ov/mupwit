@@ -54,7 +54,7 @@ command_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	ui.draw_box(ctx, box, black, filled = true)
 
 	ui.begin_box(ctx, box)
-	ui.begin_clip(ctx)
+	ui.guard_clip(ctx)
 
 	// Draw command prompt.
 	{

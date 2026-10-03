@@ -29,7 +29,7 @@ player_ui_destroy :: proc() {
 player_ui_update :: proc(state: ^State, dt: Seconds) {
 	_player_ui_update_cover_handling(state, dt)
 
-	if state.screen != .Player {
+	if !screen_is_visible(state, .Player) {
 		ui.tween_finish(&self.cover_tween)
 		return
 	}
@@ -83,6 +83,11 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	box := ctx.box
 	box.x += screen_x_offset(state, .Player)
 	ui.begin_box(ctx, box, PLAYER_PADDING)
+
+	// Clip screen contents so on page transition, cover doesn't overlap with
+	// other screens when playing cover transition animation.
+	if state.screen != .Player do ui.begin_clip(ctx)
+	defer if state.screen != .Player do ui.end_clip(ctx)
 
 	offset: Vec2
 

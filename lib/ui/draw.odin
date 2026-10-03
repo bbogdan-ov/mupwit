@@ -36,12 +36,15 @@ _end_box :: proc(ctx: ^Context, _: Rect, _: Vec2, _: f32, prev: Box) {
 	ctx.box = prev
 }
 
-@(deferred_in = _end_clip)
+@(deferred_in = end_clip)
+guard_clip :: proc(ctx: ^Context) {
+	begin_clip(ctx)
+}
 begin_clip :: proc(ctx: ^Context) {
-	_rectangle(ctx, ctx.box)
+	_rectangle(ctx, pad(ctx.box, -ctx.box.padding))
 	cairo.clip(ctx)
 }
-_end_clip :: proc(ctx: ^Context) {
+end_clip :: proc(ctx: ^Context) {
 	cairo.reset_clip(ctx)
 }
 
