@@ -40,6 +40,10 @@ toast_ui_update :: proc(state: ^State, dt: Seconds) {
 }
 
 toast_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
+	if self.reveal <= 0 && self.tween.timer <= 0 {
+		return
+	}
+
 	glyphs := ui.text_glyphs(ctx, self.text)
 	defer ui.text_glyphs_delete(glyphs)
 
