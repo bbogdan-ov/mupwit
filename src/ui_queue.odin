@@ -146,6 +146,8 @@ _queue_ui_contents_height :: proc() -> i32 {
 }
 
 queue_ui_on_screen_updated :: proc(state: ^State) {
+	ui.item_list_stop_reordering(&self.list)
+
 	if state.screen != .Queue do return
 
 	if state.player.cur_song == nil do return
@@ -244,6 +246,8 @@ queue_ui_on_song_reordered :: proc(state: ^State, from, to: mpd.Song_Index) {
 		return
 	}
 
+	ui.item_list_cancel_reordering(&self.list)
+
 	shift := ui.Item_Index(sort.compare_i32s(to, from))
 
 	for i in start ..= end {
@@ -265,6 +269,7 @@ queue_ui_on_song_reordered :: proc(state: ^State, from, to: mpd.Song_Index) {
 }
 
 queue_ui_on_song_removed :: proc(index: mpd.Song_Index) {
+	ui.item_list_cancel_reordering(&self.list)
 	_queue_ui_remove_item(ui.Item_Index(index))
 }
 
