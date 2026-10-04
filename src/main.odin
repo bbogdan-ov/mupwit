@@ -325,11 +325,11 @@ on_song_removed :: proc(index: mpd.Song_Index) {
 }
 
 on_undid :: proc(kind: Undo_Kind) {
-	msg := fmt.tprintf("Undo %v!", UNDO_KIND_NAME[kind])
+	msg := fmt.tprintf("↺ Undo %v!", UNDO_KIND_NAME[kind])
 	toast_set(msg, context.allocator)
 }
 on_redid :: proc(kind: Undo_Kind) {
-	msg := fmt.tprintf("Redo %v!", UNDO_KIND_NAME[kind])
+	msg := fmt.tprintf("↻ Redo %v!", UNDO_KIND_NAME[kind])
 	toast_set(msg, context.allocator)
 }
 
