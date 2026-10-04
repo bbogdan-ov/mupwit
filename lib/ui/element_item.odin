@@ -268,7 +268,7 @@ item_list_stop_reordering :: proc(list: ^Item_List($T)) {
 	if list.reorder_state != .Active do return
 
 	_item_reorder_to_its_pos(list, list.reordering)
-	item_list_cancel_reordering(list)
+	_item_list_cancel_reordering_impl(list, false)
 
 	if list.on_item_reordered != nil && list.reorder.from != list.reorder.to {
 		index := list.reorder.to
@@ -281,11 +281,25 @@ item_list_stop_reordering :: proc(list: ^Item_List($T)) {
 item_list_cancel_reordering :: proc(list: ^Item_List($T)) {
 	if list.reorder_state != .Active do return
 
+	_item_list_cancel_reordering_impl(list, true)
+}
+
+_item_list_cancel_reordering_impl :: proc(list: ^Item_List($T), reorder_back: bool) {
+	if list.reorder_state != .Active do return
+
+	index := list.reordering
+
 	item := &list.items[list.reordering]
 	item_tween_to_rest(item, list.reordering, list.item_height)
 
+	if reorder_back {
+		index = list.reorder.from
+		item = &list.items[index]
+		_item_reorder(list, index)
+	}
+
 	if list.on_item_stop_reordering != nil {
-		list.on_item_stop_reordering(list, item, list.reordering)
+		list.on_item_stop_reordering(list, item, index)
 	}
 
 	list.reorder_state = .None

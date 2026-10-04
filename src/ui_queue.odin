@@ -233,6 +233,8 @@ queue_ui_on_song_reordered :: proc(state: ^State, from, to: mpd.Song_Index) {
 
 	log.debugf("UI QUEUE: Song reordered: %v -> %v", from, to)
 
+	ui.item_list_cancel_reordering(&self.list)
+
 	start, end := ui.range_sort(from, to)
 	if self.list_just_reordered {
 		self.list_just_reordered = false
@@ -245,8 +247,6 @@ queue_ui_on_song_reordered :: proc(state: ^State, from, to: mpd.Song_Index) {
 		// items in the list.
 		return
 	}
-
-	ui.item_list_cancel_reordering(&self.list)
 
 	shift := ui.Item_Index(sort.compare_i32s(to, from))
 
