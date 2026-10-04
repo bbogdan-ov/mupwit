@@ -266,6 +266,10 @@ queue_ui_on_song_reordered :: proc(state: ^State, from, to: mpd.Song_Index) {
 		cover_maybe_unref(item.loader.cover)
 		item.loader.cover = nil
 	}
+
+	if hovering, ok := self.list.hovering.?; ok {
+		self.list.hovering = ui.shifted_index(hovering, from, to)
+	}
 }
 
 queue_ui_on_song_removed :: proc(index: mpd.Song_Index) {
