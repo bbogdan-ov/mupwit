@@ -327,6 +327,12 @@ _player_set_queue :: proc(player: ^Base_Player, queue: mpd.Song_List) {
 		return
 	}
 
+	// TODO!!!: need to clear the history when queue or any other player state
+	// changes outside of the app. (e.g. via `mpc` cli client or any other client)
+	// If i don't do that and if the player state changes by another client,
+	// the history may be invalidated, because it depended on the previous
+	// player state, which was overritten.
+
 	mpd.song_list_destroy(&player.queue)
 	player.queue = queue
 
