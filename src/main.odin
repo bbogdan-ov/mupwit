@@ -2,6 +2,7 @@
 
 package mupwit
 
+import "core:fmt"
 import "core:log"
 import "core:mem"
 import "core:strings"
@@ -83,7 +84,7 @@ main :: proc() {
 	commands_init(&state.commands)
 	defer commands_destroy(&state.commands)
 
-	status_ui_init()
+	defer toast_ui_destroy()
 	queue_ui_init()
 	defer queue_ui_destroy()
 	albums_ui_init()
@@ -106,6 +107,7 @@ update :: proc(dt: Seconds) {
 	player_update(state.player, dt)
 
 	status_ui_update(&state, dt)
+	toast_ui_update(&state, dt)
 	queue_ui_update(&state, dt)
 	player_ui_update(&state, dt)
 	albums_ui_update(&state, dt)
@@ -169,6 +171,7 @@ draw :: proc(ctx: ^ui.Context) {
 	player_ui_draw(&state, ctx)
 	queue_ui_draw(&state, ctx)
 	albums_ui_draw(&state, ctx)
+	toast_ui_draw(&state, ctx)
 	status_ui_draw(&state, ctx)
 }
 
@@ -319,6 +322,15 @@ on_song_reordered :: proc(from, to: mpd.Song_Index) {
 on_song_removed :: proc(index: mpd.Song_Index) {
 	queue_ui_on_song_removed(index)
 	ui.dirty(true)
+}
+
+on_undid :: proc(kind: Undo_Kind) {
+	msg := fmt.tprintf("Undo %v!", UNDO_KIND_NAME[kind])
+	toast_set(msg, context.allocator)
+}
+on_redid :: proc(kind: Undo_Kind) {
+	msg := fmt.tprintf("Redo %v!", UNDO_KIND_NAME[kind])
+	toast_set(msg, context.allocator)
 }
 
 // These functions are listeners for window events.

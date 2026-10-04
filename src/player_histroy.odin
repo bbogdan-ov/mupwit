@@ -25,6 +25,20 @@ Undo_Kind :: enum {
 	Queue_Clear,
 }
 
+@(rodata)
+UNDO_KIND_NAME := [Undo_Kind]string {
+	.None          = "",
+	.Song_Switch   = "Song switch",
+	.Seek          = "Seek current song",
+	.Load          = "Load songs",
+	.Load_Album    = "Load album",
+	.Queue_Remove  = "Remove song",
+	.Queue_Add     = "Add song",
+	.Queue_Reorder = "Reorder song",
+	.Queue_Shuffle = "Shuffle queue",
+	.Queue_Clear   = "Clear queue",
+}
+
 Undo :: struct {
 	command: Player_Command,
 	kind:    Undo_Kind,
@@ -61,6 +75,8 @@ player_undo :: proc(player: ^Base_Player) -> bool {
 	player.history._state = .Undoing
 	_player_send(player, undo.command)
 	player.history._state = .Normal
+
+	on_undid(undo.kind)
 	return true
 }
 
@@ -73,6 +89,8 @@ player_redo :: proc(player: ^Base_Player) -> bool {
 	player.history._state = .Redoing
 	_player_send(player, undo.command)
 	player.history._state = .Normal
+
+	on_redid(undo.kind)
 	return true
 }
 

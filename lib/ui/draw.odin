@@ -124,6 +124,8 @@ draw_glyphs :: proc(
 
 // TODO: come up with a better text drawing without allocation.
 // I'll probably have to implement my own font and text rendering.
+// TODO!: should be an option to make cropped text act like a "marquee".
+// (horizontal scroll animation)
 draw_text :: proc(
 	ctx: ^Context,
 	str: string,
@@ -341,6 +343,40 @@ draw_box_rounded :: proc(ctx: ^Context, rect: Rect, color: Color, filled := fals
 		cairo.close_path(ctx)
 		cairo.stroke(ctx)
 	}
+}
+
+SPEECH_BUBBLE_TAIL_SIZE :: 8
+
+draw_speech_bubble :: proc(ctx: ^Context, rect: Rect, color: Color) {
+	x, y := f64(rect.x), f64(rect.y)
+	w, h := f64(rect.width), f64(rect.height)
+
+	set_source_color(ctx, color)
+	cairo.set_line_width(ctx, 1)
+
+	if w <= 4 || h <= 4 {
+		cairo.rectangle(ctx, x, y, w, h)
+		cairo.fill(ctx)
+		return
+	}
+
+	l, r := x + 2, x + w - 2
+	t, b := y + 2, y + h - 2
+
+	tail: f64 = min(SPEECH_BUBBLE_TAIL_SIZE, w - 3)
+	tail = min(tail, h - 3)
+
+	cairo.move_to(ctx, l, y)
+	cairo.line_to(ctx, r, y) // top
+	cairo.line_to(ctx, x + w, t)
+	cairo.line_to(ctx, x + w, y + h + tail - 1) // right
+	cairo.line_to(ctx, x + w - 1, y + h + tail - 1) // tail
+	cairo.line_to(ctx, x + w - tail, y + h)
+	cairo.line_to(ctx, l + 1, y + h) // bottom
+	cairo.line_to(ctx, x, b - 1)
+	cairo.line_to(ctx, x, t) // left
+	cairo.close_path(ctx)
+	cairo.fill(ctx)
 }
 
 _rectangle :: proc(cr: ^cairo.cairo_t, rect: Rect) {
