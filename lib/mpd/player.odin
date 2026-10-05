@@ -192,6 +192,10 @@ album_artist :: proc(album: Album) -> Album_Name #no_bounds_check {
 	assert(len(album.songs) > 0)
 	return album.songs[0].artist
 }
+album_date :: proc(album: Album) -> Album_Name #no_bounds_check {
+	assert(len(album.songs) > 0)
+	return album.songs[0].date
+}
 album_first_song :: proc(album: Album) -> ^Song #no_bounds_check {
 	assert(len(album.songs) > 0)
 	return &album.songs[0]

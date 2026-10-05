@@ -10,14 +10,17 @@ import "lib:mpd"
 import "lib:ui"
 
 Song_Item :: struct {
-	using item: ui.Item,
-	song_index: mpd.Song_Index,
-	loader:     Cover_Loader,
+	using item:  ui.Item,
+	float_tween: ui.Tween(f32),
+	song_index:  mpd.Song_Index,
+	loader:      Cover_Loader,
 }
+
+Song_Item_List :: ui.Item_List(Song_Item)
 
 @(private = "file")
 self: struct {
-	list:                ui.Item_List(Song_Item),
+	list:                Song_Item_List,
 	box:                 ui.Box,
 	scroll:              ui.Scroll,
 	list_just_reordered: bool,
@@ -25,16 +28,19 @@ self: struct {
 
 queue_ui_init :: proc() {
 	ui.item_list_init(&self.list, SONG_HEIGHT, context.allocator)
-	self.list.reorderable = true
+	self.list.kind = .Reorderable
 	self.list.scroll_padding = SONG_HEIGHT
-	self.list.item_update = queue_ui_list_item_update
-	self.list.on_item_reordered = queue_ui_list_on_item_reordered
-	self.list.on_item_start_reordering = queue_ui_list_on_item_start_reordering
-	self.list.on_item_stop_reordering = queue_ui_list_on_item_stop_reordering
+
+	self.list.item_init = _song_item_init
+	self.list.item_destroy = _song_item_destroy
+	self.list.item_update = _song_item_update
+	self.list.item_search_score = _song_item_search_score
+	self.list.on_item_reordered = _queue_ui_on_item_reordered
+	self.list.on_item_start_reordering = _queue_ui_on_item_start_reordering
+	self.list.on_item_stop_reordering = _queue_ui_on_item_stop_reordering
 }
 
 queue_ui_destroy :: proc() {
-	_queue_ui_clear_list()
 	ui.item_list_destroy(&self.list)
 }
 
@@ -87,34 +93,32 @@ _queue_ui_scroll_to_cur_song :: proc(state: ^State, smooth := true) -> bool {
 	return true
 }
 
-_queue_ui_clear_list :: proc() {
-	for &item in self.list.items {
-		song_item_destroy(&item)
-	}
-	clear(&self.list.items)
-}
-
 _queue_ui_remove_item :: proc(index: ui.Item_Index) {
 	item := &self.list.items[index]
-	song_item_destroy(item)
+	_song_item_destroy(item)
 	ordered_remove(&self.list.items, int(index))
 
 	for i in index ..< ui.items_count(&self.list) {
 		item := &self.list.items[i]
 		item.song_index = mpd.Song_Index(i)
-		ui.item_tween_to_rest(item, i, self.list.item_height)
+		ui.item_tween_to_rest(&self.list, item, i)
 	}
+}
+
+_queue_ui_contents_height :: proc() -> i32 {
+	return ui.item_list_content_height(&self.list) + self.list.item_height
 }
 
 queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if !screen_is_visible(state, .Queue) do return
 
-	box := ui.pad_b(ctx.box, status_ui_visible_height())
+	box := ui.pad_b(ctx.box, status_ui_visible_height() + clippy_ui_visible_height())
+	box = ui.pad_t(box, command_ui_visible_height())
 	box.x += screen_x_offset(state, .Queue)
-	ui.begin_box(ctx, box, GAP, self.scroll.offset)
+	ui.guard_box(ctx, box, GAP, self.scroll.offset)
 	self.box = ctx.box
 
-	// Draw a little "empty" symbol.
+	// Draw a little "empty queue" symbol.
 	if ui.items_count(&self.list) == 0 {
 		pos := rect_center(ctx.box)
 		pos.y += ctx.font_height / 2
@@ -127,43 +131,51 @@ queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		index := ui.Item_Index(i)
 		if ui.item_is_reodering(&self.list, index) do continue
 		item := &self.list.items[index]
-		song_item_draw(state, ctx, item, index)
+		_song_item_draw(state, ctx, item, index)
 	}
 
 	// Draw the currently reordering item above others.
 	if self.list.reorder_state != .None {
 		index := self.list.reordering
 		item := &self.list.items[index]
-		song_item_draw(state, ctx, item, index)
+		_song_item_draw(state, ctx, item, index)
 	}
 
 	contents := _queue_ui_contents_height()
 	scroll_draw(state, ctx, &self.scroll, contents)
 }
 
-_queue_ui_contents_height :: proc() -> i32 {
-	return ui.item_list_content_height(&self.list) + self.list.item_height
-}
+// ------------------------------
+// Listeners.
+// ------------------------------
 
 queue_ui_on_screen_updated :: proc(state: ^State) {
 	ui.item_list_stop_reordering(&self.list)
 
 	if state.screen != .Queue do return
 
-	if state.player.cur_song == nil do return
+	clippy_ui_allow_search(.Queue, self.list.search)
 
-	// FIXME: this is a crutch, should be a better and automated way to update
-	// scroll content length, but it'll work for now.
-	// The problem with this solution is that `self.box` may be empty (i.e.
-	// width and height are zeros) when calling `scroll_set` and the content
-	// length may be larger that it should be because of that.
-	if self.box.height <= 0 {
-		self.box.height = ui.state.view.height - GAP * 2 - STATUS_MAX_HEIGHT
+	if state.player.cur_song != nil {
+		// FIXME: this is a crutch, should be a better and automated way to update
+		// scroll content length, but it'll work for now.
+		// The problem with this solution is that `self.box` may be empty (i.e.
+		// width and height are zeros) when calling `scroll_set` and the content
+		// length may be larger that it should be because of that.
+		if self.box.height <= 0 {
+			self.box.height = ui.state.view.height - GAP * 2 - STATUS_MAX_HEIGHT
+		}
+		contents := _queue_ui_contents_height()
+		ui.scroll_update_length(self.box, &self.scroll, contents)
+
+		_queue_ui_scroll_to_cur_song(state, smooth = false)
 	}
-	contents := _queue_ui_contents_height()
-	ui.scroll_update_length(self.box, &self.scroll, contents)
+}
 
-	_queue_ui_scroll_to_cur_song(state, smooth = false)
+queue_ui_on_search :: proc(state: ^State, search: string) {
+	if state.screen != .Queue do return
+
+	ui.item_list_on_search(&self.list, search, context.allocator)
 }
 
 queue_ui_on_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
@@ -175,6 +187,7 @@ queue_ui_on_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
 queue_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bool) {
 	if state.screen != .Queue do return true
 
+	self.list.userdata = state
 	ui.item_list_on_keyboard_key(self.box, &self.scroll, &self.list, ev) or_return
 
 	switch {
@@ -196,20 +209,7 @@ queue_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bo
 }
 
 queue_ui_on_queue_updated :: proc(state: ^State) {
-	player := state.player
-
-	ui.item_list_cancel_reordering(&self.list)
-
-	_queue_ui_clear_list()
-	non_zero_reserve(&self.list.items, len(player.queue))
-
-	for _, index in player.queue {
-		item := Song_Item {
-			item       = ui.item_make(&self.list, ui.Item_Index(index)),
-			song_index = mpd.Song_Index(index),
-		}
-		append(&self.list.items, item)
-	}
+	ui.item_list_rebuild(&self.list, len(state.player.queue))
 }
 
 queue_ui_on_cur_song_updated :: proc(state: ^State, prev_index: Maybe(mpd.Song_Index)) {
@@ -256,9 +256,9 @@ queue_ui_on_song_reordered :: proc(state: ^State, from, to: mpd.Song_Index) {
 
 		// Animate items reordering.
 		if index == to {
-			ui.item_tween_from_to(item, from, to, self.list.item_height)
+			ui.item_tween_from_to(&self.list, item, from, to)
 		} else {
-			ui.item_tween_from_to(item, index + shift, index, self.list.item_height)
+			ui.item_tween_from_to(&self.list, item, index + shift, index)
 		}
 
 		item.song_index = mpd.Song_Index(index)
@@ -277,24 +277,8 @@ queue_ui_on_song_removed :: proc(index: mpd.Song_Index) {
 	_queue_ui_remove_item(ui.Item_Index(index))
 }
 
-queue_ui_list_item_update :: proc(
-	list: ^ui.Item_List(Song_Item),
-	item: ^Song_Item,
-	index: ui.Item_Index,
-	dt: Seconds,
-) {
-	if !SONG_LOAD_COVER do return
-
-	state := cast(^State)list.userdata
-
-	is_in_view := ui.item_within_view(self.box, item.position.y, self.list.item_height)
-	song := &state.player.queue[item.song_index]
-
-	cover_loader_update(state.player, &item.loader, song.file, song.album, .Small, is_in_view, dt)
-}
-
-queue_ui_list_on_item_reordered :: proc(
-	list: ^ui.Item_List(Song_Item),
+_queue_ui_on_item_reordered :: proc(
+	list: ^Song_Item_List,
 	item: ^Song_Item,
 	index: ui.Item_Index,
 	reorder: ui.Item_Reorder,
@@ -308,35 +292,76 @@ queue_ui_list_on_item_reordered :: proc(
 	player_queue_reorder(state.player, from, to)
 }
 
-queue_ui_list_on_item_start_reordering :: proc(
-	list: ^ui.Item_List(Song_Item),
+_queue_ui_on_item_start_reordering :: proc(
+	list: ^Song_Item_List,
 	item: ^Song_Item,
 	index: ui.Item_Index,
 ) {
 	if ui.controls() == .Keyboard {
-		item.position.x = GAP * 2
+		ui.play(&item.float_tween, 0, ui.ITEM_ANIM_DURATION)
 	}
 }
 
-queue_ui_list_on_item_stop_reordering :: proc(
-	list: ^ui.Item_List(Song_Item),
+_queue_ui_on_item_stop_reordering :: proc(
+	list: ^Song_Item_List,
 	item: ^Song_Item,
 	index: ui.Item_Index,
 ) {
-	item.position.x = 0
+	ui.play(&item.float_tween, 1, ui.ITEM_ANIM_DURATION)
 }
 
-song_item_destroy :: proc(item: ^Song_Item) {
+// ------------------------------
+// Song item.
+// ------------------------------
+
+_song_item_init :: proc(list: ^Song_Item_List, item: ^Song_Item, index, number: ui.Item_Index) {
+	item.song_index = mpd.Song_Index(index)
+}
+
+_song_item_destroy :: proc(item: ^Song_Item) {
 	cover_maybe_unref(item.loader.cover)
 }
 
-song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item, index: ui.Item_Index) {
+_song_item_update :: proc(
+	list: ^Song_Item_List,
+	item: ^Song_Item,
+	index: ui.Item_Index,
+	dt: Seconds,
+) {
+	if !SONG_LOAD_COVER do return
+
+	state := cast(^State)list.userdata
+
+	ui.tween_update(&item.float_tween, dt)
+
+	is_in_view := ui.item_within_view(self.box, item.position.y, self.list.item_height)
 	song := &state.player.queue[item.song_index]
 
+	cover_loader_update(state.player, &item.loader, song.file, song.album, .Small, is_in_view, dt)
+}
+
+_song_item_search_score :: proc(list: ^Song_Item_List, item: ^Song_Item) -> i32 {
+	state := cast(^State)list.userdata
+	song := &state.player.queue[item.song_index]
+	return ui.item_list_calc_score(list, song.title)
+}
+
+_song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item, index: ui.Item_Index) {
+	song := &state.player.queue[item.song_index]
+
+	is_mathing := self.list.pattern != nil && item.score >= ui.MIN_SEARCH_SCORE
+
 	pos := item.cur_position
+	{
+		to: f32 = 0
+		if ui.item_is_reodering(&self.list, index) do to = 1
+		p := ui.tween_ease(&item.float_tween, to, .Cubic_Out)
+		pos.x += i32(GAP * 2 * p)
+	}
+
 	rect := ctx.box.rect
 	rect.x += pos.x
-	rect.y += pos.y - i32(ctx.box.scroll)
+	rect.y += pos.y - ctx.box.scroll
 	rect.width -= pos.x
 	rect.height = self.list.item_height
 
@@ -351,7 +376,7 @@ song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item, index:
 		draw_icon(state, ctx, .Small_Arrow_Right, pos, state.theme.black)
 	}
 
-	ui.begin_box(ctx, rect, GAP)
+	ui.guard_box(ctx, rect, GAP)
 
 	// Draw song cover.
 	{
@@ -378,14 +403,19 @@ song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item, index:
 	{
 		box := ctx.box
 		box.width += -duration_advance - GAP
-		ui.begin_box(ctx, box)
+		ui.guard_box(ctx, box)
 
 		pos := rect_pos(ctx.box)
 		pos.x += SONG_COVER_SIZE + GAP
 		pos.y += ctx.font_height - 1
 		pos.y += ctx.box.height / 2 - (ctx.font_height * 2 + GAP / 2) / 2
 
-		ui.draw_text(ctx, song.title, pos, state.theme.black)
+		adv := ui.draw_text(ctx, song.title, pos, state.theme.black, bold = is_mathing)
+		if is_mathing {
+			rect := Rect{pos.x, pos.y + 2, adv.x, 1}
+			ui.draw_line_h(ctx, rect, state.theme.black)
+		}
+
 		pos.y += ctx.font_height + GAP / 2
 		ui.draw_text(ctx, song.artist, pos, state.theme.gray)
 	}

@@ -1,8 +1,19 @@
 package ui
 
 import "base:intrinsics"
+import "base:runtime"
+import "core:log"
+import "core:sort"
+import "core:strings"
+import "core:time"
 
+import "lib:fzf"
 import win "lib:my_window"
+
+_ :: sort
+
+MIN_FILTER_SCORE :: 10
+MIN_SEARCH_SCORE :: 30
 
 Item_Index :: i32
 
@@ -13,6 +24,8 @@ Item :: struct {
 	position:     Vec2,
 	// Current tweened position.
 	cur_position: Vec2,
+	number:       Item_Index,
+	score:        i32,
 }
 
 Item_Reorder :: struct {
@@ -23,6 +36,18 @@ Reorder_State :: enum {
 	None = 0,
 	Preparing, // Item is held down but not reodering yet.
 	Active, // Item is being reordered.
+}
+
+// NOTE: a list cannot be `Reorderable` and `Filterable` at the same time.
+Item_List_Kind :: enum {
+	// All items are in order, also allows to search
+	// through the list.
+	Simple = 0,
+	// Allows to reorder and search through the list.
+	Reorderable,
+	// Allows to filter (remove items that don't match a search pattern) and
+	// sort the list.
+	Filterable,
 }
 
 // List of reorderable items.
@@ -37,11 +62,19 @@ Item_List :: struct($T: typeid) where intrinsics.type_is_subtype_of(T, Item) {
 	reordering:               Item_Index,
 	reorder_state:            Reorder_State,
 	reorder:                  Item_Reorder,
-	reorderable:              bool,
+	kind:                     Item_List_Kind,
 	_center_scroll:           bool,
+
+	// Searching state.
+	search:                   string,
+	search_allocator:         runtime.Allocator,
+	slab:                     ^fzf.slab_t,
+	pattern:                  ^fzf.pattern_t,
 
 	// Callbacks.
 	userdata:                 rawptr,
+	item_init:                proc(list: ^Item_List(T), item: ^T, index, number: Item_Index),
+	item_destroy:             proc(item: ^T),
 	item_update:              proc(list: ^Item_List(T), item: ^T, index: Item_Index, dt: Seconds),
 	on_item_reordered:        proc(
 		list: ^Item_List(T),
@@ -51,6 +84,8 @@ Item_List :: struct($T: typeid) where intrinsics.type_is_subtype_of(T, Item) {
 	),
 	on_item_start_reordering: proc(list: ^Item_List(T), item: ^T, index: Item_Index),
 	on_item_stop_reordering:  proc(list: ^Item_List(T), item: ^T, index: Item_Index),
+	// Calculate a search score of an item.
+	item_search_score:        proc(list: ^Item_List(T), item: ^T) -> i32,
 }
 
 item_list_init :: proc(list: ^Item_List($T), item_height: i32, allocator := context.allocator) {
@@ -61,8 +96,27 @@ item_list_init :: proc(list: ^Item_List($T), item_height: i32, allocator := cont
 }
 
 item_list_destroy :: proc(list: ^Item_List($T)) {
+	item_list_clear(list)
 	delete(list.items)
 	list.items = nil
+
+	delete(list.search, list.search_allocator)
+
+	if list.slab != nil {
+		fzf.free_slab(list.slab)
+		list.slab = nil
+	}
+	if list.pattern != nil {
+		fzf.free_pattern(list.pattern)
+		list.pattern = nil
+	}
+}
+
+item_list_clear :: proc(list: ^Item_List($T)) {
+	if list.item_destroy != nil {
+		for &item in list.items do list.item_destroy(&item)
+	}
+	clear(&list.items)
 }
 
 item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: Seconds) {
@@ -80,10 +134,21 @@ item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: S
 
 	_item_list_update_hovering(box^, list)
 	_item_list_update_reordering(box^, list)
+	_item_list_update_items(box^, scroll, list, dt)
 
+	if controls() != .Keyboard {
+		if list.reorder_state == .Active {
+			set_cursor(.Grabbing)
+		} else if list.hovering != nil {
+			set_cursor(.Pointer)
+		}
+	}
+}
+
+_item_list_update_items :: proc(box: Box, scroll: ^Scroll, list: ^Item_List($T), dt: Seconds) {
 	update_scrolloff := max(256 / list.item_height, 1)
 
-	from, to := item_list_visible_range(box^, list)
+	from, to := item_list_visible_range(box, list)
 	from = max(from - update_scrolloff, 0)
 	to = min(to + update_scrolloff, items_count(list))
 
@@ -91,7 +156,7 @@ item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: S
 		index := Item_Index(i)
 		item := &list.items[i]
 		if !item_is_reodering(list, index) {
-			item_update(box^, list, item, index, dt)
+			item_update(box, list, item, index, dt)
 		}
 	}
 
@@ -99,25 +164,17 @@ item_list_update :: proc(box: ^Box, scroll: ^Scroll, list: ^Item_List($T), dt: S
 		// Update the currently reordering item separately from others so it
 		// updates no matter if it within the view or not.
 		item := &list.items[list.reordering]
-		item_update(box^, list, item, list.reordering, dt)
+		item_update(box, list, item, list.reordering, dt)
 
 		if controls() == .Keyboard {
 			item_list_scroll_to(
-				box^,
+				box,
 				scroll,
 				list,
 				list.reordering,
 				center = list._center_scroll,
 				smooth = false,
 			)
-		}
-	}
-
-	if controls() != .Keyboard {
-		if list.reorder_state == .Active {
-			set_cursor(.Grabbing)
-		} else if list.hovering != nil {
-			set_cursor(.Pointer)
 		}
 	}
 }
@@ -138,7 +195,7 @@ item_list_set_cursor :: proc(box: Box, scroll: ^Scroll, list: ^Item_List($T), cu
 
 		item := &list.items[list.reordering]
 
-		item_tween_to_rest(item, index, list.item_height)
+		item_tween_to_rest(list, item, index)
 		_item_reorder(list, index)
 	} else if list.hovering != index {
 		item_list_set_hovering(list, index)
@@ -149,7 +206,7 @@ item_list_set_cursor :: proc(box: Box, scroll: ^Scroll, list: ^Item_List($T), cu
 _item_list_update_reordering :: proc(box: Box, list: ^Item_List($T)) {
 	REORDER_START_THRESHOLD :: 10
 
-	if !list.reorderable do return
+	if list.kind != .Reorderable do return
 	if controls() == .Keyboard do return
 
 	hovering, has_hovering := list.hovering.?
@@ -241,9 +298,9 @@ item_list_set_hovering :: proc(list: ^Item_List($T), index: Maybe(Item_Index)) {
 	}
 }
 
-item_list_start_reordering :: proc(list: ^Item_List($T), index: Item_Index) {
-	if !list.reorderable do return
-	if list.reorder_state == .Active do return
+item_list_start_reordering :: proc(list: ^Item_List($T), index: Item_Index) -> bool {
+	if list.kind != .Reorderable do return false
+	if list.reorder_state == .Active do return false
 
 	assert(list.columns == 1, "TODO: reordering for multi-column lists is not implemented yet")
 
@@ -261,6 +318,7 @@ item_list_start_reordering :: proc(list: ^Item_List($T), index: Item_Index) {
 	}
 
 	dirty(true)
+	return true
 }
 
 // Move currently reordering item to the position it is currently in and stop reordering.
@@ -290,7 +348,7 @@ _item_list_cancel_reordering_impl :: proc(list: ^Item_List($T), reorder_back: bo
 	index := list.reordering
 
 	item := &list.items[list.reordering]
-	item_tween_to_rest(item, list.reordering, list.item_height)
+	item_tween_to_rest(list, item, list.reordering)
 
 	if reorder_back {
 		index = list.reorder.from
@@ -332,7 +390,7 @@ _item_reorder :: proc(list: ^Item_List($T), to: Item_Index) {
 	// Update and animate positions of the items that were shifted with in the array.
 	for index in start ..< end {
 		item := &list.items[index]
-		item_tween_to_rest(item, Item_Index(index), list.item_height)
+		item_tween_to_rest(list, item, Item_Index(index))
 	}
 
 	dirty(true)
@@ -350,7 +408,7 @@ item_list_scroll_to :: proc(
 	y := item.cur_position.y
 
 	height := list.item_height
-	rel := y - i32(box.scroll)
+	rel := y - box.scroll
 
 	off: i32
 	switch {
@@ -372,7 +430,7 @@ _item_list_should_scroll_by :: proc(box: Box, list: ^Item_List($T)) -> f32 {
 
 	item := &list.items[list.reordering]
 
-	pos: i32 = item.position.y + list.item_height / 2 - box.y - i32(box.scroll)
+	pos: i32 = item.position.y + list.item_height / 2 - box.y - box.scroll
 	top: i32 = ITEM_REORDER_SCROLLOFF
 	bottom: i32 = box.height - ITEM_REORDER_SCROLLOFF
 	if pos < top {
@@ -383,6 +441,121 @@ _item_list_should_scroll_by :: proc(box: Box, list: ^Item_List($T)) -> f32 {
 		return 0
 	}
 }
+
+item_list_rebuild :: proc(list: ^Item_List($T), source_count: int) {
+	item_list_cancel_reordering(list)
+
+	item_list_clear(list)
+	non_zero_reserve(&list.items, source_count)
+
+	if list.pattern != nil do assert(list.item_search_score != nil)
+
+	number: Item_Index = 0
+	for index in 0 ..< Item_Index(source_count) {
+		item: T
+		item_init(list, &item, number)
+		if list.item_init != nil {
+			list.item_init(list, &item, index, number)
+		}
+
+		if list.pattern != nil {
+			score := list.item_search_score(list, &item)
+			if score < MIN_SEARCH_SCORE do continue
+			item.score = score
+		}
+
+		append(&list.items, item)
+		number += 1
+	}
+
+	dirty(true)
+}
+
+// TODO: would be cool to move item filtering into a separate thread.
+item_list_filter :: proc(scroll: ^Scroll, list: ^Item_List($T), source_count: int) {
+	assert(list.kind == .Filterable, "item list must be `Item_List_Kind.Filterable` to filter")
+
+	scroll_set(scroll, 0)
+	item_list_set_hovering(list, 0)
+	set_controls(.Keyboard)
+
+	item_list_rebuild(list, source_count)
+
+	if list.pattern != nil {
+		_item_list_sort_items_by_score(list)
+	}
+}
+
+_item_list_sort_items_by_score :: proc(list: ^Item_List($T)) {
+	if items_count(list) == 0 do return
+
+	it := sort.Interface {
+		collection = list,
+		len = proc(it: sort.Interface) -> int {
+			list := cast(^Item_List(T))it.collection
+			return len(list.items)
+		},
+		less = proc(it: sort.Interface, i, j: int) -> bool {
+			list := cast(^Item_List(T))it.collection
+			return list.items[j].score < list.items[i].score
+		},
+		swap = proc(it: sort.Interface, i, j: int) {
+			list := cast(^Item_List(T))it.collection
+			a, b := &list.items[i], &list.items[j]
+
+			a.number, b.number = b.number, a.number
+
+			a.position = item_pos_from_index(list, a.number)
+			a.cur_position = a.position
+			b.position = item_pos_from_index(list, b.number)
+			b.cur_position = b.position
+
+			a^, b^ = b^, a^
+		},
+	}
+	sort.sort(it)
+}
+
+item_list_calc_score :: proc(list: ^Item_List($T), text: string) -> (score: i32) {
+	if list.pattern == nil do return 9999
+
+	score = fzf.get_score(raw_data(text), uint(len(text)), list.pattern, list.slab)
+	return score
+}
+
+item_list_search_next :: proc(
+	list: ^Item_List($T),
+	backwards: bool,
+) -> (
+	index: Item_Index,
+	ok: bool,
+) {
+	if list.kind == .Filterable do return
+	assert(list.item_search_score != nil)
+
+	dir: Item_Index = -1 if backwards else 1
+
+	index = list.hovering.? or_else list.last_hovered
+	index += dir
+
+	for ; within(index, 0, items_count(list)); index += dir {
+		item := &list.items[index]
+		score := item.score
+		if score <= 0 {
+			score = list.item_search_score(list, item)
+		}
+		if score >= MIN_SEARCH_SCORE {
+			ok = true
+			break
+		}
+	}
+
+	return index, ok
+}
+
+// ------------------------------
+// Listeners.
+// ------------------------------
 
 item_list_on_keyboard_key :: proc(
 	box: Box,
@@ -396,12 +569,17 @@ item_list_on_keyboard_key :: proc(
 	is_ctrl_key :: win.is_ctrl_key
 	is_shift_key :: win.is_shift_key
 
+	none := ev.mods == {}
+	shift := ev.mods == {.Shift}
+
 	page_jump := max(box.height / list.item_height, 3)
 	jump := max(page_jump / 2, 2)
 
 	rows := item_list_rows(list)
+	consume := list.hovering == nil
 	hovering := list.hovering.? or_else list.last_hovered
 	cursor := item_cursor_from_index(hovering, list.columns)
+	prev_cursor := cursor
 	list._center_scroll = false
 
 	is_reordering := list.reorder_state == .Active
@@ -410,7 +588,7 @@ item_list_on_keyboard_key :: proc(
 	switch {
 	case is_reordering && is_key(ev, .R): fallthrough
 	case is_reordering && is_key(ev, .Enter): fallthrough
-	case is_reordering && is_key(ev, .Esc):
+	case is_reordering && (ev.key == .Esc || is_ctrl_key(ev, .C)):
 		set_controls(.Keyboard) or_break
 		item_list_stop_reordering(list)
 
@@ -422,8 +600,8 @@ item_list_on_keyboard_key :: proc(
 	case is_ctrl_key(ev, .D): cursor.y += jump
 	case is_ctrl_key(ev, .U): cursor.y -= jump
 
-	case is_ctrl_key(ev, .F), is_key(ev, .Page_Down): cursor.y += page_jump
-	case is_ctrl_key(ev, .B), is_key(ev, .Page_Up):   cursor.y -= page_jump
+	case is_key(ev, .Page_Down): cursor.y += page_jump
+	case is_key(ev, .Page_Up):   cursor.y -= page_jump
 
 	case is_key(ev, .G), is_key(ev, .Home):
 		cursor.y = 0
@@ -438,10 +616,19 @@ item_list_on_keyboard_key :: proc(
 		index := item_cursor_to_index(cursor, list.columns)
 		item_list_start_reordering(list, index)
 
+	case ev.key == .N && (none || shift):
+		index := item_list_search_next(list, shift) or_break
+		cursor = item_cursor_from_index(index, list.columns)
+		consume = false
+
 	case:
 		return true
 	}
 	// odinfmt:enable
+
+	if consume {
+		cursor = prev_cursor
+	}
 
 	set_controls(.Keyboard)
 	item_list_set_cursor(box, scroll, list, cursor)
@@ -449,11 +636,57 @@ item_list_on_keyboard_key :: proc(
 	return false
 }
 
-item_make :: proc(list: ^Item_List($T), index: Item_Index) -> Item {
+item_list_on_search :: proc(
+	list: ^Item_List($T),
+	search: string,
+	allocator := context.allocator,
+) -> (
+	updated: bool,
+) {
+	if list.search == search do return false
+
+	delete(list.search, list.search_allocator)
+	list.search = strings.clone(search, allocator)
+	list.search_allocator = allocator
+
+	if list.slab == nil {
+		list.slab = fzf.make_default_slab()
+	}
+	if list.pattern != nil {
+		fzf.free_pattern(list.pattern)
+		list.pattern = nil
+	}
+
+	if len(list.search) > 0 {
+		data := raw_data(list.search)
+		count := uint(len(list.search))
+		list.pattern = fzf.parse_pattern(.CaseIgnore, data, count, true)
+
+		if list.kind != .Filterable {
+			start := time.now()
+			for &item in list.items {
+				item.score = 0
+			}
+			log.debugf("UI: Reset items score in %v", time.since(start))
+		}
+	}
+
+	dirty(true)
+	return true
+}
+
+// ------------------------------
+// Item.
+// ------------------------------
+
+item_init :: proc(list: ^Item_List($T), item: ^T, number: Item_Index) {
 	pos: Vec2
-	pos.x = index % list.columns * list.item_width
-	pos.y = index / list.columns * list.item_height
-	return Item{position = pos, cur_position = pos}
+	pos.x = number % list.columns * list.item_width
+	pos.y = number / list.columns * list.item_height
+
+	item.position = pos
+	item.cur_position = pos
+	item.number = number
 }
 
 item_update :: proc(box: Box, list: ^Item_List($T), item: ^T, index: Item_Index, dt: Seconds) {
@@ -465,6 +698,12 @@ item_update :: proc(box: Box, list: ^Item_List($T), item: ^T, index: Item_Index,
 
 	if list.item_update != nil {
 		list.item_update(list, item, index, dt)
+	}
+
+	if list.pattern != nil && list.item_search_score != nil && item.score <= 0 {
+		item.score = list.item_search_score(list, item)
+		// Just so this branch doesn't trigger one more time.
+		item.score = max(item.score, 1)
 	}
 }
 
@@ -483,7 +722,7 @@ _item_index_from_pos :: proc(position: Vec2, height: i32, count: Item_Index) -> 
 
 // Returns item position relative to the view.
 item_view :: proc(box: Box, position: Vec2) -> Vec2 {
-	return position + rect_pos(box) - Vec2{0, i32(box.scroll)}
+	return position + rect_pos(box) - Vec2{0, box.scroll}
 }
 
 item_list_visible_range :: proc(box: Box, list: ^Item_List($T)) -> (from, to: Item_Index) {
@@ -516,21 +755,30 @@ item_cursor_to_index :: proc(cursor: Vec2, columns: Item_Index) -> Item_Index {
 }
 
 item_within_box :: proc(box: Box, y: i32, height: i32) -> bool {
-	y := y - box.y - i32(box.scroll)
+	y := y - box.y - box.scroll
 	return -height < y && y < box.height
 }
 item_within_view :: proc(box: Box, y: i32, height: i32) -> bool {
-	y := y - box.y - i32(box.scroll)
+	y := y - box.y - box.scroll
 	return -height * 2 < y && y < state.view.height + height
 }
 
-item_tween_from_to :: proc(item: ^Item, from, to: Item_Index, height: i32) {
-	item.cur_position.y = from * height
-	item_tween_to_rest(item, to, height)
+item_pos_from_index :: proc(list: ^Item_List($T), index: Item_Index) -> Vec2 {
+	v: Vec2
+	v.x = (index % list.columns) * list.item_width
+	v.y = (index / list.columns) * list.item_height
+	return v
 }
-item_tween_to_rest :: proc(item: ^Item, index: Item_Index, height: i32) {
+
+item_tween_from_to :: proc(list: ^Item_List($T), item: ^Item, from, to: Item_Index) {
+	item.cur_position = item_pos_from_index(list, from)
+	item.number = to
+	item_tween_to_rest(list, item, to)
+}
+item_tween_to_rest :: proc(list: ^Item_List($T), item: ^Item, index: Item_Index) {
 	_item_start_pos_tween(item)
-	item.position.y = index * height
+	item.position = item_pos_from_index(list, index)
+	item.number = index
 }
 _item_start_pos_tween :: proc(item: ^Item) {
 	tween_play(&item.tween, cast([2]f32)item.cur_position, ITEM_ANIM_DURATION)

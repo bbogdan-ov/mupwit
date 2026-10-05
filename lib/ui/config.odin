@@ -18,5 +18,7 @@ ITEM_REORDER_SCROLLOFF :: 32
 ITEM_REORDER_SCROLL_MUL :: 0.25
 ITEM_ANIM_DURATION :: Seconds(0.2)
 
+SEARCH_DEBOUNCE :: Seconds(0.1)
+
 // Time between mouse clicks to count it as a double-click.
 DOUBLE_CLICK_DURATION :: Seconds(0.3)

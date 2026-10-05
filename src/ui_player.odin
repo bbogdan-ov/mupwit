@@ -74,6 +74,54 @@ _player_ui_update_cover_handling :: proc(state: ^State, dt: Seconds) {
 	}
 }
 
+_player_ui_request_cur_cover :: proc(state: ^State) {
+	COVER_SIZE :: Cover_Size.Huge
+
+	log.debugf("UI PLAYER: Requesting the cover...")
+
+	song, has_song := player_cur_song(state.player)
+	if !has_song {
+		_player_ui_set_cover(state, nil)
+		return
+	}
+
+	cover := cover_get_or_request(state.player, song.file, song.album, COVER_SIZE)
+	if cover.loading {
+		cover_maybe_unref(self.loading_cover)
+
+		// Do not set the new cover right away if it is loading. We'll wait
+		// for the new cover to load and only then apply it.
+		self.loading_cover = cover_ref(cover)
+		log.debugf("UI PLAYER: Waiting for the cover to load...")
+	} else {
+		_player_ui_set_cover(state, cover_ref(cover))
+	}
+}
+
+// FIXME!!: sometimes it may not update the cover when the current song changes.
+// It happens very rearly an i'm not sure why, it seem to only happen when you
+// play switch albums.
+_player_ui_set_cover :: proc(state: ^State, cover: Maybe(^Cover)) {
+	log.debugf("UI PLAYER: Cover updated")
+
+	cover_maybe_unref(self.prev_cover)
+	self.prev_cover = self.cover
+	self.cover = cover
+
+	cover_maybe_unref(self.loading_cover)
+	self.loading_cover = nil
+
+	ui.tween_play(&self.cover_tween, 0, PLAYER_COVER_ANIM_DURATION)
+
+	if PLAYER_ADAPT_THEME_TO_COVER {
+		if cover, ok := cover.?; ok {
+			set_background_from_cover(state, cover)
+		} else {
+			set_background(state, DEFAULT_BACKGROUND)
+		}
+	}
+}
+
 player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if !screen_is_visible(state, .Player) do return
 
@@ -82,7 +130,7 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 
 	box := ctx.box
 	box.x += screen_x_offset(state, .Player)
-	ui.begin_box(ctx, box, PLAYER_PADDING)
+	ui.guard_box(ctx, box, PLAYER_PADDING)
 
 	// Clip screen contents so on page transition, cover doesn't overlap with
 	// other screens when playing cover transition animation.
@@ -166,7 +214,7 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	// Draw slider.
 	{
 		offset.y += GAP * 3
-		ui.begin_box(ctx, ui.pad_t(ctx.box, offset.y))
+		ui.guard_box(ctx, ui.pad_t(ctx.box, offset.y))
 		offset.y += _player_ui_draw_slider(state, ctx)
 	}
 
@@ -230,6 +278,10 @@ _player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context) -> (height: i32)
 	return height
 }
 
+// ------------------------------
+// Listeners.
+// ------------------------------
+
 player_ui_on_cur_song_updated :: proc(state: ^State) {
 	song, has_song := player_cur_song(state.player)
 	if !has_song {
@@ -243,53 +295,5 @@ player_ui_on_cur_song_updated :: proc(state: ^State) {
 	} else {
 		log.debugf("UI PLAYER: Delaying the cover request...")
 		self.req_cover_timer = COVER_REQ_DELAY
-	}
-}
-
-_player_ui_request_cur_cover :: proc(state: ^State) {
-	COVER_SIZE :: Cover_Size.Huge
-
-	log.debugf("UI PLAYER: Requesting the cover...")
-
-	song, has_song := player_cur_song(state.player)
-	if !has_song {
-		_player_ui_set_cover(state, nil)
-		return
-	}
-
-	cover := cover_get_or_request(state.player, song.file, song.album, COVER_SIZE)
-	if cover.loading {
-		cover_maybe_unref(self.loading_cover)
-
-		// Do not set the new cover right away if it is loading. We'll wait
-		// for the new cover to load and only then apply it.
-		self.loading_cover = cover_ref(cover)
-		log.debugf("UI PLAYER: Waiting for the cover to load...")
-	} else {
-		_player_ui_set_cover(state, cover_ref(cover))
-	}
-}
-
-// FIXME!!: sometimes it may not update the cover when the current song changes.
-// It happens very rearly an i'm not sure why, it seem to only happen when you
-// play switch albums.
-_player_ui_set_cover :: proc(state: ^State, cover: Maybe(^Cover)) {
-	log.debugf("UI PLAYER: Cover updated")
-
-	cover_maybe_unref(self.prev_cover)
-	self.prev_cover = self.cover
-	self.cover = cover
-
-	cover_maybe_unref(self.loading_cover)
-	self.loading_cover = nil
-
-	ui.tween_play(&self.cover_tween, 0, PLAYER_COVER_ANIM_DURATION)
-
-	if PLAYER_ADAPT_THEME_TO_COVER {
-		if cover, ok := cover.?; ok {
-			set_background_from_cover(state, cover)
-		} else {
-			set_background(state, DEFAULT_BACKGROUND)
-		}
 	}
 }

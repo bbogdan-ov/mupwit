@@ -29,40 +29,27 @@ self: struct {
 	button_clear:   ui.Button,
 	button_shuffle: ui.Button,
 	slider:         ui.Slider,
-	tween:          ui.Tween(f32),
-	sub_tween:      ui.Tween(f32),
+	tween:          ui.Animated(f32),
+	sub_tween:      ui.Animated(f32),
 	text_rect:      Rect,
 	time_rect:      Rect,
 	time_mode:      Status_Time_Mode,
 	visible:        Status_Visible,
-	cur_offset:     i32,
-	cur_sub_offset: i32,
+}
+
+status_ui_init :: proc() {
+	self.tween.duration = STATUS_REVEAL_ANIM_DURATION
+	self.tween.easing = .Sine_In_Out
+	self.tween.value = STATUS_MAX_HEIGHT
+
+	self.sub_tween.duration = STATUS_REVEAL_ANIM_DURATION
+	self.sub_tween.easing = .Sine_In_Out
+	self.sub_tween.value = SUB_STATUS_HEIGHT
 }
 
 status_ui_update :: proc(state: ^State, dt: Seconds) {
-	ui.tween_update(&self.tween, dt)
-	ui.tween_update(&self.sub_tween, dt)
-
-	{
-		offset, sub_offset: f32
-		switch self.visible {
-		case {.Status}:
-			offset = 0
-			sub_offset = SUB_STATUS_HEIGHT
-		case {.Sub_Status}:
-			offset = STATUS_HEIGHT
-			sub_offset = 0
-		case {.Status, .Sub_Status}:
-			offset = 0
-			sub_offset = 0
-		case:
-			offset = STATUS_MAX_HEIGHT
-			sub_offset = 0
-		}
-
-		self.cur_offset = i32(ui.tween_ease(&self.tween, offset, .Sine_In_Out))
-		self.cur_sub_offset = i32(ui.tween_ease(&self.sub_tween, sub_offset, .Sine_In_Out))
-	}
+	ui.animated_update(&self.tween, dt)
+	ui.animated_update(&self.sub_tween, dt)
 
 	visible: Status_Visible
 	if state.screen == .Queue do visible += {.Sub_Status}
@@ -92,6 +79,56 @@ status_ui_update :: proc(state: ^State, dt: Seconds) {
 	}
 }
 
+_sub_status_ui_update :: proc(state: ^State) {
+	if ui.button_update(&self.button_clear) {
+		player_queue_clear(state.player)
+	}
+	if ui.button_update(&self.button_shuffle) {
+		player_queue_shuffle(state.player)
+	}
+
+	if ui.is_pointer_inside(self.time_rect) {
+		ui.set_cursor(.Pointer)
+
+		if ui.is_clicked(.Left) {
+			self.time_mode = enum_rotate_variant(self.time_mode, 1)
+			ui.dirty(true)
+		} else if ui.is_clicked(.Right) {
+			self.time_mode = enum_rotate_variant(self.time_mode, -1)
+			ui.dirty(true)
+		}
+	}
+}
+
+_status_ui_set_visible :: proc(visible: Status_Visible) {
+	if self.visible == visible do return
+	self.visible = visible
+
+	offset, sub_offset: f32
+	switch self.visible {
+	case {.Status}:
+		offset = 0
+		sub_offset = SUB_STATUS_HEIGHT
+	case {.Sub_Status}:
+		offset = STATUS_HEIGHT
+		sub_offset = 0
+	case {.Status, .Sub_Status}:
+		offset = 0
+		sub_offset = 0
+	case:
+		offset = STATUS_MAX_HEIGHT
+		sub_offset = 0
+	}
+
+	ui.play_to(&self.tween, offset)
+	ui.play_to(&self.sub_tween, sub_offset)
+}
+
+status_ui_visible_height :: proc() -> i32 {
+	off := STATUS_MAX_HEIGHT - self.tween.value - self.sub_tween.value
+	return max(i32(off), 0)
+}
+
 status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if self.visible == nil && self.tween.timer <= 0 do return
 
@@ -100,7 +137,7 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	rect := ui.state.view
 	rect.height = STATUS_HEIGHT
 	rect.y = ui.state.view.height - rect.height
-	rect.y += self.cur_offset
+	rect.y += i32(self.tween.value)
 
 	{
 		r := rect
@@ -109,11 +146,11 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		_sub_status_ui_draw(state, ctx, r)
 	}
 
-	if self.cur_offset >= STATUS_HEIGHT do return
+	if self.tween.value >= STATUS_HEIGHT do return
 
 	_status_ui_draw_box(state, ctx, rect)
 
-	ui.begin_box(ctx, rect, GAP)
+	ui.guard_box(ctx, rect, GAP)
 
 	// Draw play button.
 	icon := icon_from_playstate(state.player.playstate)
@@ -122,7 +159,7 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	{
 		box := ui.pad_l(ctx.box, btn_play.rect.width + GAP)
 		box.width -= GAP
-		ui.begin_box(ctx, box)
+		ui.guard_box(ctx, box)
 
 		offset: Vec2
 		offset.y = ctx.box.height / 2
@@ -166,33 +203,12 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	}
 }
 
-_sub_status_ui_update :: proc(state: ^State) {
-	if ui.button_update(&self.button_clear) {
-		player_queue_clear(state.player)
-	}
-	if ui.button_update(&self.button_shuffle) {
-		player_queue_shuffle(state.player)
-	}
-
-	if ui.is_pointer_inside(self.time_rect) {
-		ui.set_cursor(.Pointer)
-
-		if ui.is_clicked(.Left) {
-			self.time_mode = enum_rotate_variant(self.time_mode, 1)
-			ui.dirty(true)
-		} else if ui.is_clicked(.Right) {
-			self.time_mode = enum_rotate_variant(self.time_mode, -1)
-			ui.dirty(true)
-		}
-	}
-}
-
 _sub_status_ui_draw :: proc(state: ^State, ctx: ^ui.Context, rect: Rect) {
 	player := state.player
 
 	rect := rect
-	rect.y += self.cur_sub_offset
-	ui.begin_box(ctx, rect, {GAP * 2, 0})
+	rect.y += i32(self.sub_tween.value)
+	ui.guard_box(ctx, rect, {GAP * 2, 0})
 
 	_status_ui_draw_box(state, ctx, rect)
 
@@ -257,16 +273,4 @@ _sub_status_ui_time :: proc(elapsed, duration: Seconds) -> string {
 _status_ui_draw_box :: proc(state: ^State, cr: ^cairo.cairo_t, rect: Rect) {
 	ui.draw_rect(cr, rect, state.theme.background)
 	ui.draw_line_h(cr, rect, state.theme.gray)
-}
-
-_status_ui_set_visible :: proc(visible: Status_Visible) {
-	if self.visible == visible do return
-	self.visible = visible
-
-	ui.tween_play(&self.tween, f32(self.cur_offset), STATUS_REVEAL_ANIM_DURATION)
-	ui.tween_play(&self.sub_tween, f32(self.cur_sub_offset), STATUS_REVEAL_ANIM_DURATION)
-}
-
-status_ui_visible_height :: proc() -> i32 {
-	return max(STATUS_MAX_HEIGHT - self.cur_offset - self.cur_sub_offset, 0)
 }

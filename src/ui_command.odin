@@ -1,18 +1,24 @@
 package mupwit
 
-import "core:math"
 import "core:strings"
+
 import "lib:ui"
 
 @(private = "file")
 self: struct {
-	entry:  ui.Entry,
-	tween:  ui.Tween(f32),
-	offset: f32,
-	active: bool,
+	entry:        ui.Entry,
+	offset_tween: ui.Animated(f32),
+	dim_tween:    ui.Animated(f32),
 }
 
 command_ui_init :: proc() {
+	ui.animated_set(&self.offset_tween, f32(COMMAND_HEIGHT))
+	self.offset_tween.duration = COMMAND_ANIM_DURATION
+	self.offset_tween.easing = .Cubic_Out
+
+	self.dim_tween.duration = 0.1
+	self.dim_tween.easing = .Sine_In_Out
+
 	ui.entry_init(&self.entry, context.allocator)
 }
 
@@ -21,7 +27,8 @@ command_ui_destroy :: proc() {
 }
 
 command_ui_update :: proc(state: ^State, dt: Seconds) {
-	ui.tween_update(&self.tween, dt)
+	ui.animated_update(&self.offset_tween, dt)
+	ui.animated_update(&self.dim_tween, dt)
 }
 
 _command_ui_execute :: proc(state: ^State) -> (ok: bool) {
@@ -33,95 +40,76 @@ _command_ui_execute :: proc(state: ^State) -> (ok: bool) {
 	return command_execute_from_name(state, name)
 }
 
-command_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
-	MAX_OFFSET :: -(FONT_SIZE + GAP * 2 + GAP)
-
-	p := ui.tween_ease(&self.tween, self.offset, .Cubic_Out)
-	offset := MAX_OFFSET * (1 - p)
-	if offset <= MAX_OFFSET do return
-
-	black := state.theme.black
-	text_color := state.theme.background
-
-	init_height := ctx.font_height + GAP * 2 + 1
-
-	box := ui.pad(ctx.box.rect, GAP)
-	box.y += i32(offset)
-	box.height = 10 * (ctx.font_height + GAP)
-	h := math.lerp(f32(init_height), f32(box.height), p)
-	box.height = i32(h)
-
-	ui.draw_box(ctx, box, black, filled = true)
-
-	ui.begin_box(ctx, box)
-	ui.guard_clip(ctx)
-
-	// Draw command prompt.
-	{
-		ui.begin_box(ctx, ctx.box, GAP)
-		ui.begin_crop_text(ctx, false)
-
-		ui.entry_draw(
-			ctx,
-			&self.entry,
-			rect = ctx.box,
-			selection = state.theme.gray,
-			color = text_color,
-			prefix = ":",
-		)
-	}
-
-	ui.begin_box(ctx, ui.pad_t(ctx.box, init_height + GAP), GAP)
-
-	// Draw commands list.
-	pos := rect_pos(ctx.box)
-	for binding in state.commands.list {
-		if binding.alias_to != nil do continue
-
-		ui.draw_text(ctx, binding.name, pos, text_color)
-
-		desc := COMMAND_DESCRIPTION[binding.command]
-		if len(desc) > 0 {
-			p := pos
-			p.x = ctx.box.x + ctx.box.width / 3
-			ui.draw_text(ctx, desc, p, state.theme.light_gray)
-		}
-
-		pos.y += ctx.font_height + GAP
-	}
-}
-
 command_ui_set_active :: proc(active: bool) {
-	ui.dirty_set(&self.active, active)
+	if self.entry.active == active do return
 
 	if active {
+		ui.play_to(&self.offset_tween, 0)
+		ui.play_to(&self.dim_tween, 0)
+
 		ui.entry_clear(&self.entry)
-		ui.tween_play(&self.tween, self.offset, COMMAND_ANIM_DURATION)
-		self.offset = 1
 	} else {
-		ui.tween_play(&self.tween, self.offset, COMMAND_ANIM_DURATION)
-		self.offset = 0
+		ui.play_to(&self.offset_tween, f32(COMMAND_HEIGHT))
 	}
+
+	self.entry.active = active
+	ui.dirty(true)
 }
 
-command_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bool) {
-	if !self.active do return true
+command_ui_visible_height :: proc() -> i32 {
+	return COMMAND_HEIGHT - i32(self.offset_tween.value)
+}
 
-	if ev.key == .Backspace && len(self.entry.sb.buf) == 0 {
-		command_ui_set_active(false)
-		return false
+command_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
+	offset := i32(self.offset_tween.value)
+	if offset >= COMMAND_HEIGHT do return
+
+	box := ctx.box.rect
+	box.y -= i32(self.offset_tween.value)
+	box.height = ctx.font_height + COMMAND_PADDING.y * 2 + 4
+
+	// Draw wavy background.
+	{
+		color := ui.color_lerp(state.theme.black, state.theme.gray, self.dim_tween.value)
+
+		ui.draw_box_wavy(ctx, box, color)
 	}
 
+	ui.guard_box(ctx, box, COMMAND_PADDING)
+	ui.guard_clip(ctx)
+	ui.guard_crop_text(ctx, false)
+
+	// Draw command prompt.
+	style := ui.Entry_Style {
+		text_color      = state.theme.background,
+		selection_color = state.theme.gray,
+		prefix          = ":",
+	}
+	ui.entry_draw(ctx, &self.entry, ctx.box, style)
+}
+
+// ------------------------------
+// Listeners.
+// ------------------------------
+
+command_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bool) {
+	if !self.entry.active do return true
+
+	is_empty := len(self.entry.sb.buf) == 0
+
 	switch {
-	case is_key(ev, .Esc), is_ctrl_key(ev, .C), is_ctrl_key(ev, .Left_Brace):
+	case ev.key == .Backspace && is_empty:
+		command_ui_set_active(false)
+
+	case is_key_cancel(ev):
+		command_ui_set_active(false)
+
+	case is_key(ev, .Enter), is_ctrl_key(ev, .J):
+		_command_ui_execute(state) or_break
 		command_ui_set_active(false)
 
 	case:
-		commited := ui.entry_on_keyboard_key(&self.entry, ev)
-		if commited {
-			_command_ui_execute(state) or_break
-			command_ui_set_active(false)
-		}
+		ui.entry_on_keyboard_key(&self.entry, ev)
 	}
 
 	return false

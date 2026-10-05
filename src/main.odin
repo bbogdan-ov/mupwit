@@ -84,7 +84,11 @@ main :: proc() {
 	commands_init(&state.commands)
 	defer commands_destroy(&state.commands)
 
-	defer toast_ui_destroy()
+	command_ui_init()
+	defer command_ui_destroy()
+	clippy_ui_init()
+	defer clippy_ui_destroy()
+	status_ui_init()
 	queue_ui_init()
 	defer queue_ui_destroy()
 	albums_ui_init()
@@ -106,8 +110,9 @@ update :: proc(dt: Seconds) {
 
 	player_update(state.player, dt)
 
+	command_ui_update(&state, dt)
 	status_ui_update(&state, dt)
-	toast_ui_update(&state, dt)
+	clippy_ui_update(dt)
 	queue_ui_update(&state, dt)
 	player_ui_update(&state, dt)
 	albums_ui_update(&state, dt)
@@ -171,8 +176,9 @@ draw :: proc(ctx: ^ui.Context) {
 	player_ui_draw(&state, ctx)
 	queue_ui_draw(&state, ctx)
 	albums_ui_draw(&state, ctx)
-	toast_ui_draw(&state, ctx)
+	clippy_ui_draw(&state, ctx)
 	status_ui_draw(&state, ctx)
+	command_ui_draw(&state, ctx)
 }
 
 set_screen :: proc(state: ^State, screen: Screen) {
@@ -236,6 +242,10 @@ is_ctrl_key :: win.is_ctrl_key
 is_shift_key :: win.is_shift_key
 is_ctrl_shift_key :: win.is_ctrl_shift_key
 
+is_key_cancel :: proc(ev: Key_Event) -> bool {
+	return ev.key == .Esc || is_ctrl_key(ev, .C)
+}
+
 on_keyboard_key :: proc(ev: Key_Event) -> bool {
 	if ev.state != .Pressed && ev.state != .Repeated do return true
 
@@ -250,11 +260,13 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 	// propagation for all keys ("consume" them) so that if you press 'q' it
 	// doesn't trigger the app to close.
 
+	clippy_ui_on_keyboard_key(&state, ev) or_return
+	command_ui_on_keyboard_key(&state, ev) or_return
 	queue_ui_on_keyboard_key(&state, ev) or_return
 	albums_ui_on_keyboard_key(&state, ev) or_return
 
 	switch {
-	case is_key(ev, .Esc), is_key(ev, .Q):
+	case ev.key == .Esc, is_key(ev, .Q):
 		win.set_should_close(state.window, true)
 
 	case is_key(ev, .Tab):
@@ -276,6 +288,9 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 
 	case is_key(ev, .F1):
 		player_load_random_album(state.player)
+
+	case is_shift_key(ev, .Semicolon), is_ctrl_shift_key(ev, .P):
+		command_ui_set_active(true)
 	}
 
 	return true
@@ -295,6 +310,13 @@ on_pointer_scroll :: proc(scroll: f32, touchpad: bool) {
 
 on_screen_updated :: proc() {
 	queue_ui_on_screen_updated(&state)
+	albums_ui_on_screen_updated(&state)
+	clippy_ui_on_screen_updated(&state)
+}
+
+on_search :: proc(search: string) {
+	queue_ui_on_search(&state, search)
+	albums_ui_on_search(&state, search)
 }
 
 // These functions are called by the `Player` struct whenever something happens.
@@ -326,11 +348,11 @@ on_song_removed :: proc(index: mpd.Song_Index) {
 
 on_undid :: proc(kind: Undo_Kind) {
 	msg := fmt.tprintf("↺ Undo %v!", UNDO_KIND_NAME[kind])
-	toast_set(msg, context.allocator)
+	clippy_ui_set_message(msg, context.allocator)
 }
 on_redid :: proc(kind: Undo_Kind) {
 	msg := fmt.tprintf("↻ Redo %v!", UNDO_KIND_NAME[kind])
-	toast_set(msg, context.allocator)
+	clippy_ui_set_message(msg, context.allocator)
 }
 
 // These functions are listeners for window events.

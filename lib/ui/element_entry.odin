@@ -9,10 +9,31 @@ import win "lib:my_window"
 
 Entry_Command :: edit.Command
 
+ENTRY_CHANGING_COMMANDS :: edit.Command_Set {
+	.Undo,
+	.Redo,
+	.New_Line,
+	.Cut,
+	.Copy,
+	.Paste,
+	.Backspace,
+	.Delete,
+	.Delete_Word_Left,
+	.Delete_Word_Right,
+}
+
 // One-line editable text box.
 Entry :: struct {
-	sb:    strings.Builder,
-	state: edit.State,
+	sb:     strings.Builder,
+	state:  edit.State,
+	active: bool,
+}
+
+Entry_Style :: struct {
+	text_color:          Color,
+	selection_color:     Color,
+	placeholder_color:   Color,
+	prefix, placeholder: string,
 }
 
 entry_init :: proc(e: ^Entry, allocator := context.allocator) {
@@ -29,7 +50,129 @@ entry_destroy :: proc(e: ^Entry) {
 entry_update :: proc(e: ^Entry) {
 	edit.update_time(&e.state)
 }
-entry_on_keyboard_key :: proc(e: ^Entry, ev: win.Key_Event) -> (commited: bool) {
+
+entry_set_active :: proc(e: ^Entry, active: bool) {
+	dirty_set(&e.active, active)
+}
+
+entry_perform :: proc(e: ^Entry, command: Entry_Command) -> (changed: bool) {
+	edit.perform_command(&e.state, command)
+	return command in ENTRY_CHANGING_COMMANDS
+}
+entry_insert_text :: proc(e: ^Entry, text: string) {
+	edit.input_text(&e.state, text)
+}
+entry_clear :: proc(e: ^Entry) {
+	edit.undo_check(&e.state)
+	strings.builder_reset(&e.sb)
+	e.state.selection = {}
+}
+
+entry_string :: proc(e: ^Entry) -> string {
+	return strings.to_string(e.sb)
+}
+entry_len :: proc(e: ^Entry) -> int {
+	return len(e.sb.buf)
+}
+
+entry_glyphs :: proc(
+	ctx: ^Context,
+	e: ^Entry,
+	prefix := "",
+) -> (
+	text: string,
+	glyphs: []cairo.glyph_t,
+) {
+	text = entry_string(e)
+	if len(prefix) > 0 {
+		buf := make([]u8, len(prefix) + len(text), context.temp_allocator)
+		copy(buf[:len(prefix)], transmute([]u8)prefix)
+		copy(buf[len(prefix):], transmute([]u8)text)
+		text = transmute(string)buf
+	}
+
+	return text, text_glyphs(ctx, text)
+}
+
+entry_draw :: proc(
+	ctx: ^Context,
+	e: ^Entry,
+	rect: Rect,
+	style: Entry_Style,
+) -> (
+	text_advance: Vec2,
+) {
+	text, glyphs := entry_glyphs(ctx, e, style.prefix)
+	defer text_glyphs_delete(glyphs)
+	return entry_draw_glyphs(ctx, e, text, glyphs, rect, style)
+}
+
+// TODO!: handle text overflowing box. Should scroll to the right.
+// TODO: implement selection using mouse at some point.
+entry_draw_glyphs :: proc(
+	ctx: ^Context,
+	e: ^Entry,
+	text: string,
+	glyphs: []cairo.glyph_t,
+	rect: Rect,
+	style: Entry_Style,
+) -> (
+	text_advance: Vec2,
+) {
+	pos := rect_pos(rect)
+
+	if e.active {
+		head := e.state.selection[0] + len(style.prefix)
+		tail := e.state.selection[1] + len(style.prefix)
+		is_sel := head != tail
+
+		number: int
+		head_char, tail_char: int
+		for char, i in text {
+			size := utf8.rune_size(char)
+			defer number += 1
+
+			if i + size <= head do head_char = number + 1
+			if i + size <= tail do tail_char = number + 1
+		}
+
+		tail_ext: cairo.text_extents_t
+		head_ext := measure_glyphs(ctx, glyphs[:head_char], false)
+		if head_char != tail_char {
+			tail_ext = measure_glyphs(ctx, glyphs[:tail_char], false)
+		} else {
+			tail_ext = head_ext
+		}
+
+		low, high := range_sort(i32(head_ext.x_advance), i32(tail_ext.x_advance))
+
+		cursor := Rect {
+			x      = pos.x + low - 1,
+			y      = pos.y - 1,
+			width  = max(high - low, 1),
+			height = ctx.font_height + 4,
+		}
+		draw_rect(ctx, cursor, style.selection_color if is_sel else style.text_color)
+	}
+
+	text_pos := pos + {0, ctx.font_height}
+	ext := draw_glyphs(ctx, glyphs, text_pos, style.text_color)
+
+	if len(entry_string(e)) == 0 && len(style.placeholder) > 0 {
+		text_pos.x += i32(ext.x_advance)
+		draw_text(ctx, style.placeholder, text_pos, style.placeholder_color)
+	}
+
+	return {i32(ext.x_advance), i32(ext.y_advance)}
+}
+
+// ------------------------------
+// Listeners.
+// ------------------------------
+
+entry_on_keyboard_key :: proc(e: ^Entry, ev: win.Key_Event) -> (changed: bool) {
+	if !e.active do return false
+
 	is_key :: win.is_key
 	is_ctrl_key :: win.is_ctrl_key
 	is_shift_key :: win.is_shift_key
@@ -75,6 +218,7 @@ entry_on_keyboard_key :: proc(e: ^Entry, ev: win.Key_Event) -> (commited: bool) 
 		}
 	case is_ctrl_key(ev, .U):
 		entry_clear(e)
+		changed = true
 	case is_ctrl_key(ev, .W):
 		cmd = .Delete_Word_Left
 	case is_ctrl_key(ev, .H):
@@ -88,87 +232,16 @@ entry_on_keyboard_key :: proc(e: ^Entry, ev: win.Key_Event) -> (commited: bool) 
 	case is_ctrl_key(ev, .A):
 		cmd = .Select_All
 
-	case is_key(ev, .Enter), is_ctrl_key(ev, .J):
-		commited = true
-
 	case:
 		if utf8.is_control(utf8.rune_at_pos(ev.text, 0)) do break
 		entry_insert_text(e, ev.text)
+		changed = true
 	}
 	// odinfmt:enable
 
-	entry_perform(e, cmd)
 	dirty(true)
 
-	return commited
-}
+	changed |= entry_perform(e, cmd)
 
-entry_perform :: proc(e: ^Entry, command: Entry_Command) {
-	edit.perform_command(&e.state, command)
-}
-entry_insert_text :: proc(e: ^Entry, text: string) {
-	edit.input_text(&e.state, text)
-}
-entry_clear :: proc(e: ^Entry) {
-	edit.undo_check(&e.state)
-	strings.builder_reset(&e.sb)
-	e.state.selection = {}
-}
-
-entry_string :: proc(e: ^Entry) -> string {
-	return strings.to_string(e.sb)
-}
-
-// TODO!: handle text overflowing box. Should scroll to the right.
-// TODO: implement selection using mouse at some point.
-entry_draw :: proc(
-	ctx: ^Context,
-	e: ^Entry,
-	rect: Rect,
-	selection, color: Color,
-	prefix := "",
-) -> (
-	text_advance: Vec2,
-) {
-	text := entry_string(e)
-	if len(prefix) > 0 {
-		cap := len(text) + len(prefix)
-		sb := strings.builder_make_len_cap(0, cap, context.temp_allocator)
-		strings.write_string(&sb, prefix)
-		strings.write_string(&sb, text)
-		text = strings.to_string(sb)
-	}
-
-	glyphs := text_glyphs(ctx, text)
-	defer text_glyphs_delete(glyphs)
-
-	pos := rect_pos(rect)
-
-	{
-		head := e.state.selection[0] + len(prefix)
-		tail := e.state.selection[1] + len(prefix)
-		is_sel := head != tail
-
-		tail_ext: cairo.text_extents_t
-		head_ext := measure_glyphs(ctx, glyphs[:head])
-		if head != tail {
-			tail_ext = measure_glyphs(ctx, glyphs[:tail])
-		} else {
-			tail_ext = head_ext
-		}
-
-		low, high := range_sort(i32(head_ext.x_advance), i32(tail_ext.x_advance))
-
-		cursor := Rect {
-			x      = pos.x + low - 1,
-			y      = pos.y - 1,
-			width  = max(high - low, 1),
-			height = ctx.font_height + 4,
-		}
-		draw_rect(ctx, cursor, selection if is_sel else color)
-	}
-
-	text_pos := pos + {0, ctx.font_height}
-	ext := draw_glyphs(ctx, glyphs, text_pos, color)
-	return {i32(ext.x_advance), i32(ext.y_advance)}
+	return changed
 }

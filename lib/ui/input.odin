@@ -34,6 +34,6 @@ is_hovering :: proc(rect: Rect) -> bool {
 
 rel_pointer :: proc(box: Box) -> Vec2 {
 	pos := state.pointer - rect_pos(box)
-	pos.y += i32(box.scroll)
+	pos.y += box.scroll
 	return pos
 }

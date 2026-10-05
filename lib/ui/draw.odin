@@ -1,12 +1,13 @@
 package ui
 
 import "base:runtime"
+import "core:slice"
 import "lib:cairo"
 
 Box :: struct {
 	using rect: Rect,
 	padding:    Vec2,
-	scroll:     f32,
+	scroll:     i32,
 }
 
 // Drawing context.
@@ -24,16 +25,31 @@ Align :: enum {
 	End,
 }
 
-@(deferred_in_out = _end_box)
-begin_box :: proc(ctx: ^Context, rect: Rect, padding: Vec2 = {}, scroll: f32 = 0) -> (prev: Box) {
-	prev = ctx.box
+Corner :: enum {
+	Top_Left = 0,
+	Top_Right,
+	Bottom_Right,
+	Bottom_Left,
+}
+
+Box_Guard :: struct {
+	ctx:  ^Context,
+	prev: Box,
+}
+
+@(deferred_out = end_box)
+guard_box :: proc(ctx: ^Context, rect: Rect, padding: Vec2 = {}, scroll: f32 = 0) -> Box_Guard {
+	return begin_box(ctx, rect, padding, scroll)
+}
+begin_box :: proc(ctx: ^Context, rect: Rect, padding: Vec2 = {}, scroll: f32 = 0) -> Box_Guard {
+	prev := ctx.box
 	ctx.box.rect = pad(rect, padding)
 	ctx.box.padding = padding
-	ctx.box.scroll = scroll
-	return prev
+	ctx.box.scroll = i32(scroll)
+	return {ctx, prev}
 }
-_end_box :: proc(ctx: ^Context, _: Rect, _: Vec2, _: f32, prev: Box) {
-	ctx.box = prev
+end_box :: proc(guard: Box_Guard) {
+	guard.ctx.box = guard.prev
 }
 
 @(deferred_in = end_clip)
@@ -49,7 +65,7 @@ end_clip :: proc(ctx: ^Context) {
 }
 
 @(deferred_in_out = _end_crop_text)
-begin_crop_text :: proc(ctx: ^Context, crop: bool) -> (prev: bool) {
+guard_crop_text :: proc(ctx: ^Context, crop: bool) -> (prev: bool) {
 	prev = ctx.crop_text
 	ctx.crop_text = crop
 	return prev
@@ -78,10 +94,10 @@ draw_glyphs :: proc(
 	color: Color,
 	bold := false,
 ) -> cairo.text_extents_t {
+	if len(glyphs) == 0 do return {}
+
 	x, y := f64(pos.x), f64(pos.y)
-
 	max_advance := ctx.box.width - (pos.x - ctx.box.x) + 1
-
 	ellipsis_index := len(glyphs) - 1
 
 	count: i32
@@ -144,10 +160,10 @@ draw_text :: proc(
 	switch align {
 	case .Start:
 	case .Center:
-		ext := measure_glyphs(ctx, glyphs)
+		ext := measure_glyphs(ctx, glyphs, true)
 		pos.x -= i32(ext.x_advance / 2)
 	case .End:
-		ext := measure_glyphs(ctx, glyphs)
+		ext := measure_glyphs(ctx, glyphs, true)
 		pos.x -= i32(ext.x_advance) - 1
 	}
 
@@ -159,11 +175,14 @@ draw_text :: proc(
 measure_glyphs :: proc(
 	cr: ^cairo.cairo_t,
 	glyphs: []cairo.glyph_t,
+	trim_ellipsis: bool,
 ) -> (
 	ext: cairo.text_extents_t,
 ) {
+	if len(glyphs) == 0 do return {}
+	count := i32(len(glyphs))
 	// Trim the last glyph that is an ellipsis ("...") char to ignore it.
-	count := i32(len(glyphs)) - 1
+	if trim_ellipsis do count -= 1
 	cairo.glyph_extents(cr, raw_data(glyphs), count, &ext)
 	return
 }
@@ -196,11 +215,13 @@ text_glyphs :: proc(cr: ^cairo.cairo_t, str: string) -> []cairo.glyph_t {
 		cluster_flags = nil,
 	)
 
-	return transmute([]cairo.glyph_t)runtime.Raw_Slice{glyphs, int(num_glyphs)}
+	return slice.from_ptr(glyphs, int(num_glyphs))
 }
 
 text_glyphs_delete :: proc(glyphs: []cairo.glyph_t) {
-	cairo.glyph_free(raw_data(glyphs))
+	if glyphs != nil {
+		cairo.glyph_free(raw_data(glyphs))
+	}
 }
 
 // ------------------------------
@@ -221,17 +242,17 @@ draw_line_h :: proc(cr: ^cairo.cairo_t, rect: Rect, color: Color) {
 	cairo.stroke(cr)
 }
 
-draw_box :: proc(ctx: ^Context, rect: Rect, color: Color, filled := false) {
+draw_box :: proc(cr: ^cairo.cairo_t, rect: Rect, color: Color, filled := false) {
 	x, y := f64(rect.x), f64(rect.y)
 	w, h := f64(rect.width), f64(rect.height)
 
-	set_source_color(ctx, color)
-	cairo.set_line_width(ctx, 1)
+	set_source_color(cr, color)
+	cairo.set_line_width(cr, 1)
 
 	if w <= 3 || h <= 3 {
-		cairo.rectangle(ctx, x, y, w, h)
-		if filled do cairo.fill(ctx)
-		else do cairo.stroke(ctx)
+		cairo.rectangle(cr, x, y, w, h)
+		if filled do cairo.fill(cr)
+		else do cairo.stroke(cr)
 		return
 	}
 
@@ -252,61 +273,61 @@ draw_box :: proc(ctx: ^Context, rect: Rect, color: Color, filled := false) {
 		lb += 1
 	}
 
-	cairo.move_to(ctx, l, y)
-	cairo.line_to(ctx, r, y) // top
-	cairo.line_to(ctx, x + w, t)
-	cairo.line_to(ctx, x + w, b) // right
-	cairo.line_to(ctx, rb, y + h)
-	cairo.line_to(ctx, lb, y + h) // bottom
-	cairo.line_to(ctx, x, b)
-	cairo.line_to(ctx, x, t) // left
-	cairo.close_path(ctx)
+	cairo.move_to(cr, l, y)
+	cairo.line_to(cr, r, y) // top
+	cairo.line_to(cr, x + w, t)
+	cairo.line_to(cr, x + w, b) // right
+	cairo.line_to(cr, rb, y + h)
+	cairo.line_to(cr, lb, y + h) // bottom
+	cairo.line_to(cr, x, b)
+	cairo.line_to(cr, x, t) // left
+	cairo.close_path(cr)
 
 	if filled {
-		cairo.fill(ctx)
+		cairo.fill(cr)
 	} else {
-		cairo.stroke(ctx)
+		cairo.stroke(cr)
 	}
 }
 
-draw_box_bulgy :: proc(ctx: ^Context, rect: Rect, color: Color) {
+draw_box_bulgy :: proc(cr: ^cairo.cairo_t, rect: Rect, color: Color) {
 	x, y := f64(rect.x) + 0.5, f64(rect.y) + 0.5
 	w, h := f64(rect.width - 1), f64(rect.height - 1)
 	l, r := x + 1, x + w - 1
 	t, b := y + 1, y + h + 2
 
-	set_source_color(ctx, color)
-	cairo.set_line_width(ctx, 1)
+	set_source_color(cr, color)
+	cairo.set_line_width(cr, 1)
 
-	cairo.move_to(ctx, x, b)
-	cairo.line_to(ctx, x, t) // left
-	cairo.line_to(ctx, l, y)
-	cairo.line_to(ctx, r, y) // top
-	cairo.line_to(ctx, x + w, t)
-	cairo.line_to(ctx, x + w, b) // right
+	cairo.move_to(cr, x, b)
+	cairo.line_to(cr, x, t) // left
+	cairo.line_to(cr, l, y)
+	cairo.line_to(cr, r, y) // top
+	cairo.line_to(cr, x + w, t)
+	cairo.line_to(cr, x + w, b) // right
 
 	// "Rounded" corners at the bottom.
-	_pixel(ctx, x + 1, y + h - 1)
-	_pixel(ctx, x + w - 1, y + h - 1)
+	_pixel(cr, x + 1, y + h - 1)
+	_pixel(cr, x + w - 1, y + h - 1)
 
-	cairo.stroke(ctx)
+	cairo.stroke(cr)
 
 	// Thick line at the bottom to make the box look bulgy.
-	cairo.rectangle(ctx, l, y + h, w - 1, 3)
-	cairo.fill(ctx)
+	cairo.rectangle(cr, l, y + h, w - 1, 3)
+	cairo.fill(cr)
 }
 
-draw_box_rounded :: proc(ctx: ^Context, rect: Rect, color: Color, filled := false) {
+draw_box_rounded :: proc(cr: ^cairo.cairo_t, rect: Rect, color: Color, filled := false) {
 	x, y := f64(rect.x), f64(rect.y)
 	w, h := f64(rect.width), f64(rect.height)
 
-	set_source_color(ctx, color)
-	cairo.set_line_width(ctx, 1)
+	set_source_color(cr, color)
+	cairo.set_line_width(cr, 1)
 
 	if w <= 4 || h <= 4 {
-		cairo.rectangle(ctx, x, y, w, h)
-		if filled do cairo.fill(ctx)
-		else do cairo.stroke(ctx)
+		cairo.rectangle(cr, x, y, w, h)
+		if filled do cairo.fill(cr)
+		else do cairo.stroke(cr)
 		return
 	}
 
@@ -321,42 +342,47 @@ draw_box_rounded :: proc(ctx: ^Context, rect: Rect, color: Color, filled := fals
 	t, b := y + 2, y + h - 2
 
 	if filled {
-		cairo.move_to(ctx, l, y)
-		cairo.line_to(ctx, r, y) // top
-		cairo.line_to(ctx, x + w, t)
-		cairo.line_to(ctx, x + w, b - 1) // right
-		cairo.line_to(ctx, r - 1, y + h)
-		cairo.line_to(ctx, l + 1, y + h) // bottom
-		cairo.line_to(ctx, x, b - 1)
-		cairo.line_to(ctx, x, t) // left
-		cairo.close_path(ctx)
-		cairo.fill(ctx)
+		cairo.move_to(cr, l, y)
+		cairo.line_to(cr, r, y) // top
+		cairo.line_to(cr, x + w, t)
+		cairo.line_to(cr, x + w, b - 1) // right
+		cairo.line_to(cr, r - 1, y + h)
+		cairo.line_to(cr, l + 1, y + h) // bottom
+		cairo.line_to(cr, x, b - 1)
+		cairo.line_to(cr, x, t) // left
+		cairo.close_path(cr)
+		cairo.fill(cr)
 	} else {
-		cairo.move_to(ctx, l - 1, y)
-		cairo.line_to(ctx, r, y) // top
-		cairo.line_to(ctx, x + w, t)
-		cairo.line_to(ctx, x + w, b - 1) // right
-		cairo.line_to(ctx, r - 1, y + h)
-		cairo.line_to(ctx, l, y + h) // bottom
-		cairo.line_to(ctx, x, b)
-		cairo.line_to(ctx, x, t - 1) // left
-		cairo.close_path(ctx)
-		cairo.stroke(ctx)
+		cairo.move_to(cr, l - 1, y)
+		cairo.line_to(cr, r, y) // top
+		cairo.line_to(cr, x + w, t)
+		cairo.line_to(cr, x + w, b - 1) // right
+		cairo.line_to(cr, r - 1, y + h)
+		cairo.line_to(cr, l, y + h) // bottom
+		cairo.line_to(cr, x, b)
+		cairo.line_to(cr, x, t - 1) // left
+		cairo.close_path(cr)
+		cairo.stroke(cr)
 	}
 }
 
 SPEECH_BUBBLE_TAIL_SIZE :: 8
 
-draw_speech_bubble :: proc(ctx: ^Context, rect: Rect, color: Color) {
+draw_speech_bubble :: proc(
+	cr: ^cairo.cairo_t,
+	rect: Rect,
+	color: Color,
+	corner := Corner.Bottom_Right,
+) {
 	x, y := f64(rect.x), f64(rect.y)
 	w, h := f64(rect.width), f64(rect.height)
 
-	set_source_color(ctx, color)
-	cairo.set_line_width(ctx, 1)
+	set_source_color(cr, color)
+	cairo.set_line_width(cr, 1)
 
 	if w <= 4 || h <= 4 {
-		cairo.rectangle(ctx, x, y, w, h)
-		cairo.fill(ctx)
+		cairo.rectangle(cr, x, y, w, h)
+		cairo.fill(cr)
 		return
 	}
 
@@ -366,17 +392,88 @@ draw_speech_bubble :: proc(ctx: ^Context, rect: Rect, color: Color) {
 	tail: f64 = min(SPEECH_BUBBLE_TAIL_SIZE, w - 3)
 	tail = min(tail, h - 3)
 
-	cairo.move_to(ctx, l, y)
-	cairo.line_to(ctx, r, y) // top
-	cairo.line_to(ctx, x + w, t)
-	cairo.line_to(ctx, x + w, y + h + tail - 1) // right
-	cairo.line_to(ctx, x + w - 1, y + h + tail - 1) // tail
-	cairo.line_to(ctx, x + w - tail, y + h)
-	cairo.line_to(ctx, l + 1, y + h) // bottom
-	cairo.line_to(ctx, x, b - 1)
-	cairo.line_to(ctx, x, t) // left
-	cairo.close_path(ctx)
-	cairo.fill(ctx)
+	#partial switch corner {
+	case .Top_Left:
+		cairo.move_to(cr, x + tail + 1, y)
+		cairo.line_to(cr, r, y) // top
+		cairo.line_to(cr, x + w, t)
+		cairo.line_to(cr, x + w, b - 1) // right
+		cairo.line_to(cr, r - 1, y + h)
+		cairo.line_to(cr, l + 1, y + h) // bottom
+		cairo.line_to(cr, x, b - 1)
+		cairo.line_to(cr, x, y - tail + 1) // left
+		cairo.line_to(cr, x + 2, y - tail + 1) // tail
+	case .Bottom_Right:
+		cairo.move_to(cr, l, y)
+		cairo.line_to(cr, r, y) // top
+		cairo.line_to(cr, x + w, t)
+		cairo.line_to(cr, x + w, y + h + tail - 1) // right
+		cairo.line_to(cr, x + w - 1, y + h + tail - 1) // tail
+		cairo.line_to(cr, x + w - tail, y + h)
+		cairo.line_to(cr, l + 1, y + h) // bottom
+		cairo.line_to(cr, x, b - 1)
+		cairo.line_to(cr, x, t) // left
+	case:
+		panic("TODO: implement other speech bubble corners.")
+	}
+
+	cairo.close_path(cr)
+	cairo.fill(cr)
+}
+
+draw_box_wavy :: proc(
+	cr: ^cairo.cairo_t,
+	rect: Rect,
+	color: Color,
+	frequency: f64 = 20,
+	amplitude: f64 = 2,
+) {
+	if frequency <= 0 {
+		draw_rect(cr, rect, color)
+		return
+	}
+
+	x, y := f64(rect.x), f64(rect.y)
+	w, h := f64(rect.width), f64(rect.height)
+
+	cairo.move_to(cr, x + w, y + h)
+	cairo.line_to(cr, x + w, y)
+	cairo.line_to(cr, x, y)
+	cairo.line_to(cr, x, y + h)
+
+	freq := w / (frequency * 2)
+	freq2 := freq / 2
+
+	px := x
+	py := y + h
+	right := x + w
+	
+		// odinfmt:disable
+	i := 0
+	for ; px < right; px += freq {
+		if px + freq > right do break
+
+		start, end: f64
+		if i % 2 == 0 {
+			start, end = 0, amplitude
+		} else {
+			start, end = amplitude, 0
+		}
+
+		cairo.curve_to(
+			cr,
+			px + freq2,        py - start,
+			px + freq - freq2, py - end,
+			px + freq,         py - end,
+		)
+		i += 1
+	}
+		// odinfmt:enable
+
+	cairo.close_path(cr)
+
+	set_source_color(cr, color)
+	cairo.fill(cr)
 }
 
 _rectangle :: proc(cr: ^cairo.cairo_t, rect: Rect) {
