@@ -349,25 +349,25 @@ _player_set_queue :: proc(player: ^Base_Player, queue: mpd.Song_List) {
 	if !mpd.song_lists_differ(player.queue, queue) {
 		mpd.song_list_destroy(&queue)
 		log.debugf("PLAYER: Queue received, but it doesn't differ from the current one")
-		return
+	} else {
+		// TODO!!!: need to clear the history when queue or any other player state
+		// changes outside of the app. (e.g. via `mpc` cli client or any other client)
+		// If i don't do that and if the player state changes by another client,
+		// the history may be invalidated, because it depended on the previous
+		// player state, which was overritten.
+
+		mpd.song_list_destroy(&player.queue)
+		player.queue = queue
+
+		log.debugf("PLAYER: Queue updated (%v songs)", len(player.queue))
+
+		_player_clamp_cur_song(player)
+		_player_queue_calc_duration_and_elapsed(player)
+
+		when !ODIN_TEST do on_queue_updated()
 	}
 
-	// TODO!!!: need to clear the history when queue or any other player state
-	// changes outside of the app. (e.g. via `mpc` cli client or any other client)
-	// If i don't do that and if the player state changes by another client,
-	// the history may be invalidated, because it depended on the previous
-	// player state, which was overritten.
-
-	mpd.song_list_destroy(&player.queue)
-	player.queue = queue
 	player._queue_changed = true
-
-	log.debugf("PLAYER: Queue updated (%v songs)", len(player.queue))
-
-	_player_clamp_cur_song(player)
-	_player_queue_calc_duration_and_elapsed(player)
-
-	when !ODIN_TEST do on_queue_updated()
 
 	status, ok := player._deferred_status.?
 	if ok {
