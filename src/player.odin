@@ -78,6 +78,8 @@ Base_Player :: struct {
 	switch_direction:    Switch_Direction,
 	history:             History,
 	_status_req_timer:   Seconds,
+	_queue_changed:      bool,
+	_deferred_status:    Maybe(mpd.Status),
 
 	// Cache.
 	_covers_cache:       Covers_Cache,
@@ -248,6 +250,18 @@ player_update :: proc(player: ^Base_Player, dt: Seconds) {
 
 // TODO!: save previous player state in the history whenever it changes outside of the app.
 _player_set_status :: proc(player: ^Base_Player, status: mpd.Status) {
+	// TODO!: come up with a better system of ordering incoming responses to
+	// guarantee that a "status" response will be received after a "queue"
+	// response.
+	queue_changed := player._queue_version != status.queue_version
+	if queue_changed && !player._queue_changed {
+		log.debugf("PLAYER: Received status before receiving the queue, defer it...")
+		player._deferred_status = status
+		return
+	}
+
+	player._queue_changed = false
+
 	prev_song := player.cur_song
 	prev_song_id := player.cur_song_id
 	if status.cur_song_id > 0 && len(player.queue) > 0 {
@@ -259,7 +273,6 @@ _player_set_status :: proc(player: ^Base_Player, status: mpd.Status) {
 	}
 
 	song_changed := player.cur_song_id != prev_song_id
-	queue_changed := player._queue_version != status.queue_version
 
 	if song_changed {
 		prev, has_prev := prev_song.?
@@ -281,7 +294,19 @@ _player_set_status :: proc(player: ^Base_Player, status: mpd.Status) {
 			player.switch_direction = .Previous
 		}
 
-		log.debugf("PLAYER: Current song changed: %v -> %v", prev_song, player.cur_song)
+		cur_song_title: mpd.Song_Title
+		if has_cur {
+			cur_song_title = player.queue[cur].title
+		}
+
+		log.debugf(
+			"PLAYER: Current song changed: %v -> %v (%q), %v -> %v",
+			prev_song,
+			player.cur_song,
+			cur_song_title,
+			prev_song_id,
+			player.cur_song_id,
+		)
 	}
 
 	player._queue_version = status.queue_version
@@ -335,11 +360,21 @@ _player_set_queue :: proc(player: ^Base_Player, queue: mpd.Song_List) {
 
 	mpd.song_list_destroy(&player.queue)
 	player.queue = queue
+	player._queue_changed = true
+
+	log.debugf("PLAYER: Queue updated (%v songs)", len(player.queue))
 
 	_player_clamp_cur_song(player)
 	_player_queue_calc_duration_and_elapsed(player)
 
 	when !ODIN_TEST do on_queue_updated()
+
+	status, ok := player._deferred_status.?
+	if ok {
+		_player_set_status(player, status)
+		player._deferred_status = nil
+		log.debug("PLAYER: Applied deferred status")
+	}
 }
 
 _player_set_albums :: proc(player: ^Base_Player, albums: mpd.Album_List) {

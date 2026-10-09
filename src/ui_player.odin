@@ -77,8 +77,6 @@ _player_ui_update_cover_handling :: proc(state: ^State, dt: Seconds) {
 _player_ui_request_cur_cover :: proc(state: ^State) {
 	COVER_SIZE :: Cover_Size.Huge
 
-	log.debugf("UI PLAYER: Requesting the cover...")
-
 	song, has_song := player_cur_song(state.player)
 	if !has_song {
 		_player_ui_set_cover(state, nil)
@@ -87,12 +85,12 @@ _player_ui_request_cur_cover :: proc(state: ^State) {
 
 	cover := cover_get_or_request(state.player, song.file, song.album, COVER_SIZE)
 	if cover.loading {
-		cover_maybe_unref(self.loading_cover)
+		_player_ui_clear_loading_cover()
 
 		// Do not set the new cover right away if it is loading. We'll wait
 		// for the new cover to load and only then apply it.
 		self.loading_cover = cover_ref(cover)
-		log.debugf("UI PLAYER: Waiting for the cover to load...")
+		log.debugf("UI PLAYER: Waiting for the cover to load... (%p)", cover)
 	} else {
 		_player_ui_set_cover(state, cover_ref(cover))
 	}
@@ -102,14 +100,13 @@ _player_ui_request_cur_cover :: proc(state: ^State) {
 // It happens very rearly an i'm not sure why, it seem to only happen when you
 // play switch albums.
 _player_ui_set_cover :: proc(state: ^State, cover: Maybe(^Cover)) {
-	log.debugf("UI PLAYER: Cover updated")
+	log.debugf("UI PLAYER: Cover updated (%p)", cover)
 
 	cover_maybe_unref(self.prev_cover)
 	self.prev_cover = self.cover
 	self.cover = cover
 
-	cover_maybe_unref(self.loading_cover)
-	self.loading_cover = nil
+	_player_ui_clear_loading_cover()
 
 	ui.tween_play(&self.cover_tween, 0, PLAYER_COVER_ANIM_DURATION)
 
@@ -120,6 +117,11 @@ _player_ui_set_cover :: proc(state: ^State, cover: Maybe(^Cover)) {
 			set_background(state, DEFAULT_BACKGROUND)
 		}
 	}
+}
+
+_player_ui_clear_loading_cover :: proc() {
+	cover_maybe_unref(self.loading_cover)
+	self.loading_cover = nil
 }
 
 player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
@@ -295,5 +297,7 @@ player_ui_on_cur_song_updated :: proc(state: ^State) {
 	} else {
 		log.debugf("UI PLAYER: Delaying the cover request...")
 		self.req_cover_timer = COVER_REQ_DELAY
+
+		_player_ui_clear_loading_cover()
 	}
 }

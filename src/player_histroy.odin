@@ -107,22 +107,28 @@ _player_history_push :: proc(
 	cmd: Player_Command,
 	loc := #caller_location,
 ) {
-	undo, redo := &player.history.undo, &player.history.redo
+	undos, redos := &player.history.undo, &player.history.redo
 
 	log.debugf("PLAYER: Push histroy: %v, state = %v", cmd, player.history._state)
 
 	switch player.history._state {
 	case .Normal:
-		_history_list_clear(redo, loc)
-		queue.push_back(undo, Undo{cmd, kind}, loc)
+		_history_list_clear(redos, loc)
+		queue.push_back(undos, Undo{cmd, kind}, loc)
 	case .Undoing:
-		queue.push_back(redo, Undo{cmd, kind}, loc)
+		queue.push_back(redos, Undo{cmd, kind}, loc)
 	case .Redoing:
-		queue.push_back(undo, Undo{cmd, kind}, loc)
+		queue.push_back(undos, Undo{cmd, kind}, loc)
 	}
 
-	if queue.len(undo^) > HISTORY_LIMIT do queue.pop_front(undo)
-	if queue.len(redo^) > HISTORY_LIMIT do queue.pop_front(redo)
+	if queue.len(undos^) > HISTORY_LIMIT {
+		undo := queue.pop_front(undos)
+		_command_destroy(undo.command)
+	}
+	if queue.len(redos^) > HISTORY_LIMIT {
+		undo := queue.pop_front(redos)
+		_command_destroy(undo.command)
+	}
 }
 
 _player_history_push_queue :: proc(
