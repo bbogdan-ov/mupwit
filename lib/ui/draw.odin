@@ -228,6 +228,21 @@ text_glyphs_delete :: proc(glyphs: []cairo.glyph_t) {
 // Shapes.
 // ------------------------------
 
+draw_surface :: proc(cr: ^cairo.cairo_t, surface: ^cairo.surface_t, pos: Vec2) {
+	cairo.set_source_surface(cr, surface, f64(pos.x), f64(pos.y))
+	cairo.paint(cr)
+}
+
+draw_surface_tinted :: proc(
+	cr: ^cairo.cairo_t,
+	surface: ^cairo.surface_t,
+	pos: Vec2,
+	color: Color,
+) {
+	set_source_color(cr, color)
+	cairo.mask_surface(cr, surface, f64(pos.x), f64(pos.y))
+}
+
 draw_rect :: proc(cr: ^cairo.cairo_t, rect: Rect, color: Color) {
 	_rectangle(cr, rect)
 	set_source_color(cr, color)

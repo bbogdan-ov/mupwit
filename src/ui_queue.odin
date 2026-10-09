@@ -117,11 +117,8 @@ queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	ui.guard_box(ctx, box, GAP, self.scroll.offset)
 	self.box = ctx.box
 
-	// Draw a little "empty queue" symbol.
 	if ui.items_count(&self.list) == 0 {
-		pos := rect_center(ctx.box)
-		pos.y += ctx.font_height / 2
-		ui.draw_text(ctx, "❦", pos, state.theme.gray, align = .Center)
+		draw_screen_art(state, ctx)
 		return
 	}
 

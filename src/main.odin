@@ -29,16 +29,19 @@ Theme :: struct {
 }
 
 State :: struct {
-	window:       ^win.Window,
-	player:       ^Base_Player,
-	screen:       Screen,
-	prev_screen:  Screen,
-	screen_tween: ui.Tween(f32),
-	theme:        Theme,
+	window:               ^win.Window,
+	player:               ^Base_Player,
+	screen:               Screen,
+	prev_screen:          Screen,
+	screen_tween:         ui.Tween(f32),
+	theme:                Theme,
 
 	// Assets.
-	font_kapli:   ui.Font,
-	icons:        ui.Sprites(Icon),
+	font_kapli:           ui.Font,
+	icons:                ui.Sprites(Icon),
+	image_clippy:         ^cairo.surface_t,
+	image_clippy_outline: ^cairo.surface_t,
+	image_screen_art:     ^cairo.surface_t,
 }
 
 @(private = "file")
@@ -279,6 +282,9 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 
 	case is_key(ev, .F1):
 		player_load_random_album(state.player)
+
+	case is_key(ev, .F2):
+		clippy_ui_set_message("Test toast message!", context.allocator)
 	}
 
 	return true

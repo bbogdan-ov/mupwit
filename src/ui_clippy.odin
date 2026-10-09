@@ -13,11 +13,14 @@ Toast :: struct {
 
 @(private = "file")
 self: struct {
+	clippy_tween:  ui.Animated(f32),
+
 	// Search toast.
 	search_toast:  Toast,
 	search:        ui.Entry,
 	search_timer:  Seconds,
 	search_screen: Maybe(Screen),
+	search_rect:   Rect,
 
 	// Message toast.
 	msg_toast:     Toast,
@@ -52,6 +55,29 @@ clippy_ui_update :: proc(dt: Seconds) {
 		}
 	}
 
+	if _toast_is_active(&self.search_toast) && ui.is_hovering(self.search_rect) {
+		ui.set_cursor(.Pointer)
+
+		if ui.is_clicked(.Left) {
+			if self.search.active {
+				_clippy_ui_search_commit()
+			} else {
+				_clippy_ui_search_focus()
+			}
+		}
+	}
+
+	ui.animated_update(&self.clippy_tween, dt)
+	if self.clippy_tween.easing == .Linear {
+		// NOTE: this is a crutch for setting less amplitude for "back out"
+		// easing function.
+		back_out :: proc "contextless" (p: $T) -> T {
+			f := 1 - p
+			return 1 - (f * f * f - f * math.sin(f * math.PI) * 0.4)
+		}
+		self.clippy_tween.value = back_out(self.clippy_tween.value)
+	}
+
 	ui.entry_update(&self.search)
 
 	_toast_update(&self.msg_toast, dt)
@@ -84,7 +110,7 @@ clippy_ui_allow_search :: proc(screen: Screen, initial_search: string) {
 	}
 }
 
-_clippy_ui_search_open :: proc() {
+_clippy_ui_search_focus :: proc() {
 	if !_toast_is_active(&self.search_toast) {
 		ui.entry_clear(&self.search)
 	} else {
@@ -96,7 +122,9 @@ _clippy_ui_search_open :: proc() {
 }
 
 _clippy_ui_search_cancel :: proc() {
-	if !self.search.active && ui.entry_len(&self.search) == 0 do return
+	if !(_toast_is_active(&self.search_toast) || self.search.active) {
+		return
+	}
 
 	_clippy_ui_search_reveal(false)
 
@@ -114,7 +142,10 @@ _clippy_ui_search_commit :: proc() {
 
 _clippy_ui_search_reveal :: proc(reveal: bool) {
 	_toast_set_reveal(&self.search_toast, reveal)
-	if !reveal {
+	if reveal {
+		ui.animated_play_to_with(&self.clippy_tween, 1, 0.3, .Linear)
+	} else {
+		ui.animated_play_to_with(&self.clippy_tween, 0, 0.2, .Cubic_In)
 		ui.entry_set_active(&self.search, false)
 	}
 }
@@ -127,9 +158,22 @@ clippy_ui_visible_height :: proc() -> i32 {
 clippy_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	view := ui.state.view
 
-	pos: Vec2
-	pos.x = view.width
-	pos.y = view.height
+	{
+		off := status_ui_visible_height()
+
+		pos := Vec2{view.width, view.height}
+		pos -= IMAGE_CLIPPY_SIZE
+		pos.x -= 2
+		pos.y += -off + 16
+
+		bottom := f32(view.height - off)
+		y := math.lerp(bottom, f32(pos.y), self.clippy_tween.value)
+		pos.y = i32(y)
+		ui.draw_surface_tinted(ctx, state.image_clippy_outline, pos, state.theme.background)
+		ui.draw_surface_tinted(ctx, state.image_clippy, pos, state.theme.black)
+	}
+
+	pos := Vec2{view.width, view.height}
 
 	{
 		pos := pos
@@ -137,9 +181,15 @@ clippy_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		_toast_draw(state, ctx, &self.msg_toast, self.msg_text, pos)
 	}
 
-	_clippy_ui_draw_search_toast(state, ctx, pos)
+	{
+		pos := pos
+		pos.x -= IMAGE_CLIPPY_SIZE.x
+		_clippy_ui_draw_search_toast(state, ctx, pos)
+	}
 }
 
+// TODO: add "next occurrence" and "previous occurrence" buttons when searching
+// in a .Simple or .Reorderable list.
 _clippy_ui_draw_search_toast :: proc(state: ^State, ctx: ^ui.Context, pos: Vec2) {
 	view := ui.state.view
 
@@ -159,6 +209,7 @@ _clippy_ui_draw_search_toast :: proc(state: ^State, ctx: ^ui.Context, pos: Vec2)
 	text_width = max(text_width, view.width / 2)
 
 	rect := _toast_draw_bubble(ctx, &self.search_toast, pos, text_width, state.theme.black)
+	self.search_rect = rect
 
 	ui.guard_box(ctx, rect, TOAST_PADDING)
 	ui.guard_clip(ctx)
@@ -176,8 +227,7 @@ clippy_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: b
 		return true
 	}
 
-	count := ui.entry_len(&self.search)
-	if is_key_cancel(ev) && (count > 0 || self.search.active) {
+	if is_key_cancel(ev) && (_toast_is_active(&self.search_toast) || self.search.active) {
 		_clippy_ui_search_cancel()
 		return false
 	}
@@ -185,7 +235,7 @@ clippy_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: b
 	switch {
 	case !self.search.active:
 		if is_key(ev, .Slash) || is_ctrl_key(ev, .F) || is_key(ev, .F3) {
-			_clippy_ui_search_open()
+			_clippy_ui_search_focus()
 			return false
 		}
 		return true
@@ -229,7 +279,6 @@ _toast_update :: proc(toast: ^Toast, dt: Seconds) {
 _toast_set_reveal :: proc(toast: ^Toast, reveal: bool) {
 	if reveal && _toast_is_active(toast) {
 		toast.jump_timer = TOAST_ANIM_DURATION
-		return
 	}
 
 	toast.tween.duration = TOAST_ANIM_DURATION
@@ -285,14 +334,16 @@ _toast_draw_bubble :: proc(
 	scale := math.lerp(f32(0.5), 1.0, toast.tween.value)
 
 	rect: Rect
-	rect.width = text_width + TOAST_PADDING.x * 2
-	rect.width = min(rect.width, view.width - TOAST_MARGIN * 2)
-	rect.width = i32(f32(rect.width) * scale)
-	rect.height = ctx.font_height + TOAST_PADDING.y * 2
-	rect.x = bottom_right.x - rect.width
-	rect.y = bottom_right.y - rect.height - ui.SPEECH_BUBBLE_TAIL_SIZE
+	rect.x = bottom_right.x
+	rect.y = bottom_right.y - ui.SPEECH_BUBBLE_TAIL_SIZE
 	rect.x -= TOAST_MARGIN
 	rect.y -= TOAST_MARGIN
+	rect.width = text_width + TOAST_PADDING.x * 2
+	rect.width = min(rect.width, view.width - TOAST_MARGIN - (view.width - rect.x))
+	rect.width = i32(f32(rect.width) * scale)
+	rect.height = ctx.font_height + TOAST_PADDING.y * 2
+	rect.x -= rect.width
+	rect.y -= rect.height
 
 	off := math.sin(toast.jump_timer / TOAST_ANIM_DURATION * math.PI)
 	rect.y -= i32(off * 6)

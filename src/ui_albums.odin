@@ -68,6 +68,11 @@ albums_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	ui.guard_box(ctx, box, GAP, self.scroll.offset)
 	self.box = ctx.box
 
+	if ui.items_count(&self.list) == 0 {
+		draw_screen_art(state, ctx)
+		return
+	}
+
 	from, to := ui.item_list_visible_range(ctx.box, &self.list)
 	to = min(to, ui.items_count(&self.list))
 	for i in from ..< to {

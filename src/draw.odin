@@ -84,3 +84,10 @@ icon_from_playstate :: proc(playstate: mpd.Play_State) -> Icon {
 scroll_draw :: proc(state: ^State, ctx: ^ui.Context, s: ^ui.Scroll, contents: i32) {
 	ui.scroll_draw(ctx, s, contents, state.theme.light_gray, state.theme.gray)
 }
+
+draw_screen_art :: proc(state: ^State, ctx: ^ui.Context) {
+	pos := rect_pos(ctx.box)
+	pos.x += ctx.box.width / 2 - IMAGE_SCREEN_ART_SIZE.x / 2
+	pos.y += ctx.box.height / 2 - IMAGE_SCREEN_ART_SIZE.y / 2
+	ui.draw_surface_tinted(ctx, state.image_screen_art, pos, state.theme.black)
+}

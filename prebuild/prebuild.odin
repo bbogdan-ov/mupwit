@@ -88,12 +88,12 @@ decode_and_write_png :: proc(path: string) -> (stem: string, size: [2]int, ok: b
 
 	output_data := make([]u8, len(image.pixels.buf), context.temp_allocator)
 
-	// RGBA -> ARGB
+	// RGBA -> BGRA
 	for i in 0 ..< image.width * image.height {
-		output_data[i * 4 + 0] = image.pixels.buf[i * 4 + 3]
-		output_data[i * 4 + 1] = image.pixels.buf[i * 4 + 0]
-		output_data[i * 4 + 2] = image.pixels.buf[i * 4 + 1]
-		output_data[i * 4 + 3] = image.pixels.buf[i * 4 + 2]
+		output_data[i * 4 + 0] = image.pixels.buf[i * 4 + 2]
+		output_data[i * 4 + 1] = image.pixels.buf[i * 4 + 1]
+		output_data[i * 4 + 2] = image.pixels.buf[i * 4 + 0]
+		output_data[i * 4 + 3] = image.pixels.buf[i * 4 + 3]
 	}
 
 	_, err = os.write(output_file, output_data)

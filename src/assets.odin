@@ -15,6 +15,9 @@ assets_load :: proc(state: ^State) -> (ok: bool) {
 
 	// Load images
 	state.icons.sheet = _load_image("icons", IMAGE_ICONS_SIZE)
+	state.image_clippy = _load_image("clippy", IMAGE_CLIPPY_SIZE)
+	state.image_clippy_outline = _load_image("clippy_outline", IMAGE_CLIPPY_OUTLINE_SIZE)
+	state.image_screen_art = _load_image("screen_art", IMAGE_SCREEN_ART_SIZE)
 
 	// Crop icons from the sheet.
 	target := state.icons.sheet
@@ -29,6 +32,9 @@ assets_load :: proc(state: ^State) -> (ok: bool) {
 assets_destroy :: proc(state: ^State) {
 	ui.font_destroy(state.font_kapli)
 	ui.sprites_destroy(state.icons)
+	cairo.surface_destroy(state.image_clippy)
+	cairo.surface_destroy(state.image_clippy_outline)
+	cairo.surface_destroy(state.image_screen_art)
 }
 
 _load_ttf :: proc($name: string) -> (font: ui.Font, ok: bool) {
