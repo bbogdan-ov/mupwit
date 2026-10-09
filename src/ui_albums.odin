@@ -16,9 +16,13 @@ Album_Item_List :: ui.Item_List(Album_Item)
 
 @(private = "file")
 self: struct {
-	list:   Album_Item_List,
-	scroll: ui.Scroll,
-	box:    ui.Box,
+	list:           Album_Item_List,
+	scroll:         ui.Scroll,
+	box:            ui.Box,
+	// `cur_position` of items before filtering. Used exclusively for the fancy
+	// filter animation (items smoothly move from their previous position in
+	// the list to a new one).
+	prev_positions: map[mpd.Album_Index]Vec2,
 }
 
 albums_ui_init :: proc() {
@@ -31,10 +35,13 @@ albums_ui_init :: proc() {
 	self.list.item_destroy = _album_item_destroy
 	self.list.item_update = _album_item_update
 	self.list.item_search_score = _album_item_search_score
+
+	self.prev_positions = make(map[mpd.Album_Index]Vec2, context.allocator)
 }
 
 albums_ui_destroy :: proc() {
 	ui.item_list_destroy(&self.list)
+	delete(self.prev_positions)
 }
 
 albums_ui_update :: proc(state: ^State, dt: Seconds) {
@@ -115,6 +122,11 @@ albums_ui_on_search :: proc(state: ^State, search: string) {
 	updated := ui.item_list_on_search(&self.list, search, context.allocator)
 	if updated {
 		start := time.now()
+
+		for item in self.list.items {
+			self.prev_positions[item.album_index] = item.cur_position
+		}
+
 		ui.item_list_filter(&self.scroll, &self.list, len(state.player.albums))
 		log.debugf("UI ALBUMS: Filtered items in %v", time.since(start))
 	}
@@ -135,6 +147,25 @@ albums_ui_on_album_list_updated :: proc(state: ^State) {
 
 _album_item_init :: proc(list: ^Album_Item_List, item: ^Album_Item, index, number: ui.Item_Index) {
 	item.album_index = mpd.Album_Index(index)
+
+	view := ui.state.view
+	scroll := i32(self.scroll.offset)
+
+	// Do not animate any items outside of the screen.
+	if item.position.y - scroll > view.height do return
+
+	prev_pos, ok := self.prev_positions[item.album_index]
+	if !ok do return
+
+	if item.cur_position == prev_pos do return
+
+	if prev_pos.y - scroll > view.height {
+		// Move item closer if it is too far.
+		prev_pos.y = view.height
+	}
+
+	item.cur_position = prev_pos
+	ui.item_tween_to_rest(list, item, number)
 }
 
 _album_item_destroy :: proc(item: ^Album_Item) {
