@@ -87,7 +87,7 @@ Currently you should [build](#building) MUPWIT yourself, unfortunately.
 TODO: should statically link with `libwayland-client` and `libcairo`.
 
 **Dependencies:**
-- Odin compiler: [`dev-2026-09`](https://github.com/odin-lang/Odin/releases/tag/dev-2026-09)
+- Odin compiler: [`dev-2026-10`](https://github.com/odin-lang/Odin/releases/tag/dev-2026-10)
 - MPD: `0.24.15`
 - Library `wayland`: `1.26.0`
 - Library `cairo`: `1.18.4`
