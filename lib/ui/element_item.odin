@@ -531,6 +531,7 @@ item_list_search_next :: proc(
 	ok: bool,
 ) {
 	if list.kind == .Filterable do return
+	if list.pattern == nil do return
 	assert(list.item_search_score != nil)
 
 	dir: Item_Index = -1 if backwards else 1
