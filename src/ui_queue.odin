@@ -12,6 +12,7 @@ import "lib:ui"
 Song_Item :: struct {
 	using item:  ui.Item,
 	float_tween: ui.Tween(f32),
+	float:       f32,
 	song_index:  mpd.Song_Index,
 	loader:      Cover_Loader,
 }
@@ -294,7 +295,8 @@ _queue_ui_on_item_start_reordering :: proc(
 	index: ui.Item_Index,
 ) {
 	if ui.controls() == .Keyboard {
-		ui.play(&item.float_tween, 0, ui.ITEM_ANIM_DURATION)
+		ui.play(&item.float_tween, item.float, ui.ITEM_ANIM_DURATION)
+		item.float = 1
 	}
 }
 
@@ -303,7 +305,8 @@ _queue_ui_on_item_stop_reordering :: proc(
 	item: ^Song_Item,
 	index: ui.Item_Index,
 ) {
-	ui.play(&item.float_tween, 1, ui.ITEM_ANIM_DURATION)
+	ui.play(&item.float_tween, item.float, ui.ITEM_ANIM_DURATION)
+	item.float = 0
 }
 
 // ------------------------------
@@ -348,10 +351,9 @@ _song_item_draw :: proc(state: ^State, ctx: ^ui.Context, item: ^Song_Item, index
 	is_mathing := self.list.pattern != nil && item.score >= ui.MIN_SEARCH_SCORE
 
 	pos := item.cur_position
+
 	{
-		to: f32 = 0
-		if ui.item_is_reodering(&self.list, index) do to = 1
-		p := ui.tween_ease(&item.float_tween, to, .Cubic_Out)
+		p := ui.tween_ease(&item.float_tween, item.float, .Cubic_Out)
 		pos.x += i32(GAP * 2 * p)
 	}
 
