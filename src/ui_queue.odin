@@ -113,7 +113,6 @@ queue_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if !screen_is_visible(state, .Queue) do return
 
 	box := ui.pad_b(ctx.box, status_ui_visible_height() + clippy_ui_visible_height())
-	box = ui.pad_t(box, command_ui_visible_height())
 	box.x += screen_x_offset(state, .Queue)
 	ui.guard_box(ctx, box, GAP, self.scroll.offset)
 	self.box = ctx.box

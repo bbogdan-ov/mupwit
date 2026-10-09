@@ -31,7 +31,6 @@ Theme :: struct {
 State :: struct {
 	window:       ^win.Window,
 	player:       ^Base_Player,
-	commands:     Commands,
 	screen:       Screen,
 	prev_screen:  Screen,
 	screen_tween: ui.Tween(f32),
@@ -81,11 +80,6 @@ main :: proc() {
 	player_connect(state.player)
 	defer player_destroy(state.player)
 
-	commands_init(&state.commands)
-	defer commands_destroy(&state.commands)
-
-	command_ui_init()
-	defer command_ui_destroy()
 	clippy_ui_init()
 	defer clippy_ui_destroy()
 	status_ui_init()
@@ -110,7 +104,6 @@ update :: proc(dt: Seconds) {
 
 	player_update(state.player, dt)
 
-	command_ui_update(&state, dt)
 	status_ui_update(&state, dt)
 	clippy_ui_update(dt)
 	queue_ui_update(&state, dt)
@@ -178,7 +171,6 @@ draw :: proc(ctx: ^ui.Context) {
 	albums_ui_draw(&state, ctx)
 	clippy_ui_draw(&state, ctx)
 	status_ui_draw(&state, ctx)
-	command_ui_draw(&state, ctx)
 }
 
 set_screen :: proc(state: ^State, screen: Screen) {
@@ -261,7 +253,6 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 	// doesn't trigger the app to close.
 
 	clippy_ui_on_keyboard_key(&state, ev) or_return
-	command_ui_on_keyboard_key(&state, ev) or_return
 	queue_ui_on_keyboard_key(&state, ev) or_return
 	albums_ui_on_keyboard_key(&state, ev) or_return
 
@@ -288,9 +279,6 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 
 	case is_key(ev, .F1):
 		player_load_random_album(state.player)
-
-	case is_shift_key(ev, .Semicolon), is_ctrl_shift_key(ev, .P):
-		command_ui_set_active(true)
 	}
 
 	return true
