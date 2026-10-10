@@ -24,11 +24,19 @@ Response_Cover :: struct #all_or_none {
 	allocator: runtime.Allocator,
 }
 
+Response_Connected :: struct {}
+
+Response_Error :: struct {
+	error: mpd.Error,
+}
+
 Player_Response :: union {
 	mpd.Album_List,
 	Response_Status,
 	Response_Queue,
 	Response_Cover,
+	Response_Connected,
+	Response_Error,
 }
 
 _response_destroy :: proc(response: Player_Response) {
@@ -74,5 +82,15 @@ _player_handle_response :: proc(player: ^Base_Player, response: Player_Response)
 	case Response_Cover:
 		_player_handle_cover_response(player, res)
 		cover_key_delete(res.key, res.allocator)
+
+	case Response_Connected:
+		// TODO: should also send a `Response_Disconnected` upon disconnecting
+		// from a server. Currently you can only disconnect when closing the
+		// app, so this response is useless for now.
+		player.state = .Connected
+
+	case Response_Error:
+		player_push_event(player, Event_Error{res.error})
+		player.state = .Disconnected
 	}
 }

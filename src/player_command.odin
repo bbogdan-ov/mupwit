@@ -122,6 +122,8 @@ _command_destroy :: proc(command: Player_Command, loc := #caller_location) {
 }
 
 _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #caller_location) {
+	if player.state != .Connected do return
+
 	#partial switch cmd in command {
 	case Command_Play:
 		player.playstate = .Play

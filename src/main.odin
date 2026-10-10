@@ -5,8 +5,10 @@ package mupwit
 import "core:fmt"
 import "core:log"
 import "core:mem"
+import "core:net"
 import "core:strings"
 import "core:time"
+import "lib:mpd"
 
 import "lib:cairo"
 import win "lib:my_window"
@@ -34,6 +36,7 @@ State :: struct {
 	prev_screen:          Screen,
 	screen_tween:         ui.Tween(f32),
 	theme:                Theme,
+	error:                Maybe(mpd.Error),
 
 	// Assets.
 	font_kapli:           ui.Font,
@@ -102,6 +105,8 @@ init :: proc(state: ^State) {
 	state.theme._target_background = DEFAULT_BACKGROUND
 	state.theme.black = BLACK
 	_adapt_theme_colors_to_bg(state)
+
+	state.screen = .Player
 }
 
 update :: proc(state: ^State, dt: Seconds) {
@@ -118,9 +123,13 @@ update :: proc(state: ^State, dt: Seconds) {
 
 	status_ui_update(state, dt)
 	clippy_ui_update(state, dt)
-	queue_ui_update(state, dt)
-	player_ui_update(state, dt)
-	albums_ui_update(state, dt)
+	if state.error != nil {
+		error_ui_update(state, dt)
+	} else {
+		queue_ui_update(state, dt)
+		player_ui_update(state, dt)
+		albums_ui_update(state, dt)
+	}
 
 	win.set_cursor(state.window, ui.state.cursor)
 	ui.update(dt)
@@ -162,6 +171,12 @@ handle_event :: proc(state: ^State, event: Event) {
 	case Event_Redid:
 		msg := fmt.tprintf("↻ Redo %v!", UNDO_KIND_NAME[ev.kind])
 		clippy_ui_set_message(msg, context.allocator)
+	case Event_Error:
+		// TODO: should also handle and display some `mpd.Client_Error`s.
+		if _, ok := ev.error.(net.Network_Error); ok {
+			state.error = ev.error
+			ui.dirty(true)
+		}
 
 	case Event_Screen_Updated:
 		queue_ui_on_screen_updated(state)
@@ -219,11 +234,22 @@ draw :: proc(state: ^State, ctx: ^ui.Context) {
 	// TEMPORARY: for now all text fonts will be the same.
 	ui.set_font(ctx, state.font_kapli, FONT_SIZE)
 
-	player_ui_draw(state, ctx)
-	queue_ui_draw(state, ctx)
-	albums_ui_draw(state, ctx)
+	if state.error != nil {
+		error_ui_draw(state, ctx)
+	} else {
+		player_ui_draw(state, ctx)
+		queue_ui_draw(state, ctx)
+		albums_ui_draw(state, ctx)
+	}
 	clippy_ui_draw(state, ctx)
 	status_ui_draw(state, ctx)
+}
+
+try_connect_again :: proc(state: ^State) {
+	if !player_connect(state.player) do return
+	set_screen(state, .Player)
+	state.error = nil
+	ui.dirty(true)
 }
 
 set_screen :: proc(state: ^State, screen: Screen) {
@@ -305,13 +331,20 @@ on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> bool {
 	// propagation for all keys ("consume" them) so that if you press 'q' it
 	// doesn't trigger the app to close.
 
-	clippy_ui_on_keyboard_key(state, ev) or_return
-	queue_ui_on_keyboard_key(state, ev) or_return
-	albums_ui_on_keyboard_key(state, ev) or_return
+	if state.error != nil {
+		error_ui_on_keyboard_key(state, ev) or_return
+	} else {
+		clippy_ui_on_keyboard_key(state, ev) or_return
+		queue_ui_on_keyboard_key(state, ev) or_return
+		albums_ui_on_keyboard_key(state, ev) or_return
+	}
 
 	switch {
 	case ev.key == .Esc, is_key(ev, .Q):
 		win.set_should_close(state.window, true)
+
+	case state.error != nil:
+		return true
 
 	case is_key(ev, .Tab):
 		set_screen(state, enum_rotate_variant(state.screen, 1))
@@ -332,9 +365,6 @@ on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> bool {
 
 	case is_key(ev, .F1):
 		player_load_random_album(state.player)
-
-	case is_key(ev, .F2):
-		clippy_ui_set_message("Test toast message!", context.allocator)
 	}
 
 	return true

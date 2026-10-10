@@ -16,6 +16,7 @@
 package mupwit
 
 import "base:runtime"
+import "core:fmt"
 import "core:log"
 import "core:sort"
 import "core:sync/chan"
@@ -58,6 +59,9 @@ Event_Undid :: struct {
 Event_Redid :: struct {
 	kind: Undo_Kind,
 }
+Event_Error :: struct {
+	error: mpd.Error,
+}
 
 // Misc events.
 Event_Screen_Updated :: struct {}
@@ -65,7 +69,7 @@ Event_Search :: struct {
 	search: string,
 }
 
-Event :: union {
+Event :: union #no_nil {
 	Event_Status_Updated,
 	Event_Cur_Song_Updated,
 	Event_Queue_Updated,
@@ -74,10 +78,17 @@ Event :: union {
 	Event_Song_Removed,
 	Event_Undid,
 	Event_Redid,
+	Event_Error,
 
 	//
 	Event_Screen_Updated,
 	Event_Search,
+}
+
+Player_State :: enum {
+	Disconnected = 0,
+	Connecting,
+	Connected,
 }
 
 Base_Player :: struct {
@@ -105,6 +116,7 @@ Base_Player :: struct {
 	events:              [dynamic]Event,
 	history:             History,
 	_status_req_timer:   Seconds,
+	state:               Player_State,
 
 	// Cache.
 	_covers_cache:       Covers_Cache,
@@ -124,11 +136,13 @@ Player_Shared :: struct {
 	commands:           Commands_Chan,
 	responses:          Responses_Chan,
 	covers_thread_pool: Mutex(thread.Pool),
+	address:            string, // Points to `Player.address`.
 	allocator:          runtime.Allocator,
 }
 
 Player :: struct {
 	using base:     Base_Player,
+	address:        string,
 
 	// Client state.
 	_shared:        Player_Shared,
@@ -145,13 +159,10 @@ player_create :: proc(allocator := context.allocator, loc := #caller_location) -
 	player._recv_response = _player_default_recv_response
 
 	player._shared.allocator = player.allocator
-	player._client_thread = thread.create(_do_connect)
-	player._client_thread.data = &player._shared
 
 	{
 		mutex := &player._shared.covers_thread_pool
-		pool := mutex_lock(mutex)
-		defer mutex_unlock(mutex)
+		pool := mutex_guard(mutex)
 
 		thread.pool_init(pool, player.allocator, MAX_COVER_DECODE_THREADS)
 		thread.pool_start(pool)
@@ -184,12 +195,21 @@ _base_player_init :: proc(
 	player._album_pool = make([dynamic]mpd.Album_Index, allocator)
 }
 
-player_connect :: proc(player: ^Base_Player, loc := #caller_location) {
+player_connect :: proc(player: ^Base_Player, loc := #caller_location) -> bool {
+	if player.state != .Disconnected {
+		return false
+	}
+
+	player.state = .Connecting
 	player->_connect(loc)
 
-	player_request_albums(player)
-	player_request_queue(player)
-	player_request_status(player, true)
+	// NOTE: use raw `_send_command` callback instead of `_player_send` to
+	// force sending these commands. (`_player_send` won't allow to send a
+	// command utill player is connected)
+	player->_send_command(Command_Request_Albums{}, loc)
+	player->_send_command(Command_Request_Queue{}, loc)
+	player->_send_command(Command_Request_Status{true}, loc)
+	return true
 }
 
 player_destroy :: proc(player: ^Base_Player, loc := #caller_location) {
@@ -210,7 +230,25 @@ player_destroy :: proc(player: ^Base_Player, loc := #caller_location) {
 
 _player_default_connect :: proc(player: ^Base_Player, loc: Source_Loc) {
 	player := cast(^Player)player
-	assert(player._client_thread != nil)
+
+	{
+		delete(player.address, player.allocator)
+
+		host := mpd.get_host(context.temp_allocator)
+		port := mpd.get_port()
+		player.address = fmt.aprintf("%v:%v", host, port, allocator = player.allocator)
+		player._shared.address = player.address
+	}
+
+	// Clean up the channels before connecting, they may contain some garbage
+	// from a previous connection attempt.
+	for cmd in chan.try_recv(player._shared.commands) do _command_destroy(cmd)
+
+	if player._client_thread != nil {
+		thread.destroy(player._client_thread)
+	}
+	player._client_thread = thread.create(_do_connect)
+	player._client_thread.data = &player._shared
 
 	thread.start(player._client_thread)
 }
@@ -222,9 +260,7 @@ _player_default_destroy :: proc(player: ^Base_Player, loc: Source_Loc) {
 	thread.destroy(player._client_thread)
 
 	{
-		mutex := &player._shared.covers_thread_pool
-		pool := mutex_lock(mutex)
-		defer mutex_unlock(mutex)
+		pool := mutex_guard(&player._shared.covers_thread_pool)
 
 		thread.pool_shutdown(pool)
 		// FIXME: when calling `cover_thread_data_free` here a double-free of
@@ -235,6 +271,11 @@ _player_default_destroy :: proc(player: ^Base_Player, loc: Source_Loc) {
 		// }
 		thread.pool_destroy(pool)
 	}
+
+	delete(player.address, player.allocator)
+
+	for cmd in chan.try_recv(player._shared.commands) do _command_destroy(cmd)
+	for res in chan.try_recv(player._shared.responses) do _response_destroy(res)
 
 	chan.destroy(&player._shared.commands)
 	chan.destroy(&player._shared.responses)
@@ -284,7 +325,8 @@ _player_set_status :: proc(player: ^Base_Player, status: mpd.Status, check_cur_s
 	}
 
 	if player.cur_song_id != prev_song_id && !check_cur_song {
-		panic("BUG: Song changed but we've been told that it won't")
+		// Not cirtical, but it shouldn't happen.
+		log.warn("Song changed but we've been told that it won't")
 	}
 
 	song_changed := check_cur_song && player.cur_song_id != prev_song_id
@@ -442,6 +484,7 @@ _player_clamp_cur_song :: proc(player: ^Base_Player) {
 
 _do_connect :: proc(t: ^thread.Thread) {
 	context.logger = make_logger()
+	defer log.info("PLAYER: Client thread ended")
 
 	// NOTE: this thread may log stuff into a console in a non-thread safe
 	// fashion and overlapping logs may appear, which is not that bad i guess?
@@ -451,9 +494,14 @@ _do_connect :: proc(t: ^thread.Thread) {
 
 	shared := cast(^Player_Shared)t.data
 
-	client, err := mpd.connect(shared.allocator)
-	assert(err == nil) // TODO: handle error.
+	client, err := mpd.connect(shared.address, shared.allocator)
+	if err != nil {
+		_response_send(shared.responses, Response_Error{err})
+		return
+	}
 	defer mpd.disconnect(&client)
+
+	_response_send(shared.responses, Response_Connected{})
 
 	start := time.now()
 	for {

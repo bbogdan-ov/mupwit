@@ -20,6 +20,10 @@ Mutex :: struct($T: typeid) {
 	_mutex: sync.Mutex,
 }
 
+@(deferred_in = mutex_unlock)
+mutex_guard :: proc(mutex: ^Mutex($T)) -> ^T {
+	return mutex_lock(mutex)
+}
 mutex_lock :: proc(mutex: ^Mutex($T)) -> ^T {
 	sync.lock(&mutex._mutex)
 	return &mutex._v

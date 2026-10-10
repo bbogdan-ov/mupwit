@@ -64,6 +64,54 @@ draw_action_button :: proc(
 	return draw_icon_button(state, ctx, button, icon, pos, state.theme.gray, TINY_BUTTON_SIZE)
 }
 
+draw_text_button :: proc(
+	ctx: ^ui.Context,
+	b: ^ui.Button,
+	text: string,
+	pos: Vec2,
+	color: Color,
+) -> Vec2 {
+	glyphs := ui.text_glyphs(ctx, text)
+	defer ui.text_glyphs_delete(glyphs)
+	rect := text_button_rect(ctx, glyphs, pos)
+	return draw_text_button_impl(ctx, b, glyphs, rect, color)
+}
+
+text_button_rect :: proc(ctx: ^ui.Context, glyphs: []cairo.glyph_t, pos: Vec2) -> Rect {
+	ext := ui.measure_glyphs(ctx, glyphs, true)
+
+	rect: Rect
+	rect.x = pos.x
+	rect.y = pos.y
+	rect.width = i32(ext.x_advance) + BUTTON_PADDING.x * 2
+	rect.height = ctx.font_height + BUTTON_PADDING.y * 2
+	return rect
+}
+
+draw_text_button_impl :: proc(
+	ctx: ^ui.Context,
+	b: ^ui.Button,
+	glyphs: []cairo.glyph_t,
+	rect: Rect,
+	color: Color,
+) -> Vec2 {
+	rect := rect
+	ui.button_on_draw(b, rect)
+
+	if b.is_down {
+		rect.y += 2
+		ui.draw_box(ctx, rect, color)
+	} else {
+		ui.draw_box_bulgy(ctx, rect, color)
+	}
+
+	text_pos := rect_pos(rect) + BUTTON_PADDING
+	text_pos.y += ctx.font_height - 1
+	ui.draw_glyphs(ctx, glyphs, text_pos, color)
+
+	return rect_size(rect)
+}
+
 icon_center_inside :: proc(inside: Rect) -> Vec2 {
 	return rect_center(inside) - ICON_SIZE / 2
 }

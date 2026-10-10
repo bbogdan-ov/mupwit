@@ -52,8 +52,7 @@ _cover_decode_and_send :: proc(
 
 	{
 		mutex := &shared.covers_thread_pool
-		pool := mutex_lock(mutex)
-		defer mutex_unlock(mutex)
+		pool := mutex_guard(mutex)
 
 		// Delete all completed tasks.
 		for _ in thread.pool_pop_done(pool) {}

@@ -15,8 +15,6 @@ import "core:log"
 import "core:net"
 import "core:strings"
 
-DEFAULT_PORT :: 6600
-
 Client_Error :: enum {
 	None = 0,
 	// Received an "ACK ..." response from MPD which indicates an error.
@@ -38,44 +36,35 @@ Client :: struct {
 }
 
 @(require_results)
-connect :: proc(allocator := context.allocator) -> (client: Client, err: Error) {
-	port := get_port()
-	host := get_host(context.allocator)
-	defer delete(host, context.allocator)
-
-	endpoint, parse_err := net.parse_hostname_or_endpoint(fmt.tprintf("%v:%v", host, port))
-	if parse_err != nil {
-		err = net.Network_Error(parse_err)
-		return
-	}
-
-	return connect_to_endpoint(endpoint, allocator)
-}
-
-@(require_results)
-connect_to_endpoint :: proc(
-	endpoint: net.Host_Or_Endpoint,
+connect :: proc(
+	address: string,
 	allocator := context.allocator,
 	loc := #caller_location,
 ) -> (
 	client: Client,
 	err: Error,
 ) {
-	log.info("MPD: Connecting...")
+	log.info("MPD: Connecting...", location = loc)
+
+	endpoint, parse_err := net.parse_hostname_or_endpoint(address)
+	if parse_err != nil {
+		err = net.Network_Error(parse_err)
+		return
+	}
 
 	dial_err: net.Network_Error
 	client.socket, dial_err = net.dial_tcp(endpoint)
 	if dial_err != nil {
-		log.errorf("MPD: Failed to connect: %v", dial_err)
+		log.errorf("MPD: Failed to connect: %v", dial_err, location = loc)
 		return client, dial_err
 	}
 
 	{
 		// TODO: handle not receiving "hello" message.
 		version := recv(&client, context.allocator, loc) or_return
-		defer delete(version, context.allocator)
+		defer delete(version, context.allocator, loc)
 
-		log.infof("MPD: Connected: %q", version)
+		log.infof("MPD: Connected: %q", version, location = loc)
 	}
 
 	return client, nil
