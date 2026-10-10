@@ -152,7 +152,7 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 
 		// Duration shouldn't change, but just in case.
 		_player_queue_calc_duration_and_elapsed(player)
-		when !ODIN_TEST do on_song_reordered(cmd.from, cmd.to)
+		player_push_event(player, Event_Song_Reordered{cmd.from, cmd.to})
 
 	case Command_Queue_Add:
 		_player_history_push(player, .Queue_Add, Command_Queue_Remove{cmd.index})
@@ -179,7 +179,7 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 		}
 
 		_player_queue_calc_duration_and_elapsed(player)
-		when !ODIN_TEST do on_song_removed(cmd.index)
+		player_push_event(player, Event_Song_Removed{cmd.index})
 
 	case Command_Load:
 		_player_history_push_queue(player, .Load)

@@ -38,7 +38,7 @@ clippy_ui_destroy :: proc() {
 	ui.entry_destroy(&self.search)
 }
 
-clippy_ui_update :: proc(dt: Seconds) {
+clippy_ui_update :: proc(state: ^State, dt: Seconds) {
 	if self.msg_timer > 0 {
 		self.msg_timer -= dt
 		if self.msg_timer <= 0 {
@@ -51,7 +51,7 @@ clippy_ui_update :: proc(dt: Seconds) {
 		if self.search_timer <= 0 {
 			search := ui.entry_string(&self.search)
 			search = strings.trim_space(search)
-			on_search(search)
+			push_event(state, Event_Search{search})
 		}
 	}
 
@@ -121,14 +121,14 @@ _clippy_ui_search_focus :: proc() {
 	_clippy_ui_search_reveal(true)
 }
 
-_clippy_ui_search_cancel :: proc() {
+_clippy_ui_search_cancel :: proc(state: ^State) {
 	if !(_toast_is_active(&self.search_toast) || self.search.active) {
 		return
 	}
 
 	_clippy_ui_search_reveal(false)
 
-	on_search("")
+	push_event(state, Event_Search{""})
 	self.search_timer = 0
 }
 
@@ -228,7 +228,7 @@ clippy_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: b
 	}
 
 	if is_key_cancel(ev) && (_toast_is_active(&self.search_toast) || self.search.active) {
-		_clippy_ui_search_cancel()
+		_clippy_ui_search_cancel(state)
 		return false
 	}
 

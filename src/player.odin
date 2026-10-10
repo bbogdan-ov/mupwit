@@ -26,6 +26,8 @@ import "lib:mpd"
 STATUS_REQUEST_INVERVAL :: Seconds(0.5)
 TARGET_CLIENT_THREAD_TPS :: 30
 
+Source_Loc :: runtime.Source_Code_Location
+
 Commands_Chan :: distinct chan.Chan(Player_Command)
 Responses_Chan :: distinct chan.Chan(Player_Response)
 
@@ -36,7 +38,47 @@ Switch_Direction :: enum {
 	Previous,
 }
 
-Source_Loc :: runtime.Source_Code_Location
+// Player events.
+Event_Status_Updated :: struct {}
+Event_Cur_Song_Updated :: struct {
+	prev_index: Maybe(mpd.Song_Index),
+	prev_id:    Maybe(mpd.Song_Id),
+}
+Event_Queue_Updated :: struct {}
+Event_Album_List_Updated :: struct {}
+Event_Song_Reordered :: struct {
+	from, to: mpd.Song_Index,
+}
+Event_Song_Removed :: struct {
+	index: mpd.Song_Index,
+}
+Event_Undid :: struct {
+	kind: Undo_Kind,
+}
+Event_Redid :: struct {
+	kind: Undo_Kind,
+}
+
+// Misc events.
+Event_Screen_Updated :: struct {}
+Event_Search :: struct {
+	search: string,
+}
+
+Event :: union {
+	Event_Status_Updated,
+	Event_Cur_Song_Updated,
+	Event_Queue_Updated,
+	Event_Album_List_Updated,
+	Event_Song_Reordered,
+	Event_Song_Removed,
+	Event_Undid,
+	Event_Redid,
+
+	//
+	Event_Screen_Updated,
+	Event_Search,
+}
 
 Base_Player :: struct {
 	// Playback state.
@@ -49,8 +91,8 @@ Base_Player :: struct {
 	// don't just disappear, but smoothly fade out with data of the last played song.
 	last_played_song:    Maybe(mpd.Song),
 	queue:               mpd.Song_List,
-	queue_duration:      Seconds,
 	_queue_version:      int,
+	queue_duration:      Seconds,
 	// Time elapsed within the queue (sum of durations of songs before the
 	// current one), does not account for the current song.
 	queue_elapsed:       Seconds,
@@ -60,6 +102,7 @@ Base_Player :: struct {
 	_album_pool_drained: int,
 	// In which direction current song was skipped.
 	switch_direction:    Switch_Direction,
+	events:              [dynamic]Event,
 	history:             History,
 	_status_req_timer:   Seconds,
 
@@ -289,11 +332,11 @@ _player_set_status :: proc(player: ^Base_Player, status: mpd.Status, check_cur_s
 	if song_changed {
 		// TODO!!: make a proper "event system" for changes, so this code becomes more testable.
 		// `when !ODIN_TEST` is a crutch for now.
-		when !ODIN_TEST do on_cur_song_updated(prev_song, prev_song_id)
+		player_push_event(player, Event_Cur_Song_Updated{prev_song, prev_song_id})
 		_player_queue_calc_elapsed(player)
 	}
 
-	when !ODIN_TEST do on_status_updated()
+	player_push_event(player, Event_Status_Updated{})
 }
 
 _player_set_last_played_song :: proc(player: ^Base_Player, song: Maybe(mpd.Song)) {
@@ -335,7 +378,7 @@ _player_set_queue :: proc(player: ^Base_Player, queue: mpd.Song_List) {
 			log.debugf("PLAYER: Queue updated: %v songs, first song = %q", len(queue), first_file)
 		}
 
-		when !ODIN_TEST do on_queue_updated()
+		player_push_event(player, Event_Queue_Updated{})
 	}
 }
 
@@ -361,7 +404,7 @@ _player_set_albums :: proc(player: ^Base_Player, albums: mpd.Album_List) {
 	}
 	player._album_pool_drained = 0
 
-	when !ODIN_TEST do on_album_list_updated()
+	player_push_event(player, Event_Album_List_Updated{})
 }
 
 _player_queue_calc_duration_and_elapsed :: proc(player: ^Base_Player) {
@@ -453,6 +496,10 @@ _player_handle_changes :: proc(
 	}
 
 	return nil
+}
+
+player_push_event :: proc(player: ^Base_Player, event: Event) {
+	append(&player.events, event)
 }
 
 player_progress :: proc(player: ^Base_Player) -> f32 {

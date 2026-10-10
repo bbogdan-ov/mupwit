@@ -7,7 +7,6 @@ import "core:log"
 import "core:mem"
 import "core:strings"
 import "core:time"
-import "lib:mpd"
 
 import "lib:cairo"
 import win "lib:my_window"
@@ -30,7 +29,7 @@ Theme :: struct {
 
 State :: struct {
 	window:               ^win.Window,
-	player:               ^Base_Player,
+	player:               ^Player,
 	screen:               Screen,
 	prev_screen:          Screen,
 	screen_tween:         ui.Tween(f32),
@@ -107,8 +106,13 @@ update :: proc(dt: Seconds) {
 
 	player_update(state.player, dt)
 
+	for event in state.player.events {
+		handle_event(&state, event)
+	}
+	clear(&state.player.events)
+
 	status_ui_update(&state, dt)
-	clippy_ui_update(dt)
+	clippy_ui_update(&state, dt)
 	queue_ui_update(&state, dt)
 	player_ui_update(&state, dt)
 	albums_ui_update(&state, dt)
@@ -125,6 +129,47 @@ update :: proc(dt: Seconds) {
 	} else {
 		win.commit(state.window)
 	}
+}
+
+handle_event :: proc(state: ^State, event: Event) {
+	switch ev in event {
+	case Event_Status_Updated:
+		ui.dirty(true)
+	case Event_Cur_Song_Updated:
+		player_ui_on_cur_song_updated(state)
+		queue_ui_on_cur_song_updated(state, ev.prev_index)
+		ui.dirty(true)
+	case Event_Queue_Updated:
+		queue_ui_on_queue_updated(state)
+		ui.dirty(true)
+	case Event_Album_List_Updated:
+		albums_ui_on_album_list_updated(state)
+		ui.dirty(true)
+	case Event_Song_Reordered:
+		queue_ui_on_song_reordered(state, ev.from, ev.to)
+		ui.dirty(true)
+	case Event_Song_Removed:
+		queue_ui_on_song_removed(ev.index)
+		ui.dirty(true)
+	case Event_Undid:
+		msg := fmt.tprintf("↺ Undo %v!", UNDO_KIND_NAME[ev.kind])
+		clippy_ui_set_message(msg, context.allocator)
+	case Event_Redid:
+		msg := fmt.tprintf("↻ Redo %v!", UNDO_KIND_NAME[ev.kind])
+		clippy_ui_set_message(msg, context.allocator)
+
+	case Event_Screen_Updated:
+		queue_ui_on_screen_updated(state)
+		albums_ui_on_screen_updated(state)
+		clippy_ui_on_screen_updated(state)
+	case Event_Search:
+		queue_ui_on_search(state, ev.search)
+		albums_ui_on_search(state, ev.search)
+	}
+}
+
+push_event :: proc(state: ^State, event: Event) {
+	player_push_event(state.player, event)
 }
 
 update_theme :: proc(dt: Seconds) {
@@ -180,7 +225,7 @@ set_screen :: proc(state: ^State, screen: Screen) {
 	state.prev_screen = state.screen
 	state.screen = screen
 	ui.tween_play(&state.screen_tween, 0, SCREEN_ANIM_DURATION)
-	on_screen_updated()
+	push_event(state, Event_Screen_Updated{})
 }
 
 screen_x_offset :: proc(state: ^State, screen: Screen) -> i32 {
@@ -300,55 +345,6 @@ on_pointer_scroll :: proc(scroll: f32, touchpad: bool) {
 	albums_ui_on_scroll(&state, scroll, touchpad)
 }
 
-// TODO: may be i should refactor listeners that listen to value changes to bit set of "events"?
-
-on_screen_updated :: proc() {
-	queue_ui_on_screen_updated(&state)
-	albums_ui_on_screen_updated(&state)
-	clippy_ui_on_screen_updated(&state)
-}
-
-on_search :: proc(search: string) {
-	queue_ui_on_search(&state, search)
-	albums_ui_on_search(&state, search)
-}
-
-// These functions are called by the `Player` struct whenever something happens.
-
-on_status_updated :: proc() {
-	ui.dirty(true)
-}
-on_cur_song_updated :: proc(prev_index: Maybe(mpd.Song_Index), prev_id: Maybe(mpd.Song_Id)) {
-	player_ui_on_cur_song_updated(&state)
-	queue_ui_on_cur_song_updated(&state, prev_index)
-	ui.dirty(true)
-}
-on_queue_updated :: proc() {
-	queue_ui_on_queue_updated(&state)
-	ui.dirty(true)
-}
-on_album_list_updated :: proc() {
-	albums_ui_on_album_list_updated(&state)
-	ui.dirty(true)
-}
-on_song_reordered :: proc(from, to: mpd.Song_Index) {
-	queue_ui_on_song_reordered(&state, from, to)
-	ui.dirty(true)
-}
-on_song_removed :: proc(index: mpd.Song_Index) {
-	queue_ui_on_song_removed(index)
-	ui.dirty(true)
-}
-
-on_undid :: proc(kind: Undo_Kind) {
-	msg := fmt.tprintf("↺ Undo %v!", UNDO_KIND_NAME[kind])
-	clippy_ui_set_message(msg, context.allocator)
-}
-on_redid :: proc(kind: Undo_Kind) {
-	msg := fmt.tprintf("↻ Redo %v!", UNDO_KIND_NAME[kind])
-	clippy_ui_set_message(msg, context.allocator)
-}
-
 // These functions are listeners for window events.
 
 _window_draw :: proc "c" (window: ^win.Window, cr: ^cairo.cairo_t, surface: ^cairo.surface_t) {
@@ -393,8 +389,7 @@ _window_on_pointer_motion :: proc "c" (window: ^win.Window, x, y: f64) {
 }
 _window_on_pointer_scroll :: proc "c" (window: ^win.Window, x, y: f64, touchpad: bool) {
 	context = make_default_context()
-	scroll := f32(y)
-	on_pointer_scroll(scroll, touchpad)
+	on_pointer_scroll(f32(y), touchpad)
 }
 _window_on_pointer_enter :: proc "c" (window: ^win.Window, leave: bool) {
 	if leave && ui.state.mouse_released_buttons == nil {
