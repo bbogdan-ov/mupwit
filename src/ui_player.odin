@@ -9,11 +9,12 @@ import "lib:ui"
 
 @(private = "file")
 self: struct {
-	button_prev:       ui.Button,
-	button_play:       ui.Button,
-	button_next:       ui.Button,
+	prev_button:       ui.Button,
+	play_button:       ui.Button,
+	next_button:       ui.Button,
 	slider:            ui.Slider,
 	cover_tween:       ui.Tween(f32),
+	fade_tween:        ui.Tween(f32),
 	prev_cover, cover: Maybe(^Cover),
 	loading_cover:     Maybe(^Cover),
 	req_cover_timer:   Seconds,
@@ -37,25 +38,30 @@ player_ui_update :: proc(state: ^State, dt: Seconds) {
 	player := state.player
 
 	ui.tween_update(&self.cover_tween, dt)
+	ui.tween_update(&self.fade_tween, dt)
 
 	self.elapsed = player.elapsed
 
-	if ui.button_update(&self.button_prev) {
-		player_previous(player)
-	}
-	if ui.button_update(&self.button_play) {
-		player_toggle_play(player)
-	}
-	if ui.button_update(&self.button_next) {
-		player_next(player)
+	if len(player.queue) > 0 {
+		if ui.button_update(&self.prev_button) {
+			player_previous(player)
+		}
+		if ui.button_update(&self.play_button) {
+			player_toggle_play(player)
+		}
+		if ui.button_update(&self.next_button) {
+			player_next(player)
+		}
 	}
 
-	if ui.slider_update(&self.slider) {
-		player_seek_percent(player, self.slider.progress)
-	}
-	if ui.slider_is_dragging(&self.slider) {
-		secs := player.duration * Seconds(self.slider.progress)
-		self.elapsed = secs
+	if state.player.cur_song != nil {
+		if ui.slider_update(&self.slider) {
+			player_seek_percent(player, self.slider.progress)
+		}
+		if ui.slider_is_dragging(&self.slider) {
+			secs := player.duration * Seconds(self.slider.progress)
+			self.elapsed = secs
+		}
 	}
 }
 
@@ -127,6 +133,12 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	player := state.player
 	song, has_song := player_cur_or_last_song(player)
 
+	fade: f32
+	{
+		to: f32 = 1 if player.cur_song != nil else 0
+		fade = ui.tween_ease(&self.fade_tween, to, .Sine_In_Out)
+	}
+
 	box := ctx.box
 	box.x += screen_x_offset(state, .Player)
 	ui.guard_box(ctx, box, PLAYER_PADDING)
@@ -138,83 +150,47 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 
 	offset: Vec2
 
-	// Draw current song cover.
-	{
-		rect := cover_rect(.Huge, rect_pos(ctx.box))
-
-		// TODO: would be cool to allow double-click on the cover and open it
-		// in an external image viewer.
-
-		// TODO: i should keep N next covers in an array and scroll through
-		// them when the current song changes to get a smoother animation when
-		// switching songs very fast. Currently if you switch a song too fast
-		// the animation immidietely "snaps" if it is not finished yet.
-		dir: i32
-		easing := ease.Ease.Cubic_In_Out
-		switch player.switch_direction {
-		case .From_None:
-			easing = .Cubic_Out
-			dir = 1
-		case .To_None:
-			easing = .Cubic_In
-			dir = 1
-		case .Next:
-			dir = 1
-		case .Previous:
-			dir = -1
-		}
-
-		progress := ui.tween_ease(&self.cover_tween, 1, easing)
-		vw := f32(ui.state.view.width)
-		if progress < 1 {
-			r := rect
-			r.x -= i32(vw * progress) * dir
-			_player_ui_draw_cover(state, ctx, self.prev_cover, r)
-		}
-
-		{
-			r := rect
-			r.x += i32(vw * (1 - progress)) * dir
-			_player_ui_draw_cover(state, ctx, self.cover, r)
-		}
-
-		offset.y += rect.height
+	// Draw current song cover or "no current song" art.
+	if fade < 1 {
+		color := ui.color_alpha(state.theme.black, 1 - fade)
+		pos := rect_pos(ctx.box)
+		pos += ctx.box.width / 2
+		pos -= IMAGE_SCREEN_ART_SIZE / 2
+		ui.draw_surface_tinted(ctx, state.image_screen_art, pos, color)
 	}
+	offset.y += _player_ui_draw_cur_cover(state, ctx)
 
 	// Draw song info.
+	offset.y += GAP * 3
 	if has_song {
-		offset.y += GAP * 3
-
 		title := song.title
 		artist := song.artist
-		// TODO: truncate URI only to the filename (not a full path).
+		// TODO: truncate URI only to the filename, not a full path.
 		if len(title) == 0 do title = string(song.file)
 		if len(artist) == 0 do artist = UNKNOWN
 
-		pos := rect_pos(ctx.box) + offset
-		height := ctx.font_height * 2 + GAP
-
-		pos.y += ctx.font_height
-		pos.y += ICON_BUTTON_SIZE / 2 - height / 2
-		ui.draw_text(ctx, title, pos, state.theme.black, bold = true)
-		pos.y += ctx.font_height + GAP / 2
-
-		subtitle: string
+		subtitle := artist
 		if len(song.album) > 0 {
-			subtitle = fmt.tprint(song.artist, '-', song.album)
-		} else {
-			subtitle = song.artist
+			subtitle = fmt.tprint(artist, '-', song.album)
 		}
-		ui.draw_text(ctx, subtitle, pos, state.theme.gray)
 
-		offset.y += height
+		title_color := ui.color_alpha(state.theme.black, fade)
+		subtitle_color := ui.color_alpha(state.theme.gray, fade)
+
+		pos := rect_pos(ctx.box) + offset
+		pos.y += ctx.font_height
+
+		ui.draw_text(ctx, title, pos, title_color, bold = true)
+		pos.y += ctx.font_height + GAP / 2
+		ui.draw_text(ctx, subtitle, pos, subtitle_color)
 	}
+	offset.y += ctx.font_height * 2 + GAP / 2
 
 	// Draw slider.
 	{
 		offset.y += GAP * 3
 		ui.guard_box(ctx, ui.pad_t(ctx.box, offset.y))
-		offset.y += _player_ui_draw_slider(state, ctx)
+		offset.y += _player_ui_draw_slider(state, ctx, fade)
 	}
 
 	// Draw control buttons.
@@ -231,12 +207,56 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 		play_icon := icon_from_playstate(player.playstate)
 
 		pos := rect_pos(rect)
-		pos.x += btn(state, ctx, &self.button_prev, .Previous, pos, color)
-		pos.x += btn(state, ctx, &self.button_play, play_icon, pos, color)
-		pos.x += btn(state, ctx, &self.button_next, .Next, pos, color)
+		pos.x += btn(state, ctx, &self.prev_button, .Previous, pos, color)
+		pos.x += btn(state, ctx, &self.play_button, play_icon, pos, color)
+		pos.x += btn(state, ctx, &self.next_button, .Next, pos, color)
 
 		offset.y += rect.height
 	}
+}
+
+_player_ui_draw_cur_cover :: proc(state: ^State, ctx: ^ui.Context) -> i32 {
+	player := state.player
+
+	rect := cover_rect(.Huge, rect_pos(ctx.box))
+
+	// TODO: would be cool to allow double-click on the cover and open it
+	// in an external image viewer.
+
+	// TODO: i should keep N next covers in an array and scroll through
+	// them when the current song changes to get a smoother animation when
+	// switching songs very fast. Currently if you switch a song too fast
+	// the animation immidietely "snaps" if it is not finished yet.
+	dir: i32
+	easing := ease.Ease.Cubic_In_Out
+	switch player.switch_direction {
+	case .From_None:
+		easing = .Cubic_Out
+		dir = 1
+	case .To_None:
+		easing = .Cubic_In
+		dir = 1
+	case .Next:
+		dir = 1
+	case .Previous:
+		dir = -1
+	}
+
+	progress := ui.tween_ease(&self.cover_tween, 1, easing)
+	vw := f32(ui.state.view.width)
+	if progress < 1 {
+		r := rect
+		r.x -= i32(vw * progress) * dir
+		_player_ui_draw_cover(state, ctx, self.prev_cover, r)
+	}
+
+	{
+		r := rect
+		r.x += i32(vw * (1 - progress)) * dir
+		_player_ui_draw_cover(state, ctx, self.cover, r)
+	}
+
+	return rect.height
 }
 
 _player_ui_draw_cover :: proc(state: ^State, ctx: ^ui.Context, cover: Maybe(^Cover), rect: Rect) {
@@ -251,11 +271,13 @@ _player_ui_draw_cover :: proc(state: ^State, ctx: ^ui.Context, cover: Maybe(^Cov
 	ui.draw_box_bulgy(ctx, ui.pad(rect, -1), state.theme.black)
 }
 
-_player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context) -> (height: i32) {
+_player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context, fade: f32) -> (height: i32) {
 	player := state.player
 
 	elapsed_str := fmt.tprint(mpd.Seconds(self.elapsed))
 	duration_str := fmt.tprint(mpd.Seconds(player.duration))
+
+	time_color := ui.color_alpha(state.theme.gray, fade)
 
 	rect := ctx.box.rect
 	rect.y += height
@@ -269,9 +291,9 @@ _player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context) -> (height: i32)
 
 	pos := rect_pos(ctx.box)
 	pos.y += height
-	ui.draw_text(ctx, elapsed_str, pos, state.theme.gray)
+	ui.draw_text(ctx, elapsed_str, pos, time_color)
 	pos.x += ctx.box.width
-	ui.draw_text(ctx, duration_str, pos, state.theme.gray, align = .End)
+	ui.draw_text(ctx, duration_str, pos, time_color, align = .End)
 	height += ctx.font_height
 
 	return height
@@ -282,6 +304,13 @@ _player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context) -> (height: i32)
 // ------------------------------
 
 player_ui_on_cur_song_updated :: proc(state: ^State) {
+	#partial switch state.player.switch_direction {
+	case .From_None:
+		ui.play(&self.fade_tween, 0, PLAYER_COVER_ANIM_DURATION)
+	case .To_None:
+		ui.play(&self.fade_tween, 1, PLAYER_COVER_ANIM_DURATION)
+	}
+
 	song, has_song := player_cur_song(state.player)
 	if !has_song {
 		_player_ui_set_cover(state, nil)

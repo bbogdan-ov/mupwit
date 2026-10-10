@@ -226,9 +226,10 @@ text_glyphs_delete :: proc(glyphs: []cairo.glyph_t) {
 // Shapes.
 // ------------------------------
 
-draw_surface :: proc(cr: ^cairo.cairo_t, surface: ^cairo.surface_t, pos: Vec2) {
+draw_surface :: proc(cr: ^cairo.cairo_t, surface: ^cairo.surface_t, pos: Vec2, alpha: f64 = 1.0) {
+	if alpha <= 0 do return
 	cairo.set_source_surface(cr, surface, f64(pos.x), f64(pos.y))
-	cairo.paint(cr)
+	cairo.paint_with_alpha(cr, alpha)
 }
 
 draw_surface_tinted :: proc(
@@ -237,6 +238,7 @@ draw_surface_tinted :: proc(
 	pos: Vec2,
 	color: Color,
 ) {
+	if color.a <= 0 do return
 	set_source_color(cr, color)
 	cairo.mask_surface(cr, surface, f64(pos.x), f64(pos.y))
 }

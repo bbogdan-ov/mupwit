@@ -150,6 +150,7 @@ color_hsl_shift :: proc(color: Color, h, s, l: f64) -> Color {
 }
 
 color_alpha :: proc(color: Color, a: f32) -> Color {
+	if a >= 1 do return color
 	color := color
 	color.a = u8(f32(color.a) * a)
 	return color
