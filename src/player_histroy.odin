@@ -58,10 +58,14 @@ history_init :: proc(h: ^History, allocator := context.allocator) {
 }
 
 history_destroy :: proc(h: ^History) {
-	_history_list_clear(&h.undo)
-	_history_list_clear(&h.redo)
+	histroy_clear(h)
 	queue.destroy(&h.undo)
 	queue.destroy(&h.redo)
+}
+
+histroy_clear :: proc(h: ^History) {
+	_history_list_clear(&h.undo)
+	_history_list_clear(&h.redo)
 }
 
 player_undo :: proc(player: ^Base_Player) -> bool {

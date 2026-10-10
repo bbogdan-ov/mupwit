@@ -124,6 +124,9 @@ _command_destroy :: proc(command: Player_Command, loc := #caller_location) {
 _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #caller_location) {
 	if player.state != .Connected do return
 
+	// NOTE: All commands that modify the queue should enable `_expect_queue_change`
+	// flag, otherwise the history will be cleared upon receiving a queue change idle event.
+
 	#partial switch cmd in command {
 	case Command_Play:
 		player.playstate = .Play
@@ -143,6 +146,7 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 		player.elapsed = cmd.seconds
 
 	case Command_Queue_Reorder:
+		player._expect_queue_change = true
 		_player_history_push(player, .Queue_Reorder, Command_Queue_Reorder{cmd.to, cmd.from})
 
 		ui.slice_reorder(player.queue[:], int(cmd.from), int(cmd.to))
@@ -157,9 +161,11 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 		player_push_event(player, Event_Song_Reordered{cmd.from, cmd.to})
 
 	case Command_Queue_Add:
+		player._expect_queue_change = true
 		_player_history_push(player, .Queue_Add, Command_Queue_Remove{cmd.index})
 
 	case Command_Queue_Remove:
+		player._expect_queue_change = true
 		{
 			song := &player.queue[cmd.index]
 			play := player.cur_song == cmd.index
@@ -184,14 +190,18 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 		player_push_event(player, Event_Song_Removed{cmd.index})
 
 	case Command_Load:
+		player._expect_queue_change = true
 		_player_history_push_queue(player, .Load)
 	case Command_Load_Album:
+		player._expect_queue_change = true
 		// TODO!: should save only the previous album name in the history
 		// intead of the whole queue.
 		_player_history_push_queue(player, .Load_Album)
 	case Command_Queue_Shuffle:
+		player._expect_queue_change = true
 		_player_history_push_queue(player, .Queue_Shuffle)
 	case Command_Queue_Clear:
+		player._expect_queue_change = true
 		_player_history_push_queue(player, .Queue_Clear)
 	}
 

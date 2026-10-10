@@ -93,42 +93,47 @@ Player_State :: enum {
 
 Base_Player :: struct {
 	// Playback state.
-	playstate:           mpd.Play_State,
-	elapsed, duration:   Seconds,
-	cur_song:            Maybe(mpd.Song_Index),
-	cur_song_id:         Maybe(mpd.Song_Id),
+	playstate:            mpd.Play_State,
+	elapsed, duration:    Seconds,
+	cur_song:             Maybe(mpd.Song_Index),
+	cur_song_id:          Maybe(mpd.Song_Id),
 	// Copy of a the last played song (before `cur_song` set to `nil`).
 	// Mostly used for animation, so elements that display the current song
 	// don't just disappear, but smoothly fade out with data of the last played song.
-	last_played_song:    Maybe(mpd.Song),
-	queue:               mpd.Song_List,
-	_queue_version:      int,
-	queue_duration:      Seconds,
+	last_played_song:     Maybe(mpd.Song),
+	queue:                mpd.Song_List,
+	_queue_version:       int,
+	queue_duration:       Seconds,
 	// Time elapsed within the queue (sum of durations of songs before the
 	// current one), does not account for the current song.
-	queue_elapsed:       Seconds,
-	albums:              mpd.Album_List,
+	queue_elapsed:        Seconds,
+	albums:               mpd.Album_List,
 	// Used for "play random album" so that albums don't repeat.
-	_album_pool:         [dynamic]mpd.Album_Index,
-	_album_pool_drained: int,
+	_album_pool:          [dynamic]mpd.Album_Index,
+	_album_pool_drained:  int,
 	// In which direction current song was skipped.
-	switch_direction:    Switch_Direction,
-	events:              [dynamic]Event,
-	history:             History,
-	_status_req_timer:   Seconds,
-	state:               Player_State,
-
-	// Cache.
-	_covers_cache:       Covers_Cache,
+	switch_direction:     Switch_Direction,
+	_status_req_timer:    Seconds,
 
 	//
-	allocator:           runtime.Allocator,
+	state:                Player_State,
+	events:               [dynamic]Event,
+	history:              History,
+	_covers_cache:        Covers_Cache,
+
+	// Flags.
+	// Whether the next queue change idle event ("Playlist" subsystem) was
+	// caused by the player (e.g. a command that modifies the queue was invoked).
+	_expect_queue_change: bool,
+
+	//
+	allocator:            runtime.Allocator,
 
 	// Callbacks, kinda v-table.
-	_connect:            proc(p: ^Base_Player, loc: Source_Loc),
-	_destroy:            proc(p: ^Base_Player, loc: Source_Loc),
-	_send_command:       proc(p: ^Base_Player, cmd: Player_Command, loc: Source_Loc),
-	_recv_response:      proc(p: ^Base_Player, loc: Source_Loc) -> (Player_Response, bool),
+	_connect:             proc(p: ^Base_Player, loc: Source_Loc),
+	_destroy:             proc(p: ^Base_Player, loc: Source_Loc),
+	_send_command:        proc(p: ^Base_Player, cmd: Player_Command, loc: Source_Loc),
+	_recv_response:       proc(p: ^Base_Player, loc: Source_Loc) -> (Player_Response, bool),
 }
 
 // Player state shared between threads. All fields are thread-safe.
@@ -209,6 +214,7 @@ player_connect :: proc(player: ^Base_Player, loc := #caller_location) -> bool {
 	player->_send_command(Command_Request_Albums{}, loc)
 	player->_send_command(Command_Request_Queue{}, loc)
 	player->_send_command(Command_Request_Status{true}, loc)
+	player._expect_queue_change = true
 	return true
 }
 
@@ -308,7 +314,6 @@ player_update :: proc(player: ^Base_Player, dt: Seconds) {
 	_player_handle_responses(player)
 }
 
-// TODO!: save previous player state in the history whenever it changes outside of the app.
 _player_set_status :: proc(player: ^Base_Player, status: mpd.Status, check_cur_song := false) {
 	player._status_req_timer = STATUS_REQUEST_INVERVAL
 
@@ -395,19 +400,28 @@ _player_set_last_played_song :: proc(player: ^Base_Player, song: Maybe(mpd.Song)
 _player_set_queue :: proc(player: ^Base_Player, queue: mpd.Song_List) {
 	queue := queue
 
-	// NOTE: check whether the received queue differs from the current one, so
+	if !player._expect_queue_change {
+		// Queue change was not expected, that means that it was changed by
+		// another player.
+		// NOTE: After an unexpected queue change, the history should be
+		// cleared due to getting invalidated because it heavely depends on the
+		// current state of the queue. Playback state changes (current song
+		// switch, seek, etc) are fine because they don't modify the queue.
+		//
+		// TODO!: Save previous player state (current song, queue, etc) in the
+		// history whenever it changes outside of the app.
+		log.debug("PLAYER: Queue changed outside of the app, clearing the history")
+		histroy_clear(&player.history)
+	}
+	player._expect_queue_change = false
+
+	// NOTE: Check whether the received queue differs from the current one, so
 	// the list in the queue UI doesn't get rebuilt. Because if it rebuilds it
 	// cancels all animations and resets the state of the list.
 	if !mpd.song_lists_differ(player.queue, queue) {
 		mpd.song_list_destroy(&queue)
 		log.debugf("PLAYER: Queue received, but it doesn't differ from the current one")
 	} else {
-		// TODO!!!: need to clear the history when queue or any other player state
-		// changes outside of the app. (e.g. via `mpc` cli client or any other client)
-		// If i don't do that and if the player state changes by another client,
-		// the history may be invalidated, because it depended on the previous
-		// player state, which was overritten.
-
 		mpd.song_list_destroy(&player.queue)
 		player.queue = queue
 
