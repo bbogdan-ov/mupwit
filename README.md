@@ -88,19 +88,19 @@ TODO: should statically link with `libwayland-client` and `libcairo`.
 
 **Dependencies:**
 - Odin compiler: [`dev-2026-10`](https://github.com/odin-lang/Odin/releases/tag/dev-2026-10)
-- MPD: `0.24.15`
-- Library `wayland`: `1.26.0`
-- Library `cairo`: `1.18.4`
+- MPD: ~`0.24.15`
+- Library `wayland`: ~`1.26.0`
+- Library `cairo`: ~`1.18.4`
 
 ```sh
-make
+make release
 ./build/mupwit
 ```
 
-...or in debug mode (faster compilation)...
+...or in debug mode (faster compilation, but slower executable)...
 
 ```sh
-make DEBUG=1
+make
 ./build/mupwit
 ```
 

@@ -16,22 +16,22 @@ FLAGS := \
 	-terse-errors \
 	-collection:lib=lib
 
-ifdef DEBUG
 BUILD_FLAGS := $(FLAGS) \
-	-debug
-else
-BUILD_FLAGS := $(FLAGS) \
-	-debug \
-	-o:speed
-endif
+	-out:build/mupwit
 
 .PHONY: libs check fmt test check-odin
 
-# Compile MUPWIT.
+# Compile MUPWIT in "debug mode".
 build/mupwit: $(SOURCES) $(LIB_SOURCES) assets/.generated | check-odin
 	@mkdir -p build
-	@echo "INFO: Compiling..."
-	@odin build src -out:build/mupwit $(BUILD_FLAGS)
+	@echo "INFO: Compiling debug..."
+	@odin build src -debug $(BUILD_FLAGS)
+
+# Compile MUPWIT in "release mode".
+release: | check-odin
+	@mkdir -p build
+	@echo "INFO: Compiling release..."
+	@odin build src -debug -o:speed -show-timings $(BUILD_FLAGS)
 
 # Prebuild assets.
 assets/.generated: build/prebuild $(IMAGES)
