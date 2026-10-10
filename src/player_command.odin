@@ -193,7 +193,7 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 		_player_history_push_queue(player, .Queue_Clear)
 	}
 
-	player.vtable.send_command(player, command, loc)
+	player->_send_command(command, loc)
 }
 
 // ------------------------------

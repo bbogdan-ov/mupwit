@@ -42,7 +42,7 @@ test_player :: proc(t: ^testing.T) {
 test_commands :: proc(t: ^testing.T) -> bool {
 	log.infof("--- TEST: %v ---", #procedure)
 
-	player := cast(^Test_Player)player_create_with(&TEST_PLAYER_VTABLE)
+	player := _test_player_create()
 	defer player_destroy(player)
 	player_connect(player)
 
@@ -141,7 +141,7 @@ test_commands :: proc(t: ^testing.T) -> bool {
 test_history :: proc(t: ^testing.T) -> bool {
 	log.infof("--- TEST: %v ---", #procedure)
 
-	player := player_create_with(&TEST_PLAYER_VTABLE)
+	player := _test_player_create()
 	defer player_destroy(player)
 	player_connect(player)
 
@@ -366,15 +366,6 @@ Test_Player :: struct {
 	_fake_status: mpd.Status,
 }
 
-@(rodata)
-TEST_PLAYER_VTABLE := Player_VTable {
-	create        = _test_player_create,
-	connect       = _test_player_connect,
-	destroy       = _test_player_destroy,
-	send_command  = _test_player_send_command,
-	recv_response = _test_player_recv_response,
-}
-
 _test_send_and_handle :: proc(
 	player: ^Base_Player,
 	command: Player_Command,
@@ -392,10 +383,15 @@ _test_redo_and_handle :: proc(player: ^Base_Player, loc := #caller_location) {
 	_player_handle_responses(player, loc)
 }
 
-_test_player_create :: proc(allocator: runtime.Allocator, loc: Source_Loc) -> ^Base_Player {
-	player := new(Test_Player, allocator, loc)
-	player.vtable = &TEST_PLAYER_VTABLE
-	player.allocator = allocator
+_test_player_create :: proc(allocator := context.allocator) -> ^Test_Player {
+	player := new(Test_Player, allocator)
+	_base_player_init(player, allocator)
+
+	player._connect = _test_player_connect
+	player._destroy = _test_player_destroy
+	player._send_command = _test_player_send_command
+	player._recv_response = _test_player_recv_response
+
 	return player
 }
 _test_player_connect :: proc(player: ^Base_Player, loc: Source_Loc) {

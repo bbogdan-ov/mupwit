@@ -38,14 +38,6 @@ Switch_Direction :: enum {
 
 Source_Loc :: runtime.Source_Code_Location
 
-Player_VTable :: struct #all_or_none {
-	create:        proc(allocator: runtime.Allocator, loc: Source_Loc) -> ^Base_Player,
-	connect:       proc(p: ^Base_Player, loc: Source_Loc),
-	destroy:       proc(p: ^Base_Player, loc: Source_Loc),
-	send_command:  proc(p: ^Base_Player, cmd: Player_Command, loc: Source_Loc),
-	recv_response: proc(p: ^Base_Player, loc: Source_Loc) -> (res: Player_Response, ok: bool),
-}
-
 Base_Player :: struct {
 	// Playback state.
 	playstate:           mpd.Play_State,
@@ -75,8 +67,13 @@ Base_Player :: struct {
 	_covers_cache:       Covers_Cache,
 
 	//
-	vtable:              ^Player_VTable,
 	allocator:           runtime.Allocator,
+
+	// Callbacks, kinda v-table.
+	_connect:            proc(p: ^Base_Player, loc: Source_Loc),
+	_destroy:            proc(p: ^Base_Player, loc: Source_Loc),
+	_send_command:       proc(p: ^Base_Player, cmd: Player_Command, loc: Source_Loc),
+	_recv_response:      proc(p: ^Base_Player, loc: Source_Loc) -> (Player_Response, bool),
 }
 
 // Player state shared between threads. All fields are thread-safe.
@@ -95,63 +92,14 @@ Player :: struct {
 	_client_thread: ^thread.Thread,
 }
 
-@(rodata)
-PLAYER_DEFAULT_VTABLE := Player_VTable {
-	create        = _player_default_create,
-	connect       = _player_default_connect,
-	destroy       = _player_default_destroy,
-	send_command  = _player_default_send_command,
-	recv_response = _player_default_recv_response,
-}
-
-player_create :: proc(allocator := context.allocator, loc := #caller_location) -> ^Base_Player {
-	return player_create_with(&PLAYER_DEFAULT_VTABLE, allocator, loc)
-}
-
-player_create_with :: proc(
-	vtable: ^Player_VTable,
-	allocator := context.allocator,
-	loc := #caller_location,
-) -> ^Base_Player {
-	player := vtable.create(allocator, loc)
-
-	covers_cache_init(&player._covers_cache, player.allocator)
-	history_init(&player.history, allocator)
-
-	player._album_pool = make([dynamic]mpd.Album_Index, allocator)
-
-	return player
-}
-
-player_connect :: proc(player: ^Base_Player, loc := #caller_location) {
-	player.vtable.connect(player, loc)
-
-	player_request_albums(player)
-	player_request_queue(player)
-	player_request_status(player, true)
-}
-
-player_destroy :: proc(player: ^Base_Player, loc := #caller_location) {
-	_player_send(player, Command_Disconnect{})
-
-	player.vtable.destroy(player, loc)
-
-	covers_cache_destroy(&player._covers_cache)
-	history_destroy(&player.history)
-
-	mpd.song_list_destroy(&player.queue)
-	mpd.album_list_destroy(player.albums)
-	_player_set_last_played_song(player, nil)
-	delete(player._album_pool)
-
-	free(player, player.allocator)
-}
-
-_player_default_create :: proc(allocator: runtime.Allocator, loc: Source_Loc) -> ^Base_Player {
+player_create :: proc(allocator := context.allocator, loc := #caller_location) -> ^Player {
 	player := new(Player, allocator, loc)
+	_base_player_init(player, allocator, loc)
 
-	player.vtable = &PLAYER_DEFAULT_VTABLE
-	player.allocator = allocator
+	player._connect = _player_default_connect
+	player._destroy = _player_default_destroy
+	player._send_command = _player_default_send_command
+	player._recv_response = _player_default_recv_response
 
 	player._shared.allocator = player.allocator
 	player._client_thread = thread.create(_do_connect)
@@ -178,6 +126,43 @@ _player_default_create :: proc(allocator: runtime.Allocator, loc: Source_Loc) ->
 	}
 
 	return player
+}
+
+_base_player_init :: proc(
+	player: ^Base_Player,
+	allocator := context.allocator,
+	loc := #caller_location,
+) {
+	player.allocator = allocator
+
+	covers_cache_init(&player._covers_cache, player.allocator)
+	history_init(&player.history, allocator)
+
+	player._album_pool = make([dynamic]mpd.Album_Index, allocator)
+}
+
+player_connect :: proc(player: ^Base_Player, loc := #caller_location) {
+	player->_connect(loc)
+
+	player_request_albums(player)
+	player_request_queue(player)
+	player_request_status(player, true)
+}
+
+player_destroy :: proc(player: ^Base_Player, loc := #caller_location) {
+	_player_send(player, Command_Disconnect{})
+
+	player._destroy(player, loc)
+
+	covers_cache_destroy(&player._covers_cache)
+	history_destroy(&player.history)
+
+	mpd.song_list_destroy(&player.queue)
+	mpd.album_list_destroy(player.albums)
+	_player_set_last_played_song(player, nil)
+	delete(player._album_pool)
+
+	free(player, player.allocator)
 }
 
 _player_default_connect :: proc(player: ^Base_Player, loc: Source_Loc) {

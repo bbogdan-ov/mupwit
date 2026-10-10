@@ -71,7 +71,7 @@ player_undo :: proc(player: ^Base_Player) -> bool {
 	_player_send(player, undo.command)
 	player.history._state = .Normal
 
-	on_undid(undo.kind)
+	when !ODIN_TEST do on_undid(undo.kind)
 	return true
 }
 
@@ -82,7 +82,7 @@ player_redo :: proc(player: ^Base_Player) -> bool {
 	_player_send(player, undo.command)
 	player.history._state = .Normal
 
-	on_redid(undo.kind)
+	when !ODIN_TEST do on_redid(undo.kind)
 	return true
 }
 

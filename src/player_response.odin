@@ -55,7 +55,7 @@ _response_send_status :: proc(ch: Responses_Chan, status: mpd.Status, check_cur_
 }
 
 _player_handle_responses :: proc(player: ^Base_Player, loc := #caller_location) {
-	for response in player.vtable.recv_response(player, loc) {
+	for response in player->_recv_response(loc) {
 		_player_handle_response(player, response)
 	}
 }
