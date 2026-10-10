@@ -44,7 +44,6 @@ Undo :: struct {
 	kind:    Undo_Kind,
 }
 
-// TODO!: limit the size of the history.
 History :: struct {
 	// `undo` and `redo` lists describe what command to execute to undo or redo
 	// the change, they do not describe the previous state of the app.
@@ -121,6 +120,7 @@ _player_history_push :: proc(
 		queue.push_back(undos, Undo{cmd, kind}, loc)
 	}
 
+	// TODO: limit the size of the history in bytes.
 	if queue.len(undos^) > HISTORY_LIMIT {
 		undo := queue.pop_front(undos)
 		_command_destroy(undo.command)

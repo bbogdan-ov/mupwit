@@ -396,9 +396,9 @@ _player_handle_command :: proc(
 		// another thread and being decoded here, so it doesn't block the
 		// client thread.
 
-		// TODO!: should reuse cover surface with same key and of the larger
-		// size and down scale it instead of requesting picture data for every
-		// cover request.
+		// TODO: may be i should reuse a cover surface of the same album and of
+		// the larger size, and down scale it instead of requesting a picture
+		// data for every cover request?
 		picture, missing := mpd.request_song_picture(client, cmd.file, shared.allocator) or_return
 		if missing {
 			key := cover_key_clone(cmd.key, shared.allocator)

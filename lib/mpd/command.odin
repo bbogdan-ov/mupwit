@@ -108,7 +108,6 @@ request_queue :: proc(
 	parser := recv_and_parse(client, allocator, loc) or_return
 	defer parser_destroy(parser, allocator, loc)
 
-	// TODO!: do not rebuild the whole queue but only songs that changed.
 	parse_start := time.now()
 	queue = parser_next_song_list(&parser, allocator, loc)
 

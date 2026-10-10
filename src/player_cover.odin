@@ -51,7 +51,6 @@ Cover_Cache_Entry :: struct {
 	allocator: runtime.Allocator,
 }
 
-// TODO!: should delete cached covers that are too old and not referenced by onyone.
 Covers_Cache :: lru.Cache(Cover_Key, Cover_Cache_Entry)
 
 cover_ref :: proc(cover: ^Cover, loc := #caller_location) -> ^Cover {

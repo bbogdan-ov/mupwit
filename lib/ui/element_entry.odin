@@ -107,7 +107,7 @@ entry_draw :: proc(
 	return entry_draw_glyphs(ctx, e, text, glyphs, rect, style)
 }
 
-// TODO!: handle text overflowing box. Should scroll to the right.
+// TODO!: text should scroll when overflowing a box.
 // TODO: implement selection using mouse at some point.
 entry_draw_glyphs :: proc(
 	ctx: ^Context,

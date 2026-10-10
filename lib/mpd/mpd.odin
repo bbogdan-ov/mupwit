@@ -158,11 +158,10 @@ recv :: proc(
 		if ss.ends_with(as_str, "\nOK\n") do break
 		if stop_on_newline && ss.ends_with(as_str, "\n") do break
 
-		// FIXME!: sometimes it may receive buffer of a smaller size even tho
-		// it is not the end of the response. It fails very often on large
+		// NOTE: sometimes it may receive buffer of a smaller size even tho it
+		// is not the end of the response. It fails very often on large
 		// responses, didn't see any issues with small ones.
-		//
-		// if size < len(buffer) do break
+		//     if size < len(buffer) do break
 	}
 
 	str = ss.trim_space(ss.to_string(sb))

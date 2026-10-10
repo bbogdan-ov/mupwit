@@ -13,13 +13,6 @@
 // struct), are being ran on a separate thread.
 //
 
-// FIXME!!!: MUPWIT may freeze if queue changes too quickly.
-// I don't know where the freeze happens because it may also freeze the main
-// thread which stops the app from responding, but sometimes only the player
-// thread freezes. Net-programming is fucking hard...
-// May be i should implement some kind of debounce to not request the queue
-// info right after it being changed?
-
 package mupwit
 
 import "base:runtime"
@@ -45,7 +38,6 @@ Switch_Direction :: enum {
 
 Source_Loc :: runtime.Source_Code_Location
 
-// Using `any` so it is a bit more type-safe than `rawptr`.
 Player_VTable :: struct #all_or_none {
 	create:        proc(allocator: runtime.Allocator, loc: Source_Loc) -> ^Base_Player,
 	connect:       proc(p: rawptr, loc: Source_Loc),

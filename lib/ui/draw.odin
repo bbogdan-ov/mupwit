@@ -130,7 +130,7 @@ draw_glyphs :: proc(
 	set_source_color(ctx, color)
 	cairo.show_glyphs(ctx, raw_data(glyphs), count)
 	if bold {
-		// TODO!: come up with a better system to draw bold text.
+		// TODO: come up with a better system to draw bold text.
 		for &glyph in glyphs do glyph.x += 1
 		cairo.show_glyphs(ctx, raw_data(glyphs), count)
 	}
@@ -140,8 +140,6 @@ draw_glyphs :: proc(
 
 // TODO: come up with a better text drawing without allocation.
 // I'll probably have to implement my own font and text rendering.
-// TODO!: should be an option to make cropped text act like a "marquee".
-// (horizontal scroll animation)
 draw_text :: proc(
 	ctx: ^Context,
 	str: string,
