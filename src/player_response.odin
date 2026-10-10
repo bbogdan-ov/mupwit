@@ -5,6 +5,13 @@ import "core:sync/chan"
 import "lib:cairo"
 import "lib:mpd"
 
+Response_Status :: struct #all_or_none {
+	status:         mpd.Status,
+	// Whether upon receiving this response should check for whether the
+	// current song has been changed.
+	check_cur_song: bool,
+}
+
 Response_Queue :: struct #all_or_none {
 	list: mpd.Song_List,
 }
@@ -18,8 +25,8 @@ Response_Cover :: struct #all_or_none {
 }
 
 Player_Response :: union {
-	mpd.Status,
 	mpd.Album_List,
+	Response_Status,
 	Response_Queue,
 	Response_Cover,
 }
@@ -43,6 +50,9 @@ _response_destroy :: proc(response: Player_Response) {
 _response_send :: proc(ch: Responses_Chan, response: Player_Response) {
 	chan.send(ch, response)
 }
+_response_send_status :: proc(ch: Responses_Chan, status: mpd.Status, check_cur_song := false) {
+	_response_send(ch, Response_Status{status, check_cur_song})
+}
 
 _player_handle_responses :: proc(player: ^Base_Player, loc := #caller_location) {
 	for response in player.vtable.recv_response(player, loc) {
@@ -52,11 +62,11 @@ _player_handle_responses :: proc(player: ^Base_Player, loc := #caller_location) 
 
 _player_handle_response :: proc(player: ^Base_Player, response: Player_Response) {
 	switch res in response {
-	case mpd.Status:
-		_player_set_status(player, res)
-
 	case mpd.Album_List:
 		_player_set_albums(player, res)
+
+	case Response_Status:
+		_player_set_status(player, res.status, res.check_cur_song)
 
 	case Response_Queue:
 		_player_set_queue(player, res.list)

@@ -4,7 +4,6 @@ package mpd
 
 import "core:log"
 import "core:strings"
-import "core:time"
 
 Command_Builder :: strings.Builder
 
@@ -102,22 +101,11 @@ request_queue :: proc(
 	queue: Song_List,
 	err: Error,
 ) {
-	start := time.now()
-
 	send_const(client, "playlistid", loc) or_return
 	parser := recv_and_parse(client, allocator, loc) or_return
 	defer parser_destroy(parser, allocator, loc)
 
-	parse_start := time.now()
 	queue = parser_next_song_list(&parser, allocator, loc)
-
-	log.debugf(
-		"MPD: Received queue of %v songs in %v, parsed in %v",
-		len(queue),
-		time.since(start),
-		time.since(parse_start),
-		location = loc,
-	)
 
 	return queue, nil
 }
@@ -134,7 +122,6 @@ request_song_picture :: proc(
 ) {
 	assert(len(file) > 0)
 
-	start := time.now()
 	offset: int
 
 	for {
@@ -157,7 +144,6 @@ request_song_picture :: proc(
 		if offset == 0 {
 			picture, found = parser_next_picture_info(&parser, allocator)
 			if !found {
-				log.debugf("MPD: Picture is missing for %q", file, location = loc)
 				missing = true
 				err = nil
 				return
@@ -187,8 +173,6 @@ request_song_picture :: proc(
 		}
 	}
 
-	log.debugf("MPD: Received picture info in %v for %q", time.since(start), file, location = loc)
-
 	return picture, false, nil
 }
 
@@ -200,20 +184,11 @@ request_albums :: proc(
 	albums: Album_List,
 	err: Error,
 ) {
-	start := time.now()
-
 	send_const(client, "listallinfo", loc) or_return
 	parser := recv_and_parse(client, context.allocator, loc) or_return
 	defer parser_destroy(parser, context.allocator)
 
 	albums = parser_next_album_list(&parser, allocator, loc)
-
-	log.debugf(
-		"MPD: Received album list of %v albums in %v",
-		len(albums),
-		time.since(start),
-		location = loc,
-	)
 
 	return albums, nil
 }

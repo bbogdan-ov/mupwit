@@ -16,7 +16,9 @@ import "lib:ui"
 
 // Request commands.
 
-Command_Request_Status :: struct {}
+Command_Request_Status :: struct {
+	check_cur_song: bool,
+}
 Command_Request_Queue :: struct {}
 Command_Request_Albums :: struct {}
 
@@ -201,8 +203,8 @@ _player_send :: proc(player: ^Base_Player, command: Player_Command, loc := #call
 
 // Request commands.
 
-player_request_status :: proc(player: ^Base_Player) {
-	_player_send(player, Command_Request_Status{})
+player_request_status :: proc(player: ^Base_Player, check_cur_song := false) {
+	_player_send(player, Command_Request_Status{check_cur_song})
 }
 player_request_queue :: proc(player: ^Base_Player) {
 	_player_send(player, Command_Request_Queue{})
@@ -298,6 +300,8 @@ player_load_album :: proc(player: ^Base_Player, name: mpd.Album_Name) {
 }
 
 player_load_random_album :: proc(player: ^Base_Player) {
+	if len(player._album_pool) == 0 do return
+
 	drained := player._album_pool_drained
 	if drained == 0 || drained >= len(player._album_pool) {
 		rand.shuffle(player._album_pool[:])
@@ -369,12 +373,10 @@ _player_handle_command :: proc(
 ) -> (
 	err: mpd.Error,
 ) {
-	defer _command_destroy(command)
-
 	switch cmd in command {
 	case Command_Request_Status:
 		status := mpd.request_status(client) or_return
-		_response_send(shared.responses, status)
+		_response_send_status(shared.responses, status, cmd.check_cur_song)
 		return nil
 
 	case Command_Request_Queue:
@@ -383,7 +385,12 @@ _player_handle_command :: proc(
 		return nil
 
 	case Command_Request_Albums:
-		albums := mpd.request_albums(client, shared.allocator) or_return
+		attempts := 3
+		albums: mpd.Album_List
+		for len(albums) == 0 && attempts > 0 {
+			albums = mpd.request_albums(client, shared.allocator) or_return
+			attempts -= 1
+		}
 		_response_send(shared.responses, albums)
 		return nil
 
@@ -433,12 +440,12 @@ _player_handle_command :: proc(
 	case Command_Queue_Reorder:
 		mpd.send_and_forget(client, "move", cmd.from, cmd.to) or_return
 		status := mpd.request_status(client) or_return
-		_response_send(shared.responses, status)
+		_response_send_status(shared.responses, status, true)
 		return nil
 	case Command_Queue_Remove:
 		mpd.send_and_forget(client, "delete", cmd.index) or_return
 		status := mpd.request_status(client) or_return
-		_response_send(shared.responses, status)
+		_response_send_status(shared.responses, status, true)
 		return nil
 	case Command_Queue_Shuffle:
 		return mpd.send_and_forget(client, "shuffle")
@@ -520,6 +527,7 @@ _player_handle_commands :: proc(
 		_, should_exit = command.(Command_Disconnect)
 		if should_exit do return
 
+		defer _command_destroy(command)
 		err := _player_handle_command(shared, client, command)
 		if err != nil {
 			// TODO: display errors to the user.

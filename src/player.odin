@@ -40,10 +40,10 @@ Source_Loc :: runtime.Source_Code_Location
 
 Player_VTable :: struct #all_or_none {
 	create:        proc(allocator: runtime.Allocator, loc: Source_Loc) -> ^Base_Player,
-	connect:       proc(p: rawptr, loc: Source_Loc),
-	destroy:       proc(p: rawptr, loc: Source_Loc),
-	send_command:  proc(p: rawptr, cmd: Player_Command, loc: Source_Loc),
-	recv_response: proc(p: rawptr, loc: Source_Loc) -> (res: Player_Response, ok: bool),
+	connect:       proc(p: ^Base_Player, loc: Source_Loc),
+	destroy:       proc(p: ^Base_Player, loc: Source_Loc),
+	send_command:  proc(p: ^Base_Player, cmd: Player_Command, loc: Source_Loc),
+	recv_response: proc(p: ^Base_Player, loc: Source_Loc) -> (res: Player_Response, ok: bool),
 }
 
 Base_Player :: struct {
@@ -70,8 +70,6 @@ Base_Player :: struct {
 	switch_direction:    Switch_Direction,
 	history:             History,
 	_status_req_timer:   Seconds,
-	_queue_changed:      bool,
-	_deferred_status:    Maybe(mpd.Status),
 
 	// Cache.
 	_covers_cache:       Covers_Cache,
@@ -128,9 +126,9 @@ player_create_with :: proc(
 player_connect :: proc(player: ^Base_Player, loc := #caller_location) {
 	player.vtable.connect(player, loc)
 
-	player_request_status(player)
-	player_request_queue(player)
 	player_request_albums(player)
+	player_request_queue(player)
+	player_request_status(player, true)
 }
 
 player_destroy :: proc(player: ^Base_Player, loc := #caller_location) {
@@ -182,14 +180,14 @@ _player_default_create :: proc(allocator: runtime.Allocator, loc: Source_Loc) ->
 	return player
 }
 
-_player_default_connect :: proc(player: rawptr, loc: Source_Loc) {
+_player_default_connect :: proc(player: ^Base_Player, loc: Source_Loc) {
 	player := cast(^Player)player
 	assert(player._client_thread != nil)
 
 	thread.start(player._client_thread)
 }
 
-_player_default_destroy :: proc(player: rawptr, loc: Source_Loc) {
+_player_default_destroy :: proc(player: ^Base_Player, loc: Source_Loc) {
 	player := cast(^Player)player
 
 	thread.join(player._client_thread)
@@ -214,13 +212,13 @@ _player_default_destroy :: proc(player: rawptr, loc: Source_Loc) {
 	chan.destroy(&player._shared.responses)
 }
 
-_player_default_send_command :: proc(player: rawptr, cmd: Player_Command, loc: Source_Loc) {
+_player_default_send_command :: proc(player: ^Base_Player, cmd: Player_Command, loc: Source_Loc) {
 	player := cast(^Player)player
 	chan.send(player._shared.commands, cmd)
 }
 
 _player_default_recv_response :: proc(
-	player: rawptr,
+	player: ^Base_Player,
 	loc: Source_Loc,
 ) -> (
 	res: Player_Response,
@@ -231,28 +229,21 @@ _player_default_recv_response :: proc(
 }
 
 player_update :: proc(player: ^Base_Player, dt: Seconds) {
-	player._status_req_timer -= dt
-	if player._status_req_timer <= 0 {
-		player_request_status(player)
-		player._status_req_timer = STATUS_REQUEST_INVERVAL
+	if player._status_req_timer > 0 {
+		player._status_req_timer -= dt
+		if player._status_req_timer <= 0 {
+			player_request_status(player)
+		}
 	}
 
 	_player_handle_responses(player)
 }
 
 // TODO!: save previous player state in the history whenever it changes outside of the app.
-_player_set_status :: proc(player: ^Base_Player, status: mpd.Status) {
-	// TODO!: come up with a better system of ordering incoming responses to
-	// guarantee that a "status" response will be received after a "queue"
-	// response.
-	queue_changed := player._queue_version != status.queue_version
-	if queue_changed && !player._queue_changed {
-		log.debugf("PLAYER: Received status before receiving the queue, defer it...")
-		player._deferred_status = status
-		return
-	}
+_player_set_status :: proc(player: ^Base_Player, status: mpd.Status, check_cur_song := false) {
+	player._status_req_timer = STATUS_REQUEST_INVERVAL
 
-	player._queue_changed = false
+	queue_changed := player._queue_version != status.queue_version
 
 	prev_song := player.cur_song
 	prev_song_id := player.cur_song_id
@@ -264,7 +255,11 @@ _player_set_status :: proc(player: ^Base_Player, status: mpd.Status) {
 		player.cur_song_id = nil
 	}
 
-	song_changed := player.cur_song_id != prev_song_id
+	if player.cur_song_id != prev_song_id && !check_cur_song {
+		panic("BUG: Song changed but we've been told that it won't")
+	}
+
+	song_changed := check_cur_song && player.cur_song_id != prev_song_id
 
 	if song_changed {
 		prev, has_prev := prev_song.?
@@ -310,11 +305,6 @@ _player_set_status :: proc(player: ^Base_Player, status: mpd.Status) {
 		// TODO!!: make a proper "event system" for changes, so this code becomes more testable.
 		// `when !ODIN_TEST` is a crutch for now.
 		when !ODIN_TEST do on_cur_song_updated(prev_song, prev_song_id)
-	}
-
-	if queue_changed {
-		_player_queue_calc_duration_and_elapsed(player)
-	} else if song_changed {
 		_player_queue_calc_elapsed(player)
 	}
 
@@ -351,27 +341,24 @@ _player_set_queue :: proc(player: ^Base_Player, queue: mpd.Song_List) {
 		mpd.song_list_destroy(&player.queue)
 		player.queue = queue
 
-		log.debugf("PLAYER: Queue updated (%v songs)", len(player.queue))
-
 		_player_clamp_cur_song(player)
 		_player_queue_calc_duration_and_elapsed(player)
 
+		{
+			first_file: string
+			if len(queue) > 0 do first_file = string(queue[0].file)
+			log.debugf("PLAYER: Queue updated: %v songs, first song = %q", len(queue), first_file)
+		}
+
 		when !ODIN_TEST do on_queue_updated()
-	}
-
-	player._queue_changed = true
-
-	status, ok := player._deferred_status.?
-	if ok {
-		_player_set_status(player, status)
-		player._deferred_status = nil
-		log.debug("PLAYER: Applied deferred status")
 	}
 }
 
 _player_set_albums :: proc(player: ^Base_Player, albums: mpd.Album_List) {
 	// TODO!: auto update albums when MPD database changes.
 	mpd.album_list_destroy(player.albums)
+
+	log.debugf("PLAYER: Updated albums list: %v albums", len(albums))
 
 	// Sort in alphabetical order.
 	sort_proc :: proc(a, b: mpd.Album) -> int {
@@ -474,8 +461,10 @@ _player_handle_changes :: proc(
 		changes |= {.Player}
 	}
 	if .Player in changes {
+		log.debugf("PLAYER: Status changed, requesting up-to-date status")
+
 		status := mpd.request_status(client) or_return
-		_response_send(shared.responses, status)
+		_response_send_status(shared.responses, status, true)
 	}
 
 	return nil

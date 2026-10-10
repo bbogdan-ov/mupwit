@@ -398,7 +398,7 @@ _test_player_create :: proc(allocator: runtime.Allocator, loc: Source_Loc) -> ^B
 	player.allocator = allocator
 	return player
 }
-_test_player_connect :: proc(player: rawptr, loc: Source_Loc) {
+_test_player_connect :: proc(player: ^Base_Player, loc: Source_Loc) {
 	player := cast(^Test_Player)player
 
 	// Populate the state of the "fake server".
@@ -411,7 +411,7 @@ _test_player_connect :: proc(player: rawptr, loc: Source_Loc) {
 	player._fake_status.volume = 100
 	player._fake_status.queue_version = 1
 }
-_test_player_destroy :: proc(player: rawptr, loc: Source_Loc) {
+_test_player_destroy :: proc(player: ^Base_Player, loc: Source_Loc) {
 	player := cast(^Test_Player)player
 
 	for res in queue.pop_back_safe(&player.responses) {
@@ -435,7 +435,7 @@ _fake_status_set_cur_song :: proc(player: ^Test_Player, index: mpd.Song_Index) {
 	player._fake_status.cur_song_id = mpd.Song_Id(index + 1)
 }
 
-_test_player_send_command :: proc(player: rawptr, command: Player_Command, loc: Source_Loc) {
+_test_player_send_command :: proc(player: ^Base_Player, command: Player_Command, loc: Source_Loc) {
 	player := cast(^Test_Player)player
 
 	// This function simulates behavior of a MPD server. It should NOT directly
@@ -444,7 +444,7 @@ _test_player_send_command :: proc(player: rawptr, command: Player_Command, loc: 
 
 	#partial switch cmd in command {
 	case Command_Request_Status:
-		_test_send_response(player, player._fake_status)
+		_test_send_response(player, Response_Status{player._fake_status, false})
 
 	case Command_Request_Queue:
 		_test_send_queue(player)
@@ -466,18 +466,25 @@ _test_player_send_command :: proc(player: rawptr, command: Player_Command, loc: 
 		mpd.song_destroy(player._fake_queue[cmd.index])
 		ordered_remove(&player._fake_queue, cmd.index)
 
+		if player._fake_status.cur_song_id > 0 && player._fake_status.cur_song_index == cmd.index {
+			if int(player._fake_status.cur_song_index) >= len(player._fake_queue) {
+				_fake_status_set_cur_song(player, -1)
+			}
+		}
+
 		_test_send_queue(player)
+		_test_send_response(player, Response_Status{player._fake_status, true})
 
 	case Command_Queue_Play:
 		player._fake_status.playstate = .Play
 		_fake_status_set_cur_song(player, cmd.index)
 		player._fake_status.elapsed = mpd.Seconds(math.floor(cmd.seek)) // `floor` to simulate float error.
 		player._fake_status.duration = 300
-		_test_send_response(player, player._fake_status)
+		_test_send_response(player, Response_Status{player._fake_status, true})
 
 	case Command_Seek:
 		player._fake_status.elapsed = mpd.Seconds(math.floor(cmd.seconds))
-		_test_send_response(player, player._fake_status)
+		_test_send_response(player, Response_Status{player._fake_status, false})
 
 	case Command_Queue_Reorder:
 		ui.slice_reorder(player._fake_queue[:], int(cmd.from), int(cmd.to))
@@ -486,10 +493,11 @@ _test_player_send_command :: proc(player: rawptr, command: Player_Command, loc: 
 		_fake_status_set_cur_song(player, index)
 
 		_test_send_queue(player)
-		_test_send_response(player, player._fake_status)
+		_test_send_response(player, Response_Status{player._fake_status, true})
 
 	case Command_Queue_Clear:
 		mpd.song_list_clear(&player._fake_queue)
+		_test_send_response(player, Response_Status{player._fake_status, true})
 		_test_send_queue(player)
 
 	case Command_Load_Album:
@@ -501,7 +509,7 @@ _test_player_send_command :: proc(player: rawptr, command: Player_Command, loc: 
 		_fake_status_set_cur_song(player, 0)
 
 		_test_send_queue(player)
-		_test_send_response(player, player._fake_status)
+		_test_send_response(player, Response_Status{player._fake_status, true})
 
 		// Ignore the `cmd.name`.
 		_command_destroy(command)
@@ -521,7 +529,7 @@ _test_player_send_command :: proc(player: rawptr, command: Player_Command, loc: 
 		player._fake_status.elapsed = mpd.Seconds(math.floor(f32(cmd.seek)))
 
 		_test_send_queue(player)
-		_test_send_response(player, player._fake_status)
+		_test_send_response(player, Response_Status{player._fake_status, true})
 
 		delete(cmd.files, cmd.allocator)
 
@@ -534,7 +542,7 @@ _test_player_send_command :: proc(player: rawptr, command: Player_Command, loc: 
 }
 
 _test_player_recv_response :: proc(
-	player: rawptr,
+	player: ^Base_Player,
 	loc: Source_Loc,
 ) -> (
 	res: Player_Response,

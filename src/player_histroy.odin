@@ -4,7 +4,6 @@ package mupwit
 
 import "base:intrinsics"
 import "core:container/queue"
-import "core:log"
 
 History_State :: enum {
 	Normal = 0, // Clear all redos and push into the `undo` list.
@@ -68,9 +67,6 @@ history_destroy :: proc(h: ^History) {
 player_undo :: proc(player: ^Base_Player) -> bool {
 	undo := queue.pop_back_safe(&player.history.undo) or_return
 
-	count := queue.len(player.history.undo)
-	log.debugf("PLAYER: Undid: %v, %v items left", undo.kind, count)
-
 	player.history._state = .Undoing
 	_player_send(player, undo.command)
 	player.history._state = .Normal
@@ -81,9 +77,6 @@ player_undo :: proc(player: ^Base_Player) -> bool {
 
 player_redo :: proc(player: ^Base_Player) -> bool {
 	undo := queue.pop_back_safe(&player.history.redo) or_return
-
-	count := queue.len(player.history.redo)
-	log.debugf("PLAYER: Redid: %v, %v items left", undo.kind, count)
 
 	player.history._state = .Redoing
 	_player_send(player, undo.command)
@@ -107,8 +100,6 @@ _player_history_push :: proc(
 	loc := #caller_location,
 ) {
 	undos, redos := &player.history.undo, &player.history.redo
-
-	log.debugf("PLAYER: Push histroy: %v, state = %v", cmd, player.history._state)
 
 	switch player.history._state {
 	case .Normal:
