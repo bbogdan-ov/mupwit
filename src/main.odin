@@ -43,35 +43,16 @@ State :: struct {
 	image_screen_art:     ^cairo.surface_t,
 }
 
-@(private = "file")
-state: State
-
 main :: proc() {
 	context.logger = make_logger()
-
 	defer log.info("Bye")
 
 	track := make_tracking_allocator(context.allocator)
 	context.allocator = mem.tracking_allocator(&track)
 	defer tracking_allocator_report_and_destroy(&track)
 
-	state.window = win.new(WINDOW_WIDTH, WINDOW_HEIGHT)
-	assert(state.window != nil) // TODO: handle error.
-
-	win.set_title(state.window, "mupwit", "mupwit")
-	win.set_resizable(state.window, false)
-	win.set_frame_callback(state.window, _window_on_frame)
-	win.set_draw_callback(state.window, _window_draw)
-	win.set_pointer_button_callback(state.window, _window_on_pointer_button)
-	win.set_pointer_motion_callback(state.window, _window_on_pointer_motion)
-	win.set_pointer_scroll_callback(state.window, _window_on_pointer_scroll)
-	win.set_pointer_enter_callback(state.window, _window_on_pointer_enter)
-	win.set_keyboard_key_callback(state.window, _window_on_keyboard_key)
-
-	state.theme.background = DEFAULT_BACKGROUND
-	state.theme._target_background = DEFAULT_BACKGROUND
-	state.theme.black = BLACK
-	_adapt_theme_colors_to_bg()
+	@(static) state: State
+	init(&state)
 
 	ui.init()
 	defer ui.destroy()
@@ -99,23 +80,47 @@ main :: proc() {
 	win.destroy(state.window)
 }
 
-update :: proc(dt: Seconds) {
+init :: proc(state: ^State) {
+	state.window = win.new(WINDOW_WIDTH, WINDOW_HEIGHT)
+	assert(state.window != nil) // TODO: handle error.
+
+	// NOTE: `State` MUST either be allocated on the heap or be a static var to
+	// be passed as a userdata pointer here.
+	win.set_userdata(state.window, state)
+
+	win.set_title(state.window, "mupwit", "mupwit")
+	win.set_resizable(state.window, false)
+	win.set_frame_callback(state.window, _window_on_frame)
+	win.set_draw_callback(state.window, _window_draw)
+	win.set_pointer_button_callback(state.window, _window_on_pointer_button)
+	win.set_pointer_motion_callback(state.window, _window_on_pointer_motion)
+	win.set_pointer_scroll_callback(state.window, _window_on_pointer_scroll)
+	win.set_pointer_enter_callback(state.window, _window_on_pointer_enter)
+	win.set_keyboard_key_callback(state.window, _window_on_keyboard_key)
+
+	state.theme.background = DEFAULT_BACKGROUND
+	state.theme._target_background = DEFAULT_BACKGROUND
+	state.theme.black = BLACK
+	_adapt_theme_colors_to_bg(state)
+}
+
+update :: proc(state: ^State, dt: Seconds) {
 	ui.tween_update(&state.screen_tween, dt)
 
-	update_theme(dt)
+	update_theme(state, dt)
 
 	player_update(state.player, dt)
 
 	for event in state.player.events {
-		handle_event(&state, event)
+		handle_event(state, event)
 	}
 	clear(&state.player.events)
 
-	status_ui_update(&state, dt)
-	clippy_ui_update(&state, dt)
-	queue_ui_update(&state, dt)
-	player_ui_update(&state, dt)
-	albums_ui_update(&state, dt)
+	status_ui_update(state, dt)
+	clippy_ui_update(state, dt)
+	queue_ui_update(state, dt)
+	player_ui_update(state, dt)
+	albums_ui_update(state, dt)
 
 	win.set_cursor(state.window, ui.state.cursor)
 	ui.update(dt)
@@ -172,7 +177,7 @@ push_event :: proc(state: ^State, event: Event) {
 	player_push_event(state.player, event)
 }
 
-update_theme :: proc(dt: Seconds) {
+update_theme :: proc(state: ^State, dt: Seconds) {
 	progress := ui.tween_progress(&state.theme.tween)
 	if progress >= 1 do return
 
@@ -185,10 +190,10 @@ update_theme :: proc(dt: Seconds) {
 		state.theme.background = bg
 	}
 
-	_adapt_theme_colors_to_bg()
+	_adapt_theme_colors_to_bg(state)
 }
 
-_adapt_theme_colors_to_bg :: proc() {
+_adapt_theme_colors_to_bg :: proc(state: ^State) {
 	bg := state.theme.background
 
 	hue, sat, light, _ := ui.color_to_hsl(bg)
@@ -202,7 +207,7 @@ _adapt_theme_colors_to_bg :: proc() {
 	state.theme.light_gray = ui.color_from_hsl(hue, sat, light)
 }
 
-draw :: proc(ctx: ^ui.Context) {
+draw :: proc(state: ^State, ctx: ^ui.Context) {
 	defer free_all(context.temp_allocator)
 
 	cairo.set_antialias(ctx, .NONE)
@@ -214,11 +219,11 @@ draw :: proc(ctx: ^ui.Context) {
 	// TEMPORARY: for now all text fonts will be the same.
 	ui.set_font(ctx, state.font_kapli, FONT_SIZE)
 
-	player_ui_draw(&state, ctx)
-	queue_ui_draw(&state, ctx)
-	albums_ui_draw(&state, ctx)
-	clippy_ui_draw(&state, ctx)
-	status_ui_draw(&state, ctx)
+	player_ui_draw(state, ctx)
+	queue_ui_draw(state, ctx)
+	albums_ui_draw(state, ctx)
+	clippy_ui_draw(state, ctx)
+	status_ui_draw(state, ctx)
 }
 
 set_screen :: proc(state: ^State, screen: Screen) {
@@ -286,7 +291,7 @@ is_key_cancel :: proc(ev: Key_Event) -> bool {
 	return ev.key == .Esc || is_ctrl_key(ev, .C)
 }
 
-on_keyboard_key :: proc(ev: Key_Event) -> bool {
+on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> bool {
 	if ev.state != .Pressed && ev.state != .Repeated do return true
 
 	player := state.player
@@ -300,18 +305,18 @@ on_keyboard_key :: proc(ev: Key_Event) -> bool {
 	// propagation for all keys ("consume" them) so that if you press 'q' it
 	// doesn't trigger the app to close.
 
-	clippy_ui_on_keyboard_key(&state, ev) or_return
-	queue_ui_on_keyboard_key(&state, ev) or_return
-	albums_ui_on_keyboard_key(&state, ev) or_return
+	clippy_ui_on_keyboard_key(state, ev) or_return
+	queue_ui_on_keyboard_key(state, ev) or_return
+	albums_ui_on_keyboard_key(state, ev) or_return
 
 	switch {
 	case ev.key == .Esc, is_key(ev, .Q):
 		win.set_should_close(state.window, true)
 
 	case is_key(ev, .Tab):
-		set_screen(&state, enum_rotate_variant(state.screen, 1))
+		set_screen(state, enum_rotate_variant(state.screen, 1))
 	case is_shift_key(ev, .Tab):
-		set_screen(&state, enum_rotate_variant(state.screen, -1))
+		set_screen(state, enum_rotate_variant(state.screen, -1))
 
 	case is_key(ev, .Space):
 		player_toggle_play(player)
@@ -340,9 +345,9 @@ on_pointer_motion :: proc(pos: Vec2) {
 }
 
 // TODO: would be cool to add touchpad gestures.
-on_pointer_scroll :: proc(scroll: f32, touchpad: bool) {
-	queue_ui_on_scroll(&state, scroll, touchpad)
-	albums_ui_on_scroll(&state, scroll, touchpad)
+on_pointer_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
+	queue_ui_on_scroll(state, scroll, touchpad)
+	albums_ui_on_scroll(state, scroll, touchpad)
 }
 
 // These functions are listeners for window events.
@@ -358,7 +363,8 @@ _window_draw :: proc "c" (window: ^win.Window, cr: ^cairo.cairo_t, surface: ^cai
 	ctx.box.rect = ui.state.view
 	ctx.crop_text = true
 
-	draw(&ctx)
+	state := cast(^State)win.userdata(window)
+	draw(state, &ctx)
 }
 
 _window_on_frame :: proc "c" (window: ^win.Window) {
@@ -373,7 +379,8 @@ _window_on_frame :: proc "c" (window: ^win.Window) {
 	start = now
 
 	dt := Seconds(time.duration_seconds(delta))
-	update(dt)
+	state := cast(^State)win.userdata(window)
+	update(state, dt)
 }
 
 _window_on_pointer_button :: proc "c" (
@@ -389,7 +396,8 @@ _window_on_pointer_motion :: proc "c" (window: ^win.Window, x, y: f64) {
 }
 _window_on_pointer_scroll :: proc "c" (window: ^win.Window, x, y: f64, touchpad: bool) {
 	context = make_default_context()
-	on_pointer_scroll(f32(y), touchpad)
+	state := cast(^State)win.userdata(window)
+	on_pointer_scroll(state, f32(y), touchpad)
 }
 _window_on_pointer_enter :: proc "c" (window: ^win.Window, leave: bool) {
 	if leave && ui.state.mouse_released_buttons == nil {
@@ -415,5 +423,6 @@ _window_on_keyboard_key :: proc "c" (
 		text  = text,
 	}
 
-	on_keyboard_key(event)
+	state := cast(^State)win.userdata(window)
+	on_keyboard_key(state, event)
 }
