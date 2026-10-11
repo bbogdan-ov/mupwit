@@ -97,9 +97,9 @@ make release
 ./build/mupwit
 ```
 
-...or in debug mode (faster compilation, but slower executable)...
+**...or in debug mode (faster compilation and hot-reloading)...**
 
-**Hot-reloading**: keep the app running, recompile with `make` and press
+Hot-reloading: keep the app running, recompile with `make` and press
 `Ctrl-R` in the app to reload it.
 
 The hot-reloading works by splitting the app into two parts: the app itself
@@ -116,10 +116,10 @@ make
 ./build/hotreload
 ```
 
-...or without make...
+**...or without make...**
 
 ```sh
-odin build src -out:build/mupwit -o:speed -collection:lib=lib
+odin build src/main_release -out:build/mupwit -o:speed -collection:lib=lib
 ```
 
 ## License
