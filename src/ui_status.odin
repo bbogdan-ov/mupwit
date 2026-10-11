@@ -23,8 +23,7 @@ _Status_Visible :: enum {
 }
 Status_Visible :: bit_set[_Status_Visible]
 
-@(private = "file")
-self: struct {
+Status_UI :: struct {
 	button_play:    ui.Button,
 	button_clear:   ui.Button,
 	button_shuffle: ui.Button,
@@ -37,7 +36,7 @@ self: struct {
 	visible:        Status_Visible,
 }
 
-status_ui_init :: proc() {
+status_ui_init :: proc(self: ^Status_UI) {
 	self.tween.duration = STATUS_REVEAL_ANIM_DURATION
 	self.tween.easing = .Sine_In_Out
 	self.tween.value = STATUS_MAX_HEIGHT
@@ -48,13 +47,15 @@ status_ui_init :: proc() {
 }
 
 status_ui_update :: proc(state: ^State, dt: Seconds) {
+	self := &state.status_ui
+
 	ui.animated_update(&self.tween, dt)
 	ui.animated_update(&self.sub_tween, dt)
 
 	visible: Status_Visible
 	if state.screen == .Queue do visible += {.Sub_Status}
 	if state.screen != .Player && state.player.cur_song != nil do visible += {.Status}
-	_status_ui_set_visible(visible)
+	_status_ui_set_visible(state, visible)
 
 	player := state.player
 
@@ -80,6 +81,8 @@ status_ui_update :: proc(state: ^State, dt: Seconds) {
 }
 
 _sub_status_ui_update :: proc(state: ^State) {
+	self := &state.status_ui
+
 	if ui.button_update(&self.button_clear) {
 		player_queue_clear(state.player)
 	}
@@ -100,7 +103,9 @@ _sub_status_ui_update :: proc(state: ^State) {
 	}
 }
 
-_status_ui_set_visible :: proc(visible: Status_Visible) {
+_status_ui_set_visible :: proc(state: ^State, visible: Status_Visible) {
+	self := &state.status_ui
+
 	if self.visible == visible do return
 	self.visible = visible
 
@@ -124,12 +129,16 @@ _status_ui_set_visible :: proc(visible: Status_Visible) {
 	ui.play_to(&self.sub_tween, sub_offset)
 }
 
-status_ui_visible_height :: proc() -> i32 {
+status_ui_visible_height :: proc(state: ^State) -> i32 {
+	self := &state.status_ui
+
 	off := STATUS_MAX_HEIGHT - self.tween.value - self.sub_tween.value
 	return max(i32(off), 0)
 }
 
 status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
+	self := &state.status_ui
+
 	if self.visible == nil && self.tween.timer <= 0 do return
 
 	btn_play := &self.button_play
@@ -204,6 +213,7 @@ status_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 }
 
 _sub_status_ui_draw :: proc(state: ^State, ctx: ^ui.Context, rect: Rect) {
+	self := &state.status_ui
 	player := state.player
 
 	rect := rect
@@ -247,14 +257,16 @@ _sub_status_ui_draw :: proc(state: ^State, ctx: ^ui.Context, rect: Rect) {
 	{
 		elapsed := player.queue_elapsed + player.elapsed
 		duration := player.queue_duration
-		time_str := _sub_status_ui_time(elapsed, duration)
+		time_str := _sub_status_ui_time(state, elapsed, duration)
 
 		pos.x = ctx.box.x + ctx.box.width
 		ui.draw_text(ctx, time_str, pos, state.theme.gray, align = .End)
 	}
 }
 
-_sub_status_ui_time :: proc(elapsed, duration: Seconds) -> string {
+_sub_status_ui_time :: proc(state: ^State, elapsed, duration: Seconds) -> string {
+	self := &state.status_ui
+
 	elapsed := mpd.Seconds(elapsed)
 	duration := mpd.Seconds(duration)
 

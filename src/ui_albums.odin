@@ -14,8 +14,7 @@ Album_Item :: struct {
 
 Album_Item_List :: ui.Item_List(Album_Item)
 
-@(private = "file")
-self: struct {
+Albums_UI :: struct {
 	list:           Album_Item_List,
 	scroll:         ui.Scroll,
 	box:            ui.Box,
@@ -25,8 +24,11 @@ self: struct {
 	prev_positions: map[mpd.Album_Index]Vec2,
 }
 
-albums_ui_init :: proc() {
+albums_ui_init :: proc(state: ^State) {
+	self := &state.albums_ui
+
 	ui.item_list_init(&self.list, ALBUM_HEIGHT, context.allocator)
+	self.list.userdata = state
 	self.list.kind = .Filterable
 	self.list.item_width = ALBUM_WIDTH
 	self.list.columns = ALBUM_GRID_COLUMS
@@ -39,7 +41,7 @@ albums_ui_init :: proc() {
 	self.prev_positions = make(map[mpd.Album_Index]Vec2, context.allocator)
 }
 
-albums_ui_destroy :: proc() {
+albums_ui_destroy :: proc(self: ^Albums_UI) {
 	ui.item_list_destroy(&self.list)
 	delete(self.prev_positions)
 }
@@ -47,7 +49,8 @@ albums_ui_destroy :: proc() {
 albums_ui_update :: proc(state: ^State, dt: Seconds) {
 	if state.screen != .Albums do return
 
-	self.list.userdata = state
+	self := &state.albums_ui
+
 	ui.item_list_update(&self.box, &self.scroll, &self.list, dt)
 
 	if ui.is_double_clicked(.Left) {
@@ -56,6 +59,8 @@ albums_ui_update :: proc(state: ^State, dt: Seconds) {
 }
 
 _albums_ui_play_hovered_album :: proc(state: ^State) -> bool {
+	self := &state.albums_ui
+
 	hovering := self.list.hovering.? or_return
 	item := &self.list.items[hovering]
 	album := state.player.albums[item.album_index]
@@ -66,11 +71,13 @@ _albums_ui_play_hovered_album :: proc(state: ^State) -> bool {
 albums_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	if !screen_is_visible(state, .Albums) do return
 
+	self := &state.albums_ui
+
 	PAD_Y :: GAP + GAP / 2
 
 	screen_box := ctx.box.rect
 
-	box := ui.pad_b(screen_box, status_ui_visible_height() + clippy_ui_visible_height())
+	box := ui.pad_b(screen_box, status_ui_visible_height(state) + clippy_ui_visible_height(state))
 	box.x += screen_x_offset(state, .Albums)
 	ui.guard_box(ctx, box, GAP, self.scroll.offset)
 	self.box = ctx.box
@@ -99,13 +106,16 @@ albums_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 albums_ui_on_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
 	if state.screen != .Albums do return
 
+	self := &state.albums_ui
+
 	ui.scroll_on_scroll(&self.scroll, scroll, touchpad)
 }
 
 albums_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bool) {
 	if state.screen != .Albums do return true
 
-	self.list.userdata = state
+	self := &state.albums_ui
+
 	ui.item_list_on_keyboard_key(self.box, &self.scroll, &self.list, ev) or_return
 
 	switch {
@@ -118,6 +128,8 @@ albums_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: b
 
 albums_ui_on_search :: proc(state: ^State, search: string) {
 	if state.screen != .Albums do return
+
+	self := &state.albums_ui
 
 	updated := ui.item_list_on_search(&self.list, search, context.allocator)
 	if updated {
@@ -134,11 +146,11 @@ albums_ui_on_search :: proc(state: ^State, search: string) {
 
 albums_ui_on_screen_updated :: proc(state: ^State) {
 	if state.screen != .Albums do return
-	clippy_ui_allow_search(.Albums, self.list.search)
+	clippy_ui_allow_search(state, state.albums_ui.list.search)
 }
 
 albums_ui_on_album_list_updated :: proc(state: ^State) {
-	ui.item_list_rebuild(&self.list, len(state.player.albums))
+	ui.item_list_rebuild(&state.albums_ui.list, len(state.player.albums))
 }
 
 // ------------------------------
@@ -146,6 +158,9 @@ albums_ui_on_album_list_updated :: proc(state: ^State) {
 // ------------------------------
 
 _album_item_init :: proc(list: ^Album_Item_List, item: ^Album_Item, index, number: ui.Item_Index) {
+	state := cast(^State)list.userdata
+	self := &state.albums_ui
+
 	item.album_index = mpd.Album_Index(index)
 
 	view := ui.state.view
@@ -179,6 +194,7 @@ _album_item_update :: proc(
 	dt: Seconds,
 ) {
 	state := cast(^State)list.userdata
+	self := &state.albums_ui
 
 	pos := ui.item_pos_from_index(list, item.number)
 	pos.y += -self.box.y - self.box.scroll
@@ -206,6 +222,8 @@ _album_item_draw :: proc(
 	item: ^Album_Item,
 	index: ui.Item_Index,
 ) {
+	self := &state.albums_ui
+
 	album := &state.player.albums[item.album_index]
 
 	pos := item.cur_position

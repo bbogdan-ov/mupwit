@@ -2,14 +2,15 @@
 
 package mupwit
 
+import "base:runtime"
 import "core:fmt"
 import "core:log"
-import "core:mem"
 import "core:net"
 import "core:strings"
 import "core:time"
 import "lib:mpd"
 
+import "./common"
 import "lib:cairo"
 import win "lib:my_window"
 import "lib:ui"
@@ -29,6 +30,8 @@ Theme :: struct {
 	tween:              ui.Tween(Color),
 }
 
+Hotreload_Callback :: #type proc(userdata: rawptr)
+
 State :: struct {
 	window:               ^win.Window,
 	player:               ^Player,
@@ -37,6 +40,15 @@ State :: struct {
 	screen_tween:         ui.Tween(f32),
 	theme:                Theme,
 	error:                Maybe(mpd.Error),
+	_should_reload:       bool,
+
+	// UIs.
+	player_ui:            Player_UI,
+	queue_ui:             Queue_UI,
+	albums_ui:            Albums_UI,
+	status_ui:            Status_UI,
+	clippy_ui:            Clippy_UI,
+	error_ui:             Error_UI,
 
 	// Assets.
 	font_kapli:           ui.Font,
@@ -44,49 +56,46 @@ State :: struct {
 	image_clippy:         ^cairo.surface_t,
 	image_clippy_outline: ^cairo.surface_t,
 	image_screen_art:     ^cairo.surface_t,
+
+	//
+	_ui_state:            ^ui.State, // For persistent UI state between hot-reloads.
+	allocator:            runtime.Allocator,
 }
 
-main :: proc() {
-	context.logger = make_logger()
-	defer log.info("Bye")
+@(private = "file")
+state: ^State
 
-	track := make_tracking_allocator(context.allocator)
-	context.allocator = mem.tracking_allocator(&track)
-	defer tracking_allocator_report_and_destroy(&track)
+@(export)
+init :: proc() {
+	state = new(State, context.allocator)
+	state.allocator = context.allocator
 
-	@(static) state: State
-	init(&state)
-
-	ui.init()
-	defer ui.destroy()
-	assets_load(&state)
-	defer assets_destroy(&state)
-
-	state.player = player_create(context.allocator)
-	player_connect(state.player)
-	defer player_destroy(state.player)
-
-	clippy_ui_init()
-	defer clippy_ui_destroy()
-	status_ui_init()
-	queue_ui_init()
-	defer queue_ui_destroy()
-	albums_ui_init()
-	defer albums_ui_destroy()
-	defer player_ui_destroy()
-
-	for win.should_run(state.window) {}
-
-	// NOTE: first close the window and only then clean up, so the window
-	// closes immidietely.
-	log.info("Closing the window...")
-	win.destroy(state.window)
-}
-
-init :: proc(state: ^State) {
 	state.window = win.new(WINDOW_WIDTH, WINDOW_HEIGHT)
 	assert(state.window != nil) // TODO: handle error.
 
+	init_callbacks()
+
+	state.theme.background = DEFAULT_BACKGROUND
+	state.theme._target_background = DEFAULT_BACKGROUND
+	state.theme.black = BLACK
+	_adapt_theme_colors_to_bg(state)
+
+	state.screen = .Player
+
+	ui.init()
+	state._ui_state = ui.state
+	assets_load(state)
+
+	state.player = player_create(context.allocator)
+	player_connect(state.player)
+
+	clippy_ui_init(&state.clippy_ui)
+	status_ui_init(&state.status_ui)
+	queue_ui_init(state)
+	albums_ui_init(state)
+}
+
+init_callbacks :: proc() {
 	// NOTE: `State` MUST either be allocated on the heap or be a static var to
 	// be passed as a userdata pointer here.
 	win.set_userdata(state.window, state)
@@ -100,13 +109,33 @@ init :: proc(state: ^State) {
 	win.set_pointer_scroll_callback(state.window, _window_on_pointer_scroll)
 	win.set_pointer_enter_callback(state.window, _window_on_pointer_enter)
 	win.set_keyboard_key_callback(state.window, _window_on_keyboard_key)
+}
 
-	state.theme.background = DEFAULT_BACKGROUND
-	state.theme._target_background = DEFAULT_BACKGROUND
-	state.theme.black = BLACK
-	_adapt_theme_colors_to_bg(state)
+@(export)
+destroy :: proc() {
+	// NOTE: first close the window and only then clean up, so the window
+	// closes immidietely.
+	log.info("Closing the window...")
+	win.destroy(state.window)
 
-	state.screen = .Player
+	clippy_ui_destroy(&state.clippy_ui)
+	queue_ui_destroy(&state.queue_ui)
+	albums_ui_destroy(&state.albums_ui)
+	player_ui_destroy(&state.player_ui)
+
+	player_destroy(state.player)
+
+	assets_destroy(state)
+	ui.destroy()
+
+	free(state, state.allocator)
+
+	log.info("Bye")
+}
+
+@(export)
+should_run :: proc() -> bool {
+	return win.should_run(state.window)
 }
 
 update :: proc(state: ^State, dt: Seconds) {
@@ -163,14 +192,14 @@ handle_event :: proc(state: ^State, event: Event) {
 		queue_ui_on_song_reordered(state, ev.from, ev.to)
 		ui.dirty(true)
 	case Event_Song_Removed:
-		queue_ui_on_song_removed(ev.index)
+		queue_ui_on_song_removed(state, ev.index)
 		ui.dirty(true)
 	case Event_Undid:
 		msg := fmt.tprintf("↺ Undo %v!", UNDO_KIND_NAME[ev.kind])
-		clippy_ui_set_message(msg, context.allocator)
+		clippy_ui_set_message(state, msg, context.allocator)
 	case Event_Redid:
 		msg := fmt.tprintf("↻ Redo %v!", UNDO_KIND_NAME[ev.kind])
-		clippy_ui_set_message(msg, context.allocator)
+		clippy_ui_set_message(state, msg, context.allocator)
 	case Event_Error:
 		// TODO: should also handle and display some `mpd.Client_Error`s.
 		if _, ok := ev.error.(net.Network_Error); ok {
@@ -331,6 +360,11 @@ on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> bool {
 	// propagation for all keys ("consume" them) so that if you press 'q' it
 	// doesn't trigger the app to close.
 
+	if is_ctrl_key(ev, .R) || is_key(ev, .F5) {
+		state._should_reload = true
+		return false
+	}
+
 	if state.error != nil {
 		error_ui_on_keyboard_key(state, ev) or_return
 	} else {
@@ -383,7 +417,7 @@ on_pointer_scroll :: proc(state: ^State, scroll: f32, touchpad: bool) {
 // These functions are listeners for window events.
 
 _window_draw :: proc "c" (window: ^win.Window, cr: ^cairo.cairo_t, surface: ^cairo.surface_t) {
-	context = make_default_context()
+	context = common.make_default_context()
 
 	ui.state.view = ui.surface_rect(surface)
 
@@ -398,7 +432,7 @@ _window_draw :: proc "c" (window: ^win.Window, cr: ^cairo.cairo_t, surface: ^cai
 }
 
 _window_on_frame :: proc "c" (window: ^win.Window) {
-	context = make_default_context()
+	context = common.make_default_context()
 
 	now := time.now()
 
@@ -421,11 +455,11 @@ _window_on_pointer_button :: proc "c" (
 	ui.on_pointer_button(button, button_state)
 }
 _window_on_pointer_motion :: proc "c" (window: ^win.Window, x, y: f64) {
-	context = make_default_context()
+	context = common.make_default_context()
 	on_pointer_motion({i32(x), i32(y)})
 }
 _window_on_pointer_scroll :: proc "c" (window: ^win.Window, x, y: f64, touchpad: bool) {
-	context = make_default_context()
+	context = common.make_default_context()
 	state := cast(^State)win.userdata(window)
 	on_pointer_scroll(state, f32(y), touchpad)
 }
@@ -443,7 +477,7 @@ _window_on_keyboard_key :: proc "c" (
 	text: [^]u8,
 	text_len: u32,
 ) {
-	context = make_default_context()
+	context = common.make_default_context()
 
 	text := strings.string_from_ptr(text, int(text_len))
 	event := Key_Event {
@@ -455,4 +489,43 @@ _window_on_keyboard_key :: proc "c" (
 
 	state := cast(^State)win.userdata(window)
 	on_keyboard_key(state, event)
+}
+
+// ------------------------------
+// "Hot-reload" functions.
+//
+// These functions (and other exported functions) are dynamically loaded in the
+// `main_hotreload` module using "core:dynlib". The `main_release` module just
+// imports this (`mupwit`) module and calls needed functions as usual because
+// there is no need in hot-reloading in release builds.
+// ------------------------------
+
+@(export)
+should_reload :: proc() -> bool {
+	if state._should_reload {
+		state._should_reload = false
+		return true
+	} else {
+		return false
+	}
+}
+
+@(export)
+get_state :: proc() -> rawptr {
+	return state
+}
+
+@(export)
+get_state_size :: proc() -> int {
+	return size_of(State) + size_of(ui.State)
+}
+
+@(export)
+on_reloaded :: proc(s: rawptr) {
+	state = cast(^State)s
+	ui.state = state._ui_state
+	init_callbacks()
+
+	clippy_ui_set_message(state, "Reloaded!", context.allocator)
+	ui.dirty(true)
 }

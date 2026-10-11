@@ -8,13 +8,14 @@ import "core:fmt"
 
 import "lib:ui"
 
-@(private = "file")
-self: struct {
+Error_UI :: struct {
 	retry_button: ui.Button,
 }
 
 error_ui_update :: proc(state: ^State, dt: Seconds) {
 	if state.error == nil do return
+
+	self := &state.error_ui
 
 	if ui.button_update(&self.retry_button) {
 		try_connect_again(state)
@@ -24,6 +25,8 @@ error_ui_update :: proc(state: ^State, dt: Seconds) {
 error_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 	error, ok := state.error.?
 	if !ok do return
+
+	self := &state.error_ui
 
 	// TODO: add a link to MPD installation guide when i write it.
 

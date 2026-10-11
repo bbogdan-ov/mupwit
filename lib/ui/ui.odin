@@ -17,6 +17,7 @@
 
 package ui
 
+import "base:runtime"
 import win "lib:my_window"
 
 PIXEL_CHANNELS :: 4
@@ -63,11 +64,16 @@ State :: struct {
 
 	// Assets.
 	font_library:           win.Font_Library,
+
+	//
+	allocator:              runtime.Allocator,
 }
 
-state: State
+state: ^State
 
 init :: proc() {
+	state = new(State, context.allocator)
+	state.allocator = context.allocator
 	state.dirty = true
 
 	ok := win.font_library_init(&state.font_library)
@@ -76,6 +82,7 @@ init :: proc() {
 
 destroy :: proc() {
 	win.font_library_destroy(state.font_library)
+	free(state, state.allocator)
 }
 
 dirty :: proc(flag: bool) {

@@ -1,14 +1,7 @@
 package mupwit
 
 import "base:intrinsics"
-import "base:runtime"
-import "core:fmt"
-import "core:log"
-import "core:mem"
-import "core:os"
-import "core:slice"
 import "core:sync"
-import "core:time"
 import "lib:ui"
 
 // ------------------------------
@@ -39,110 +32,4 @@ mutex_unlock :: proc(mutex: ^Mutex($T)) {
 enum_rotate_variant :: proc(v: $T, diff: int) -> T where intrinsics.type_is_enum(T) {
 	v := int(v) + diff
 	return T(ui.wrap(v, len(T)))
-}
-
-// ------------------------------
-// Misc.
-// ------------------------------
-
-make_tracking_allocator :: proc(allocator := context.allocator) -> mem.Tracking_Allocator {
-	track: mem.Tracking_Allocator
-	mem.tracking_allocator_init(&track, allocator)
-	return track
-}
-
-tracking_allocator_report_and_destroy :: proc(track: ^mem.Tracking_Allocator) {
-	defer mem.tracking_allocator_destroy(track)
-
-	if len(track.allocation_map) == 0 do return
-
-	fmt.println("------------------------------")
-	for _, leak in track.allocation_map {
-		fmt.printfln(
-			"%v LEAK (%v): %v bytes at %p",
-			leak.location,
-			leak.mode,
-			leak.size,
-			leak.memory,
-		)
-
-		MAX_LEN :: 32
-		array := slice.bytes_from_ptr(leak.memory, leak.size)
-		cut := 0
-		if len(array) >= MAX_LEN {
-			cut = len(array) - MAX_LEN
-			array = array[:MAX_LEN]
-		}
-
-		fmt.printf("    Data: %q, %v", array, array)
-		if cut > 0 do fmt.printf(" (%v more bytes)", cut)
-
-		fmt.print("\n\n")
-	}
-}
-
-make_default_context :: proc "contextless" () -> runtime.Context {
-	c := runtime.default_context()
-	c.logger = make_logger()
-	return c
-}
-
-make_logger :: proc "contextless" () -> log.Logger {
-	opts: log.Options
-	if os.is_tty(os.stdout) {
-		opts += {.Terminal_Color}
-	}
-	return log.Logger{procedure = _logger_proc, options = opts}
-}
-
-@(private)
-_logger_proc :: proc(
-	data: rawptr,
-	level: log.Level,
-	text: string,
-	options: log.Options,
-	location := #caller_location,
-) {
-	if .Terminal_Color in options {
-		fmt.print("\e[37m")
-	}
-
-	h, m, s, nanos := time.precise_clock(time.now())
-	fmt.printf("%02d:%02d:%02d.%03d ", h, m, s, nanos / 1_000_000)
-
-	if .Terminal_Color in options {
-		switch level {
-		case .Debug:
-			fmt.print("\e[37mDEBUG:\e[0m ")
-		case .Info:
-			fmt.print("\e[94mINFO:\e[0m ")
-		case .Warning:
-			fmt.printf("(%s:%d) ", location.file_path, location.line)
-			fmt.print("\e[93mWARN:\e[0m ")
-		case .Error:
-			fmt.printf("(%s:%d) ", location.file_path, location.line)
-			fmt.print("\e[91mERROR:\e[0m ")
-		case .Fatal:
-			fmt.printf("(%s:%d) ", location.file_path, location.line)
-			fmt.print("\e[91;7mFATAL:\e[0m ")
-		}
-	} else {
-		switch level {
-		case .Debug:
-			fmt.print("DEBUG: ")
-		case .Info:
-			fmt.print("INFO: ")
-		case .Warning:
-			fmt.printf("(%s:%d) ", location.file_path, location.line)
-			fmt.print("WARN: ")
-		case .Error:
-			fmt.printf("(%s:%d) ", location.file_path, location.line)
-			fmt.print("ERROR: ")
-		case .Fatal:
-			fmt.printf("(%s:%d) ", location.file_path, location.line)
-			fmt.print("FATAL: ")
-		}
-	}
-
-	fmt.println(text)
 }

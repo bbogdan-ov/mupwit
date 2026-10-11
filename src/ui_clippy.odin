@@ -16,8 +16,7 @@ Toast :: struct {
 	jump_timer: Seconds,
 }
 
-@(private = "file")
-self: struct {
+Clippy_UI :: struct {
 	clippy_tween:  ui.Animated(f32),
 
 	// Search toast.
@@ -34,16 +33,18 @@ self: struct {
 	msg_timer:     Seconds,
 }
 
-clippy_ui_init :: proc() {
+clippy_ui_init :: proc(self: ^Clippy_UI) {
 	ui.entry_init(&self.search, context.allocator)
 }
 
-clippy_ui_destroy :: proc() {
+clippy_ui_destroy :: proc(self: ^Clippy_UI) {
 	delete(self.msg_text, self.msg_allocator)
 	ui.entry_destroy(&self.search)
 }
 
 clippy_ui_update :: proc(state: ^State, dt: Seconds) {
+	self := &state.clippy_ui
+
 	if self.msg_timer > 0 {
 		self.msg_timer -= dt
 		if self.msg_timer <= 0 {
@@ -65,9 +66,9 @@ clippy_ui_update :: proc(state: ^State, dt: Seconds) {
 
 		if ui.is_clicked(.Left) {
 			if self.search.active {
-				_clippy_ui_search_commit()
+				_clippy_ui_search_commit(self)
 			} else {
-				_clippy_ui_search_focus()
+				_clippy_ui_search_focus(self)
 			}
 		}
 	}
@@ -89,7 +90,9 @@ clippy_ui_update :: proc(state: ^State, dt: Seconds) {
 	_toast_update(&self.search_toast, dt)
 }
 
-clippy_ui_set_message :: proc(text: string, allocator := context.allocator) {
+clippy_ui_set_message :: proc(state: ^State, text: string, allocator := context.allocator) {
+	self := &state.clippy_ui
+
 	if len(text) > 0 {
 		delete(self.msg_text, self.msg_allocator)
 		self.msg_text = strings.clone(text, allocator)
@@ -103,19 +106,22 @@ clippy_ui_set_message :: proc(text: string, allocator := context.allocator) {
 	}
 }
 
-clippy_ui_allow_search :: proc(screen: Screen, initial_search: string) {
-	self.search_screen = screen
+// Allow searching on the current screen.
+clippy_ui_allow_search :: proc(state: ^State, initial_search: string) {
+	self := &state.clippy_ui
+
+	self.search_screen = state.screen
 
 	if len(initial_search) > 0 {
 		ui.entry_clear(&self.search)
 		ui.entry_insert_text(&self.search, initial_search)
-		_clippy_ui_search_reveal(true)
+		_clippy_ui_search_reveal(self, true)
 	} else {
-		_clippy_ui_search_reveal(false)
+		_clippy_ui_search_reveal(self, false)
 	}
 }
 
-_clippy_ui_search_focus :: proc() {
+_clippy_ui_search_focus :: proc(self: ^Clippy_UI) {
 	if !_toast_is_active(&self.search_toast) {
 		ui.entry_clear(&self.search)
 	} else {
@@ -123,29 +129,31 @@ _clippy_ui_search_focus :: proc() {
 	}
 
 	ui.entry_set_active(&self.search, true)
-	_clippy_ui_search_reveal(true)
+	_clippy_ui_search_reveal(self, true)
 }
 
 _clippy_ui_search_cancel :: proc(state: ^State) {
+	self := &state.clippy_ui
+
 	if !(_toast_is_active(&self.search_toast) || self.search.active) {
 		return
 	}
 
-	_clippy_ui_search_reveal(false)
+	_clippy_ui_search_reveal(self, false)
 
 	push_event(state, Event_Search{""})
 	self.search_timer = 0
 }
 
-_clippy_ui_search_commit :: proc() {
+_clippy_ui_search_commit :: proc(self: ^Clippy_UI) {
 	if ui.entry_len(&self.search) > 0 {
 		ui.entry_set_active(&self.search, false)
 	} else {
-		_clippy_ui_search_reveal(false)
+		_clippy_ui_search_reveal(self, false)
 	}
 }
 
-_clippy_ui_search_reveal :: proc(reveal: bool) {
+_clippy_ui_search_reveal :: proc(self: ^Clippy_UI, reveal: bool) {
 	_toast_set_reveal(&self.search_toast, reveal)
 	if reveal {
 		ui.animated_play_to_with(&self.clippy_tween, 1, 0.3, .Linear)
@@ -155,16 +163,18 @@ _clippy_ui_search_reveal :: proc(reveal: bool) {
 	}
 }
 
-clippy_ui_visible_height :: proc() -> i32 {
-	off := TOAST_HEIGHT * self.search_toast.tween.value
+clippy_ui_visible_height :: proc(state: ^State) -> i32 {
+	off := TOAST_HEIGHT * state.clippy_ui.search_toast.tween.value
 	return i32(off)
 }
 
 clippy_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
+	self := &state.clippy_ui
+
 	view := ui.state.view
 
 	{
-		off := status_ui_visible_height()
+		off := status_ui_visible_height(state)
 
 		pos := Vec2{view.width, view.height}
 		pos -= IMAGE_CLIPPY_SIZE
@@ -196,6 +206,8 @@ clippy_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 // TODO: add "next occurrence" and "previous occurrence" buttons when searching
 // in a .Simple or .Reorderable list.
 _clippy_ui_draw_search_toast :: proc(state: ^State, ctx: ^ui.Context, pos: Vec2) {
+	self := &state.clippy_ui
+
 	view := ui.state.view
 
 	style := ui.Entry_Style {
@@ -213,7 +225,7 @@ _clippy_ui_draw_search_toast :: proc(state: ^State, ctx: ^ui.Context, pos: Vec2)
 	text_width := i32(ext.x_advance)
 	text_width = max(text_width, view.width / 2)
 
-	rect := _toast_draw_bubble(ctx, &self.search_toast, pos, text_width, state.theme.black)
+	rect := _toast_draw_bubble(state, ctx, &self.search_toast, pos, text_width, state.theme.black)
 	self.search_rect = rect
 
 	ui.guard_box(ctx, rect, TOAST_PADDING)
@@ -228,6 +240,8 @@ _clippy_ui_draw_search_toast :: proc(state: ^State, ctx: ^ui.Context, pos: Vec2)
 // ------------------------------
 
 clippy_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: bool) {
+	self := &state.clippy_ui
+
 	if self.search_screen == nil {
 		return true
 	}
@@ -240,13 +254,13 @@ clippy_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: b
 	switch {
 	case !self.search.active:
 		if is_key(ev, .Slash) || is_ctrl_key(ev, .F) || is_key(ev, .F3) {
-			_clippy_ui_search_focus()
+			_clippy_ui_search_focus(self)
 			return false
 		}
 		return true
 
 	case ev.key == .Enter:
-		_clippy_ui_search_commit()
+		_clippy_ui_search_commit(self)
 
 	case:
 		changed := ui.entry_on_keyboard_key(&self.search, ev)
@@ -259,8 +273,10 @@ clippy_ui_on_keyboard_key :: proc(state: ^State, ev: Key_Event) -> (propagate: b
 }
 
 clippy_ui_on_screen_updated :: proc(state: ^State) {
+	self := &state.clippy_ui
+
 	if state.screen != self.search_screen {
-		_clippy_ui_search_reveal(false)
+		_clippy_ui_search_reveal(self, false)
 		self.search_screen = nil
 		self.search_timer = 0
 	}
@@ -316,7 +332,7 @@ _toast_draw :: proc(
 	ext := ui.measure_glyphs(ctx, glyphs, true)
 	text_width := i32(ext.x_advance)
 
-	rect := _toast_draw_bubble(ctx, toast, bottom_right, text_width, state.theme.gray)
+	rect := _toast_draw_bubble(state, ctx, toast, bottom_right, text_width, state.theme.gray)
 
 	ui.guard_box(ctx, rect, TOAST_PADDING)
 	ui.guard_clip(ctx)
@@ -328,6 +344,7 @@ _toast_draw :: proc(
 }
 
 _toast_draw_bubble :: proc(
+	state: ^State,
 	ctx: ^ui.Context,
 	toast: ^Toast,
 	bottom_right: Vec2,
@@ -355,7 +372,7 @@ _toast_draw_bubble :: proc(
 
 	{
 		y := math.lerp(f32(view.height), f32(rect.y), toast.tween.value)
-		rect.y = i32(y) - status_ui_visible_height()
+		rect.y = i32(y) - status_ui_visible_height(state)
 	}
 
 	ui.draw_speech_bubble(ctx, rect, color)

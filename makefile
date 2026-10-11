@@ -16,22 +16,28 @@ FLAGS := \
 	-terse-errors \
 	-collection:lib=lib
 
-BUILD_FLAGS := $(FLAGS) \
-	-out:build/mupwit
+OUT := -out:build/mupwit
 
 .PHONY: libs check fmt test check-odin
 
 # Compile MUPWIT in "debug mode".
-build/mupwit: $(SOURCES) $(LIB_SOURCES) assets/.generated | check-odin
+build/mupwit.so: $(SOURCES) $(LIB_SOURCES) assets/.generated build/hotreload | check-odin
+	@mkdir -p build
+	@echo "INFO: Compiling the dynamic library..."
+	@odin build src -debug $(FLAGS) \
+		-build-mode:dynamic -out:build/mupwit.so
+
+build/hotreload: $(shell find src/main_hotreload -type f -name '*.odin') | check-odin
 	@mkdir -p build
 	@echo "INFO: Compiling debug..."
-	@odin build src -debug $(BUILD_FLAGS)
+	@odin build src/main_hotreload -debug $(FLAGS) -out:build/hotreload
 
 # Compile MUPWIT in "release mode".
 release: | check-odin
 	@mkdir -p build
 	@echo "INFO: Compiling release..."
-	@odin build src -debug -o:speed -show-timings $(BUILD_FLAGS)
+	@odin build src/main_release $(FLAGS) $(OUT) \
+		-debug -o:speed -show-timings
 
 # Prebuild assets.
 assets/.generated: build/prebuild $(IMAGES)
@@ -53,7 +59,7 @@ libs:
 
 # Miscellaneous.
 check: | check-odin
-	@odin check src $(FLAGS)
+	@odin check src/main_release $(FLAGS)
 
 test: | check-odin
 	@odin test src -out:build/test -debug $(FLAGS) \

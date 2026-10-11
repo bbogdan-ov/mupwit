@@ -7,8 +7,7 @@ import "core:math/ease"
 import "lib:mpd"
 import "lib:ui"
 
-@(private = "file")
-self: struct {
+Player_UI :: struct {
 	prev_button:       ui.Button,
 	play_button:       ui.Button,
 	next_button:       ui.Button,
@@ -21,13 +20,15 @@ self: struct {
 	elapsed:           Seconds,
 }
 
-player_ui_destroy :: proc() {
+player_ui_destroy :: proc(self: ^Player_UI) {
 	cover_maybe_unref(self.prev_cover)
 	cover_maybe_unref(self.cover)
 	cover_maybe_unref(self.loading_cover)
 }
 
 player_ui_update :: proc(state: ^State, dt: Seconds) {
+	self := &state.player_ui
+
 	_player_ui_update_cover_handling(state, dt)
 
 	if !screen_is_visible(state, .Player) {
@@ -66,6 +67,8 @@ player_ui_update :: proc(state: ^State, dt: Seconds) {
 }
 
 _player_ui_update_cover_handling :: proc(state: ^State, dt: Seconds) {
+	self := &state.player_ui
+
 	if self.req_cover_timer > 0 {
 		self.req_cover_timer -= dt
 
@@ -81,6 +84,8 @@ _player_ui_update_cover_handling :: proc(state: ^State, dt: Seconds) {
 }
 
 _player_ui_request_cur_cover :: proc(state: ^State) {
+	self := &state.player_ui
+
 	COVER_SIZE :: Cover_Size.Huge
 
 	song, has_song := player_cur_song(state.player)
@@ -91,7 +96,7 @@ _player_ui_request_cur_cover :: proc(state: ^State) {
 
 	cover := cover_get_or_request(state.player, song.file, song.album, COVER_SIZE)
 	if cover.loading {
-		_player_ui_clear_loading_cover()
+		_player_ui_clear_loading_cover(state)
 
 		// Do not set the new cover right away if it is loading. We'll wait
 		// for the new cover to load and only then apply it.
@@ -103,13 +108,15 @@ _player_ui_request_cur_cover :: proc(state: ^State) {
 }
 
 _player_ui_set_cover :: proc(state: ^State, cover: Maybe(^Cover)) {
+	self := &state.player_ui
+
 	log.debugf("UI PLAYER: Cover updated (%p)", cover)
 
 	cover_maybe_unref(self.prev_cover)
 	self.prev_cover = self.cover
 	self.cover = cover
 
-	_player_ui_clear_loading_cover()
+	_player_ui_clear_loading_cover(state)
 
 	ui.tween_play(&self.cover_tween, 0, PLAYER_COVER_ANIM_DURATION)
 
@@ -122,12 +129,16 @@ _player_ui_set_cover :: proc(state: ^State, cover: Maybe(^Cover)) {
 	}
 }
 
-_player_ui_clear_loading_cover :: proc() {
+_player_ui_clear_loading_cover :: proc(state: ^State) {
+	self := &state.player_ui
+
 	cover_maybe_unref(self.loading_cover)
 	self.loading_cover = nil
 }
 
 player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
+	self := &state.player_ui
+
 	if !screen_is_visible(state, .Player) do return
 
 	player := state.player
@@ -216,6 +227,7 @@ player_ui_draw :: proc(state: ^State, ctx: ^ui.Context) {
 }
 
 _player_ui_draw_cur_cover :: proc(state: ^State, ctx: ^ui.Context) -> i32 {
+	self := &state.player_ui
 	player := state.player
 
 	rect := cover_rect(.Huge, rect_pos(ctx.box))
@@ -272,6 +284,7 @@ _player_ui_draw_cover :: proc(state: ^State, ctx: ^ui.Context, cover: Maybe(^Cov
 }
 
 _player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context, fade: f32) -> (height: i32) {
+	self := &state.player_ui
 	player := state.player
 
 	elapsed_str := fmt.tprint(mpd.Seconds(self.elapsed))
@@ -304,6 +317,8 @@ _player_ui_draw_slider :: proc(state: ^State, ctx: ^ui.Context, fade: f32) -> (h
 // ------------------------------
 
 player_ui_on_cur_song_updated :: proc(state: ^State) {
+	self := &state.player_ui
+
 	#partial switch state.player.switch_direction {
 	case .From_None:
 		ui.play(&self.fade_tween, 0, PLAYER_COVER_ANIM_DURATION)
@@ -324,6 +339,6 @@ player_ui_on_cur_song_updated :: proc(state: ^State) {
 		log.debugf("UI PLAYER: Delaying the cover request...")
 		self.req_cover_timer = COVER_REQ_DELAY
 
-		_player_ui_clear_loading_cover()
+		_player_ui_clear_loading_cover(state)
 	}
 }

@@ -99,9 +99,21 @@ make release
 
 ...or in debug mode (faster compilation, but slower executable)...
 
+**Hot-reloading**: keep the app running, recompile with `make` and press
+`Ctrl-R` in the app to reload it.
+
+The hot-reloading works by splitting the app into two parts: the app itself
+(`src/`), that is being compiled into a dynamic library (`.so/.dll/.dynlib`)
+and the executable (`src/main_hotreload`) that loads and reloads this dll
+whenever you want.
+
+The only limitation is when you change the size of `mupwit.State` or `ui.State`
+(e.g. by adding or removing a field), you'll have to simply re-open the app.
+You'll be warned when you have to do that.
+
 ```sh
 make
-./build/mupwit
+./build/hotreload
 ```
 
 ...or without make...

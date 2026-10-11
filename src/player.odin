@@ -22,6 +22,8 @@ import "core:sort"
 import "core:sync/chan"
 import "core:thread"
 import "core:time"
+
+import "./common"
 import "lib:mpd"
 
 STATUS_REQUEST_INVERVAL :: Seconds(0.5)
@@ -497,7 +499,7 @@ _player_clamp_cur_song :: proc(player: ^Base_Player) {
 }
 
 _do_connect :: proc(t: ^thread.Thread) {
-	context.logger = make_logger()
+	context.logger = common.make_logger()
 	defer log.info("PLAYER: Client thread ended")
 
 	// NOTE: this thread may log stuff into a console in a non-thread safe
